@@ -1,0 +1,7 @@
+{
+  "name": "The Navigator's System",
+  "description": "A Solo Leveling themed gamified study app for the DGCA Navigation exam. Level up your Hunter Rank by mastering navigation dungeons.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
