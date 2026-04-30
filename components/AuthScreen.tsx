@@ -4,6 +4,13 @@ import { Loader, Shield, LogIn, UserPlus } from 'lucide-react';
 
 type AuthMode = 'login' | 'register';
 
+// Only lowercase letters, numbers, underscore — no spaces
+const USERNAME_REGEX = /^[a-z0-9_]{3,20}$/;
+const USERNAME_HINT = 'Letters, numbers and _ only. Example: daniel_souza';
+
+const normalizeUsername = (raw: string) =>
+  raw.trim().toLowerCase().replace(/\s+/g, '_');
+
 const AuthScreen: React.FC = () => {
   const [mode, setMode] = useState<AuthMode>('login');
   const [username, setUsername] = useState('');
@@ -14,15 +21,16 @@ const AuthScreen: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const handleLogin = async () => {
-    // Look up email by hunter name
+    const normalized = normalizeUsername(username);
+
     const { data, error: lookupErr } = await supabase
       .from('profiles')
       .select('email')
-      .eq('username', username.trim().toLowerCase())
+      .eq('username', normalized)
       .single();
 
     if (lookupErr || !data?.email) {
-      setError('Hunter not found. Check your username.');
+      setError('Hunter not found. Check your username or register first.');
       setLoading(false);
       return;
     }
@@ -31,12 +39,23 @@ const AuthScreen: React.FC = () => {
       email: data.email,
       password,
     });
-    if (signInErr) setError(signInErr.message);
+
+    if (signInErr) {
+      if (signInErr.message.toLowerCase().includes('email')) {
+        setError('Email not confirmed yet. Check your inbox and click the confirmation link.');
+      } else if (signInErr.message.toLowerCase().includes('invalid')) {
+        setError('Wrong password.');
+      } else {
+        setError(signInErr.message);
+      }
+    }
   };
 
   const handleRegister = async () => {
-    if (username.trim().length < 3) {
-      setError('Hunter name must be at least 3 characters.');
+    const normalized = normalizeUsername(username);
+
+    if (!USERNAME_REGEX.test(normalized)) {
+      setError(`Invalid hunter name. ${USERNAME_HINT}`);
       setLoading(false);
       return;
     }
@@ -45,11 +64,11 @@ const AuthScreen: React.FC = () => {
     const { data: existing } = await supabase
       .from('profiles')
       .select('id')
-      .eq('username', username.trim().toLowerCase())
-      .single();
+      .eq('username', normalized)
+      .maybeSingle();
 
     if (existing) {
-      setError('This hunter name is already taken.');
+      setError('This hunter name is already taken. Choose another.');
       setLoading(false);
       return;
     }
@@ -57,11 +76,16 @@ const AuthScreen: React.FC = () => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { username: username.trim().toLowerCase() } },
+      options: { data: { username: normalized } },
     });
 
-    if (error) setError(error.message);
-    else setSuccessMsg('Registration complete! Check your email to confirm your account.');
+    if (error) {
+      setError(error.message);
+    } else {
+      setSuccessMsg(
+        `Hunter "${normalized}" registered! Check your email and click the confirmation link to activate your account.`
+      );
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,20 +93,25 @@ const AuthScreen: React.FC = () => {
     setLoading(true);
     setError(null);
     setSuccessMsg(null);
-
     if (mode === 'login') await handleLogin();
     else await handleRegister();
-
     setLoading(false);
+  };
+
+  const handleUsernameChange = (raw: string) => {
+    // Auto-convert spaces to underscore as user types
+    setUsername(raw.replace(/\s/g, '_').toLowerCase());
   };
 
   return (
     <div className="min-h-screen bg-[#020617] flex items-center justify-center px-4 font-mono">
       {/* Background grid */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute inset-0 opacity-5"
+        <div
+          className="absolute inset-0 opacity-5"
           style={{
-            backgroundImage: 'linear-gradient(#3b82f6 1px, transparent 1px), linear-gradient(90deg, #3b82f6 1px, transparent 1px)',
+            backgroundImage:
+              'linear-gradient(#3b82f6 1px, transparent 1px), linear-gradient(90deg, #3b82f6 1px, transparent 1px)',
             backgroundSize: '60px 60px',
           }}
         />
@@ -129,21 +158,25 @@ const AuthScreen: React.FC = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Hunter name — always shown */}
+            {/* Hunter name */}
             <div>
               <label className="block text-slate-400 text-xs tracking-wider mb-1">HUNTER NAME</label>
               <input
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => handleUsernameChange(e.target.value)}
                 required
                 autoComplete="username"
-                placeholder="your_hunter_name"
+                placeholder="daniel_souza"
+                maxLength={20}
                 className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2.5 text-white text-sm outline-none focus:border-blue-500 transition-colors placeholder:text-slate-600"
               />
+              {mode === 'register' && (
+                <p className="text-slate-600 text-[10px] mt-1">{USERNAME_HINT}</p>
+              )}
             </div>
 
-            {/* Email — only on register */}
+            {/* Email — register only */}
             {mode === 'register' && (
               <div>
                 <label className="block text-slate-400 text-xs tracking-wider mb-1">EMAIL</label>
@@ -173,13 +206,13 @@ const AuthScreen: React.FC = () => {
             </div>
 
             {error && (
-              <div className="bg-red-900/20 border border-red-700/50 rounded px-3 py-2 text-red-400 text-xs">
+              <div className="bg-red-900/20 border border-red-700/50 rounded px-3 py-2 text-red-400 text-xs leading-relaxed">
                 ⚠ {error}
               </div>
             )}
 
             {successMsg && (
-              <div className="bg-green-900/20 border border-green-700/50 rounded px-3 py-2 text-green-400 text-xs">
+              <div className="bg-green-900/20 border border-green-700/50 rounded px-3 py-2 text-green-400 text-xs leading-relaxed">
                 ✓ {successMsg}
               </div>
             )}
