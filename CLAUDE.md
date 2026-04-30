@@ -1,7 +1,7 @@
-# CLAUDE.md — Solo Leveling App
+# CLAUDE.md — ARISE SYSTEM
 
 ## Stack
-React 19 + TypeScript + Vite + TailwindCSS + Recharts + Lucide React + Google Gemini Live API
+React 19 + TypeScript + Vite + TailwindCSS + Recharts + Lucide React + Google Gemini Live API + Supabase
 
 ## Rodar localmente
 ```
@@ -12,16 +12,26 @@ Requer `GEMINI_API_KEY` no arquivo `.env.local`.
 
 ## Estrutura de arquivos
 ```
-App.tsx               ← componente único principal (~1900 linhas)
-types.ts              ← todas as interfaces TypeScript
+App.tsx               ← componente único principal (~2300 linhas)
+types.ts              ← todas as interfaces TypeScript (incl. GameState)
 constants.ts          ← dados iniciais (hábitos, quests, capítulos, recompensas)
+lib/
+  supabase.ts         ← client Supabase (VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY)
 i18n/
   translations.ts     ← strings PT-BR e EN (objeto 'en' é o tipo-base)
   LanguageContext.tsx  ← context + hook useLanguage()
 components/
+  AuthScreen.tsx       ← tela de login/registro (estilo ARISE)
   StatRadar.tsx        ← gráfico radar (Recharts) — recebe customStats[]
   SystemNotification.tsx ← overlay de notificação animada
 ```
+
+## Supabase
+- Tabela: `profiles` — colunas `id` (uuid = auth user id) e `profile_data` (jsonb)
+- `GameState` (types.ts) é o shape salvo em `profile_data`
+- Auto-save: debounce 2s em qualquer mudança de estado (profile, habits, quests, chapters, procrastinationItems, bossFights)
+- Credenciais em `.env.local` (não commitado): `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
+- Tsconfig inclui `"vite/client"` para `import.meta.env`
 
 ## Convenções do projeto
 
@@ -86,6 +96,12 @@ components/
 - dq-2: "Review a Shadow" (+50 XP, vinculada ao stat '2')
 - Aparecem no final da aba MISSIONS com badge OPCIONAL (âmbar)
 - NÃO penalizam streak
+
+## Tema dinâmico por Rank
+- CSS custom property `--rank-color` em `:root`, atualizado via `useEffect` quando `profile.rank` muda
+- Cores: E=#9ca3af, D=#10b981, C=#3b82f6, B=#8b5cf6, A=#ec4899, S=#facc15
+- `@property --rank-color` em `index.html` para suporte a CSS transition suave
+- Constante `RANK_COLORS` no topo de `App.tsx`
 
 ## O que NÃO fazer
 - Não adicionar campo `type: 'good' | 'bad'` em Habit — foi removido intencionalmente
