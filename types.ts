@@ -130,3 +130,12 @@ export interface SystemQuote {
 }
 
 export type ViewState = 'DASHBOARD' | 'DUNGEON_MAP' | 'ACTIVE_DUNGEON' | 'SHADOW_ARMY' | 'SHADOW_REVIEW' | 'SHOP' | 'LIFESTYLE' | 'SETTINGS' | 'MISSIONS';
+
+export interface GameState {
+  profile: HunterProfile;
+  chapters: Chapter[];
+  quests: Quest[];
+  habits: Habit[];
+  procrastinationItems: ProcrastinationItem[];
+  bossFights: BossFight[];
+}

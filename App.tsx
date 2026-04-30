@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, type Blob as GenAIBlob } from '@google/genai';
+import type { Session } from '@supabase/supabase-js';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
@@ -8,13 +9,13 @@ import {
   Brain, Activity, Ghost, RotateCw, Crown,
   ShoppingBag, Dumbbell, Coins, Edit3, Check, Plus, Upload,
   Loader, Mic, MicOff, Heart, Skull, BarChart2, Globe, Quote, Settings, Trash2,
-  Target, Calendar
+  Target, Calendar, LogOut
 } from 'lucide-react';
 import {
   HunterProfile, Chapter, Quest, ViewState, HunterRank, DungeonPart,
   CustomStat, RewardItem, Habit, SystemQuote,
   ProcrastinationItem, Priority, ObjectiveStatus, RepeatType,
-  BossFight, BossSubTask, BossHistoryEntry
+  BossFight, BossSubTask, BossHistoryEntry, GameState
 } from './types';
 import {
   INITIAL_CHAPTERS, DAILY_QUESTS, RANK_THRESHOLDS, INITIAL_REWARDS,
@@ -24,6 +25,17 @@ import {
 import StatRadar from './components/StatRadar';
 import SystemNotification, { NotificationType } from './components/SystemNotification';
 import { useLanguage } from './i18n/LanguageContext';
+import { supabase } from './lib/supabase';
+import AuthScreen from './components/AuthScreen';
+
+const RANK_COLORS: Record<HunterRank, string> = {
+  [HunterRank.E]: '#9ca3af',
+  [HunterRank.D]: '#10b981',
+  [HunterRank.C]: '#3b82f6',
+  [HunterRank.B]: '#8b5cf6',
+  [HunterRank.A]: '#ec4899',
+  [HunterRank.S]: '#facc15',
+};
 
 // --- Audio Helper Functions ---
 function createBlob(data: Float32Array): GenAIBlob {
@@ -135,10 +147,77 @@ const App: React.FC = () => {
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const sessionRef = useRef<any>(null);
 
+  // Auth & persistence state
+  const [session, setSession] = useState<Session | null>(null);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const isDataLoadedRef = useRef(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const randomQuote = t.quotes[Math.floor(Math.random() * t.quotes.length)];
     setDailyQuote(randomQuote);
   }, []);
+
+  // Auth listener
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s);
+      setIsLoadingAuth(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Load game data when user logs in
+  useEffect(() => {
+    if (!session) { isDataLoadedRef.current = false; return; }
+    setIsLoadingData(true);
+    isDataLoadedRef.current = false;
+    const load = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('profile_data')
+        .eq('id', session.user.id)
+        .single();
+      if (data?.profile_data) {
+        const gs = data.profile_data as GameState;
+        setProfile(gs.profile);
+        setChapters(gs.chapters);
+        setQuests(gs.quests);
+        setHabits(gs.habits);
+        setProcrastinationItems(gs.procrastinationItems ?? []);
+        setBossFights(gs.bossFights ?? []);
+      } else {
+        await supabase.from('profiles').upsert({
+          id: session.user.id,
+          profile_data: { profile, chapters, quests, habits, procrastinationItems, bossFights } as GameState,
+        });
+      }
+      isDataLoadedRef.current = true;
+      setIsLoadingData(false);
+    };
+    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user.id]);
+
+  // Auto-save with 2s debounce
+  useEffect(() => {
+    if (!session || !isDataLoadedRef.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      const gameState: GameState = { profile, habits, quests, chapters, procrastinationItems, bossFights };
+      await supabase.from('profiles').upsert({ id: session.user.id, profile_data: gameState });
+    }, 2000);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [profile, habits, quests, chapters, procrastinationItems, bossFights]);
+
+  // Dynamic rank color CSS variable
+  useEffect(() => {
+    document.documentElement.style.setProperty('--rank-color', RANK_COLORS[profile.rank]);
+  }, [profile.rank]);
 
 
   // --- Helpers ---
@@ -2158,8 +2237,40 @@ const App: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Account */}
+      {session && (
+        <div className="bg-system-panel border border-slate-700 p-4 rounded-lg">
+          <h3 className="text-system-blue font-mono text-sm mb-3 border-b border-slate-800 pb-2 flex items-center gap-2">
+            <Shield size={16} /> {t.settings.accountSection}
+          </h3>
+          <p className="text-slate-500 text-xs mb-4 font-mono">{session.user.email}</p>
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="flex items-center gap-2 px-4 py-2 rounded border border-red-800 bg-red-900/10 text-red-400 font-mono text-sm hover:bg-red-900/30 hover:border-red-600 transition-all"
+          >
+            <LogOut size={14} /> {t.settings.signOut}
+          </button>
+        </div>
+      )}
     </div>
   );
+
+  if (isLoadingAuth || isLoadingData) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center font-mono">
+        <div className="text-center">
+          <div className="text-blue-400 text-4xl font-bold tracking-widest mb-4 drop-shadow-[0_0_15px_rgba(59,130,246,0.6)]">ARISE</div>
+          <div className="flex items-center justify-center gap-2 text-slate-500 text-sm">
+            <Loader size={14} className="animate-spin" />
+            <span>{isLoadingAuth ? 'INITIALIZING SYSTEM...' : 'LOADING HUNTER DATA...'}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) return <AuthScreen />;
 
   return (
     <div className="min-h-screen bg-system-dark text-slate-200 pb-20 font-sans selection:bg-system-blue selection:text-black">

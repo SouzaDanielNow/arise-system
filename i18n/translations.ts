@@ -2,7 +2,7 @@ export type Language = 'pt-BR' | 'en';
 
 const en = {
   header: {
-    title: 'SYS_NAV',
+    title: 'ARISE',
     systemLinkOnline: 'SYSTEM LINK: ONLINE',
     systemLinkOffline: 'SYSTEM LINK: OFFLINE',
     days: 'DAYS',
@@ -240,6 +240,8 @@ const en = {
     confirm: 'Confirm',
     languageSection: 'LANGUAGE',
     languageDesc: 'Select your preferred language.',
+    accountSection: 'ACCOUNT',
+    signOut: 'SIGN OUT',
   },
   notif: {
     header: 'System Notification',
@@ -292,7 +294,7 @@ export type Translations = typeof en;
 
 const ptBR: Translations = {
   header: {
-    title: 'SYS_NAV',
+    title: 'ARISE',
     systemLinkOnline: 'LINK DO SISTEMA: ONLINE',
     systemLinkOffline: 'LINK DO SISTEMA: OFFLINE',
     days: 'DIAS',
@@ -530,6 +532,8 @@ const ptBR: Translations = {
     confirm: 'Confirmar',
     languageSection: 'IDIOMA',
     languageDesc: 'Selecione seu idioma preferido.',
+    accountSection: 'CONTA',
+    signOut: 'SAIR DO SISTEMA',
   },
   notif: {
     header: 'Notificação do Sistema',
