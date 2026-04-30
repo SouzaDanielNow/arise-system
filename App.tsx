@@ -1,219 +1,175 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality, type Blob as GenAIBlob } from "@google/genai";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  ResponsiveContainer, 
-  Cell 
+import React, { useState, useEffect, useRef } from 'react';
+import { GoogleGenAI, LiveServerMessage, Modality, type Blob as GenAIBlob } from '@google/genai';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
-import { 
-  Shield, 
-  Map as MapIcon, 
-  Sword, 
-  BookOpen, 
-  User, 
-  Zap, 
-  Menu, 
-  Trophy,
-  Brain,
-  Activity,
-  Eye,
-  Wind,
-  Ghost,
-  AlertTriangle,
-  RotateCw,
-  Crown,
-  ShoppingBag,
-  Dumbbell,
-  Coins,
-  Edit3,
-  Check,
-  Plus,
-  Upload,
-  FileText,
-  Loader,
-  Mic,
-  MicOff,
-  Heart,
-  Skull,
-  BarChart2,
-  Globe,
-  Quote
+import {
+  Shield, Map as MapIcon, Sword, User, Zap, Trophy,
+  Brain, Activity, Ghost, RotateCw, Crown,
+  ShoppingBag, Dumbbell, Coins, Edit3, Check, Plus, Upload,
+  Loader, Mic, MicOff, Heart, Skull, BarChart2, Globe, Quote, Settings, Trash2,
+  Target, Calendar
 } from 'lucide-react';
-import { 
-  HunterProfile, 
-  Chapter, 
-  Quest, 
-  ViewState, 
-  HunterRank, 
-  DungeonPart, 
-  Stats,
-  RewardItem,
-  Habit,
-  SystemQuote,
-  AnalyticsData
+import {
+  HunterProfile, Chapter, Quest, ViewState, HunterRank, DungeonPart,
+  CustomStat, RewardItem, Habit, SystemQuote,
+  ProcrastinationItem, Priority, ObjectiveStatus, RepeatType,
+  BossFight, BossSubTask, BossHistoryEntry
 } from './types';
-import { 
-  INITIAL_CHAPTERS, 
-  DAILY_QUESTS, 
-  INITIAL_STATS, 
-  RANK_THRESHOLDS, 
-  INITIAL_REWARDS,
-  GYM_TARGET_DAYS,
-  INITIAL_HABITS,
-  SYSTEM_QUOTES,
-  MOCK_WEEKLY_DATA,
-  getNextRank, 
-  getXpProgress 
+import {
+  INITIAL_CHAPTERS, DAILY_QUESTS, RANK_THRESHOLDS, INITIAL_REWARDS,
+  GYM_TARGET_DAYS, INITIAL_HABITS, MOCK_WEEKLY_DATA, getNextRank, getXpProgress,
+  STAT_COLOR_PALETTE
 } from './constants';
 import StatRadar from './components/StatRadar';
 import SystemNotification, { NotificationType } from './components/SystemNotification';
+import { useLanguage } from './i18n/LanguageContext';
 
-// --- Audio Helper Functions for Gemini Live API ---
+// --- Audio Helper Functions ---
 function createBlob(data: Float32Array): GenAIBlob {
   const l = data.length;
   const int16 = new Int16Array(l);
-  for (let i = 0; i < l; i++) {
-    int16[i] = data[i] * 32768;
-  }
+  for (let i = 0; i < l; i++) int16[i] = data[i] * 32768;
   const uint8 = new Uint8Array(int16.buffer);
-  
   let binary = '';
-  const len = uint8.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(uint8[i]);
-  }
-  const base64 = btoa(binary);
-
-  return {
-    data: base64,
-    mimeType: 'audio/pcm;rate=16000',
-  };
+  for (let i = 0; i < uint8.byteLength; i++) binary += String.fromCharCode(uint8[i]);
+  return { data: btoa(binary), mimeType: 'audio/pcm;rate=16000' };
 }
 
 function decode(base64: string) {
   const binaryString = atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
   return bytes;
 }
 
-async function decodeAudioData(
-  data: Uint8Array,
-  ctx: AudioContext,
-  sampleRate: number,
-  numChannels: number,
-): Promise<AudioBuffer> {
+async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
   const dataInt16 = new Int16Array(data.buffer);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) {
-      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-    }
+    for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
   }
   return buffer;
 }
 
 const App: React.FC = () => {
+  const { t, language, setLanguage } = useLanguage();
+
   // --- State ---
   const [view, setView] = useState<ViewState>('DASHBOARD');
   const [chapters, setChapters] = useState<Chapter[]>(INITIAL_CHAPTERS);
-  const [quests, setQuests] = useState<Quest[]>(DAILY_QUESTS);
+  const [quests, setQuests] = useState<Quest[]>(() => [
+    { ...DAILY_QUESTS[0], description: t.quests.dq1 },
+    { ...DAILY_QUESTS[1], description: t.quests.dq2 },
+  ]);
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
-  const [habits, setHabits] = useState<Habit[]>(INITIAL_HABITS);
-  
-  // Hunter Profile State
+  const [habits, setHabits] = useState<Habit[]>(() =>
+    INITIAL_HABITS.map((h, i) => ({ ...h, title: t.initialHabits[i].title }))
+  );
+
   const [profile, setProfile] = useState<HunterProfile>({
     name: 'Jin-Woo',
     rank: HunterRank.E,
     level: 1,
     currentXp: 0,
     requiredXp: 500,
-    stats: INITIAL_STATS,
-    streakDays: 5, 
+    customStats: t.defaultStats,
+    streakDays: 5,
     lastLoginDate: new Date().toISOString(),
     gold: 0,
-    weeklyGymProgress: [false, false, false, false, false, false, false] // Mon-Sun
+    weeklyGymProgress: [false, false, false, false, false, false, false],
   });
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(profile.name);
   const [newHabitTitle, setNewHabitTitle] = useState('');
-
-  // Daily Quote State
-  const [dailyQuote, setDailyQuote] = useState<SystemQuote>(SYSTEM_QUOTES[0]);
-
-  // Report Modal State
+  const [dailyQuote, setDailyQuote] = useState<SystemQuote>(t.quotes[0]);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTab, setReportTab] = useState<'DAILY' | 'WEEKLY' | 'MONTHLY'>('WEEKLY');
-
-  // Upload/System Architect State
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isProcessingUpload, setIsProcessingUpload] = useState(false);
+  const [notification, setNotification] = useState<{ msg: string; sub?: string; type?: NotificationType } | null>(null);
+  const [newStatName, setNewStatName] = useState('');
+  const [newStatEmoji, setNewStatEmoji] = useState('');
+  const [confirmDeleteStatId, setConfirmDeleteStatId] = useState<string | null>(null);
 
-  // System Notification
-  const [notification, setNotification] = useState<{msg: string, sub?: string, type?: NotificationType} | null>(null);
+  // Procrastination Vault state
+  const [procrastinationItems, setProcrastinationItems] = useState<ProcrastinationItem[]>([]);
+  const [showAddObjectiveForm, setShowAddObjectiveForm] = useState(false);
+  const [newObjTitle, setNewObjTitle] = useState('');
+  const [newObjDesc, setNewObjDesc] = useState('');
+  const [newObjPriority, setNewObjPriority] = useState<Priority>('medium');
+  const [newObjDueDate, setNewObjDueDate] = useState('');
+  const [confirmDeleteObjId, setConfirmDeleteObjId] = useState<string | null>(null);
 
-  // --- Gemini Live API State ---
+  // Boss Fight state
+  const [bossFights, setBossFights] = useState<BossFight[]>([]);
+  const [activatingBossId, setActivatingBossId] = useState<string | null>(null);
+  const [bossFormDueDate, setBossFormDueDate] = useState('');
+  const [bossFormSubTasks, setBossFormSubTasks] = useState<BossSubTask[]>([]);
+  const [bossFormSubInput, setBossFormSubInput] = useState('');
+  const [confirmCancelBossId, setConfirmCancelBossId] = useState<string | null>(null);
+  const [bossNewSubInputs, setBossNewSubInputs] = useState<Record<string, string>>({});
+  const [editingSubTaskId, setEditingSubTaskId] = useState<string | null>(null);
+  const [editingSubTaskText, setEditingSubTaskText] = useState('');
+  const [dragState, setDragState] = useState<{ bossId: string; subTaskId: string } | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  // Task form state
+  const [showAddTaskForm, setShowAddTaskForm] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskRepeat, setNewTaskRepeat] = useState<RepeatType>('daily');
+  const [newTaskDays, setNewTaskDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [confirmDeleteHabitId, setConfirmDeleteHabitId] = useState<string | null>(null);
+
+  // Gemini Live API State
   const [isVoiceConnected, setIsVoiceConnected] = useState(false);
   const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
   const nextStartTime = useRef(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   const inputAudioContextRef = useRef<AudioContext | null>(null);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  const sessionRef = useRef<any>(null); // To store the session object (simplified)
-  
-  // --- Effects ---
+  const sessionRef = useRef<any>(null);
+
   useEffect(() => {
-    // Select a random quote on mount
-    const randomQuote = SYSTEM_QUOTES[Math.floor(Math.random() * SYSTEM_QUOTES.length)];
+    const randomQuote = t.quotes[Math.floor(Math.random() * t.quotes.length)];
     setDailyQuote(randomQuote);
   }, []);
 
-  // --- Logic Helpers ---
 
+  // --- Helpers ---
   const showNotification = (msg: string, sub?: string, type: NotificationType = 'info') => {
     setNotification({ msg, sub, type });
   };
 
-  const addXp = (amount: number, statBonus?: keyof Stats) => {
+  const translatePart = (part: string): string => t.dungeonParts[part] || part;
+
+  const getGlobalStanding = (rank: HunterRank) => t.standing[rank];
+
+  const localizedRewards: RewardItem[] = INITIAL_REWARDS.map((item, i) => ({
+    ...item,
+    name: t.initialRewards[i].name,
+    description: t.initialRewards[i].description,
+  }));
+
+  const addXp = (amount: number, statId?: string) => {
     setProfile(prev => {
-      let newXp = prev.currentXp + amount;
-      let newRank = getNextRank(newXp);
-      let didLevelUp = newRank !== prev.rank;
-      
-      const newStats = { ...prev.stats };
-      if (statBonus) {
-        newStats[statBonus] += 1;
-      }
+      const newXp = prev.currentXp + amount;
+      const newRank = getNextRank(newXp);
+      const didLevelUp = newRank !== prev.rank;
+      const newCustomStats = prev.customStats.map(s =>
+        statId && s.id === statId ? { ...s, value: s.value + 1 } : s
+      );
 
       if (didLevelUp) {
-        setTimeout(() => {
-          showNotification(
-            `RANK UP: ${newRank}-RANK`, 
-            "Your abilities have transcended their limits.",
-            'levelup'
-          );
-        }, 500);
+        setTimeout(() => showNotification(t.notifications.rankUp(newRank), t.notifications.rankUpSub, 'levelup'), 500);
       }
 
-      return {
-        ...prev,
-        currentXp: newXp,
-        rank: newRank,
-        stats: newStats
-      };
+      return { ...prev, currentXp: newXp, rank: newRank, customStats: newCustomStats };
     });
   };
 
@@ -221,10 +177,9 @@ const App: React.FC = () => {
     setProfile(prev => ({ ...prev, gold: prev.gold + amount }));
   };
 
-  // --- Voice / Live API Logic ---
+  // --- Voice / Live API ---
   const connectToSystem = async () => {
     if (isVoiceConnected) {
-      // Disconnect
       sessionRef.current?.close();
       audioContextRef.current?.close();
       inputAudioContextRef.current?.close();
@@ -234,39 +189,32 @@ const App: React.FC = () => {
 
     try {
       setIsVoiceConnecting(true);
-      
-      // Initialize Audio Contexts
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const inputCtx = new AudioContextClass({ sampleRate: 16000 });
       const outputCtx = new AudioContextClass({ sampleRate: 24000 });
       inputAudioContextRef.current = inputCtx;
       audioContextRef.current = outputCtx;
-      
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
+
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: `You are 'The System', an advanced AI interface for a Hunter (the user) who is training for the DGCA Navigation Exam. Your tone is calm, precise, and slightly game-like, similar to the System in Solo Leveling. Address the user as 'Player' or 'Hunter'. Encourage them to maintain their streak, complete dungeons (chapters), and stick to their protocols. Current Hunter Rank: ${profile.rank}.`,
+          systemInstruction: `You are 'The System', an advanced AI interface for a Hunter (the user). Your tone is calm, precise, and slightly game-like, similar to the System in Solo Leveling. Address the user as 'Player' or 'Hunter'. Current Hunter Rank: ${profile.rank}.`,
         },
         callbacks: {
           onopen: () => {
             setIsVoiceConnected(true);
             setIsVoiceConnecting(false);
-            showNotification("SYSTEM LINK ESTABLISHED", "Voice Interface Online.", 'info');
-
-            // Setup Input Stream
+            showNotification(t.notifications.systemLink, t.notifications.systemLinkSub, 'info');
             const source = inputCtx.createMediaStreamSource(stream);
             const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
-            
             scriptProcessor.onaudioprocess = (e) => {
-              const inputData = e.inputBuffer.getChannelData(0);
-              const pcmBlob = createBlob(inputData);
+              const pcmBlob = createBlob(e.inputBuffer.getChannelData(0));
               sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob }));
             };
-            
             source.connect(scriptProcessor);
             scriptProcessor.connect(inputCtx.destination);
           },
@@ -275,48 +223,37 @@ const App: React.FC = () => {
             if (base64Audio && outputCtx) {
               const audioData = decode(base64Audio);
               const buffer = await decodeAudioData(audioData, outputCtx, 24000, 1);
-              
               nextStartTime.current = Math.max(nextStartTime.current, outputCtx.currentTime);
-              
-              const source = outputCtx.createBufferSource();
-              source.buffer = buffer;
-              source.connect(outputCtx.destination);
-              source.start(nextStartTime.current);
+              const src = outputCtx.createBufferSource();
+              src.buffer = buffer;
+              src.connect(outputCtx.destination);
+              src.start(nextStartTime.current);
               nextStartTime.current += buffer.duration;
-              
-              sourcesRef.current.add(source);
-              source.onended = () => sourcesRef.current.delete(source);
+              sourcesRef.current.add(src);
+              src.onended = () => sourcesRef.current.delete(src);
             }
           },
-          onclose: () => {
-            setIsVoiceConnected(false);
-            setIsVoiceConnecting(false);
-          },
-          onerror: (e) => {
+          onclose: () => { setIsVoiceConnected(false); setIsVoiceConnecting(false); },
+          onerror: (e: any) => {
             console.error(e);
             setIsVoiceConnected(false);
             setIsVoiceConnecting(false);
-            showNotification("SYSTEM LINK FAILED", "Connection error.", 'warning');
-          }
-        }
+            showNotification(t.notifications.systemLinkFailed, t.notifications.systemLinkFailedSub, 'warning');
+          },
+        },
       });
-      
-      // Store session logic if needed to close later
+
       sessionRef.current = {
         close: () => {
-          // Since the SDK doesn't expose a clean close on the promise result easily in this pattern without await,
-          // we rely on browser cleanup. In a full implementation, we'd handle the resolved session object.
-          // For now, we just stop audio contexts to kill the stream effectively from user side.
           inputCtx.close();
           outputCtx.close();
-          stream.getTracks().forEach(t => t.stop());
-        }
+          stream.getTracks().forEach(tr => tr.stop());
+        },
       };
-
     } catch (e) {
       console.error(e);
       setIsVoiceConnecting(false);
-      showNotification("ACCESS DENIED", "Microphone permission required for System Link.", 'warning');
+      showNotification(t.notifications.accessDenied, t.notifications.accessDeniedSub, 'warning');
     }
   };
 
@@ -324,8 +261,8 @@ const App: React.FC = () => {
     setQuests(prev => prev.map(q => {
       if (q.id === questId && !q.isCompleted) {
         addXp(q.rewardXp, q.rewardStat);
-        addGold(50); // Daily quests give gold
-        setTimeout(() => showNotification("DAILY QUEST COMPLETE", `${q.description} (+50 Gold)`, 'quest'), 200);
+        addGold(50);
+        setTimeout(() => showNotification(t.notifications.questComplete, `${q.description} (+50 Gold)`, 'quest'), 200);
         return { ...q, isCompleted: true, current: q.target };
       }
       return q;
@@ -343,53 +280,40 @@ const App: React.FC = () => {
     if (success) {
       setChapters(prev => {
         const updated = prev.map(c => {
-          if (c.id === activeChapterId) {
+          if (c.id === activeChapterId)
             return { ...c, isCleared: true, masteryLevel: Math.min(100, c.masteryLevel + 25), unlocked: true };
-          }
           return c;
         });
-
         const currentIdx = prev.findIndex(c => c.id === activeChapterId);
-        if (currentIdx < prev.length - 1) {
-           updated[currentIdx + 1].unlocked = true;
-        }
-        
+        if (currentIdx < prev.length - 1) updated[currentIdx + 1].unlocked = true;
         if (activeChapterId.startsWith('BOSS')) {
-          showNotification("S-RANK GATE CLEARED", "You have conquered the System. You are now the Monarch of Navigation.", 'levelup');
+          showNotification(t.notifications.sRankCleared, t.notifications.sRankClearedSub, 'levelup');
         }
-
         return updated;
       });
 
       const chapter = chapters.find(c => c.id === activeChapterId);
-      
-      let statToBuff: keyof Stats = 'vitality';
-      if (chapter?.part === DungeonPart.ONE) statToBuff = 'perception';
-      if (chapter?.part === DungeonPart.TWO) statToBuff = 'agility';
-      if (chapter?.part === DungeonPart.THREE) statToBuff = 'intelligence';
+      const partIndex = [DungeonPart.ONE, DungeonPart.TWO, DungeonPart.THREE].indexOf(chapter?.part as DungeonPart);
+      const statId = partIndex >= 0 ? profile.customStats[partIndex]?.id : undefined;
 
-      addXp(chapter?.part === DungeonPart.BOSS ? 5000 : 150, statToBuff);
+      addXp(chapter?.part === DungeonPart.BOSS ? 5000 : 150, statId);
       addGold(chapter?.part === DungeonPart.BOSS ? 2000 : 100);
-      
+
       setQuests(prev => prev.map(q => {
-        if (q.id === 'dq-1' && !q.isCompleted) {
-           return { ...q, current: q.current + 1 };
-        }
+        if (q.id === 'dq-1' && !q.isCompleted) return { ...q, current: q.current + 1 };
         return q;
       }));
-      
+
       const quest = quests.find(q => q.id === 'dq-1');
-      if (quest && !quest.isCompleted && quest.current + 1 >= quest.target) {
-        completeQuest('dq-1');
-      }
+      if (quest && !quest.isCompleted && quest.current + 1 >= quest.target) completeQuest('dq-1');
 
       if (!activeChapterId.startsWith('BOSS')) {
-        showNotification("DUNGEON CLEARED", "Rewards: XP, Stat Boost, Gold. Shadow Extracted.", 'quest');
+        showNotification(t.notifications.dungeonCleared, t.notifications.dungeonClearedSub, 'quest');
       }
     } else {
-      showNotification("ESCAPED DUNGEON", "You fled safely, but gained no rewards.");
+      showNotification(t.notifications.escapedDungeon, t.notifications.escapedDungeonSub);
     }
-    
+
     setView('DUNGEON_MAP');
     setActiveChapterId(null);
   };
@@ -400,65 +324,46 @@ const App: React.FC = () => {
   };
 
   const completeShadowReview = () => {
-    addXp(10);
+    addXp(10, profile.customStats[1]?.id);
     addGold(20);
     setQuests(prev => prev.map(q => {
-      if (q.id === 'dq-2' && !q.isCompleted) {
-         return { ...q, current: q.current + 1 };
-      }
+      if (q.id === 'dq-2' && !q.isCompleted) return { ...q, current: q.current + 1 };
       return q;
     }));
     const quest = quests.find(q => q.id === 'dq-2');
-    if (quest && !quest.isCompleted && quest.current + 1 >= quest.target) {
-      completeQuest('dq-2');
-    }
-    
-    showNotification("SHADOW REVIEW COMPLETE", "Knowledge reinforced. +20 Gold", 'info');
+    if (quest && !quest.isCompleted && quest.current + 1 >= quest.target) completeQuest('dq-2');
+    showNotification(t.notifications.shadowReviewComplete, t.notifications.shadowReviewSub, 'info');
     setView('SHADOW_ARMY');
     setActiveChapterId(null);
   };
 
-  // --- Gym Mechanics ---
   const toggleGymDay = (dayIndex: number) => {
     if (profile.weeklyGymProgress[dayIndex]) return;
-
     setProfile(prev => {
       const newProgress = [...prev.weeklyGymProgress];
       newProgress[dayIndex] = true;
       return { ...prev, weeklyGymProgress: newProgress };
     });
-
-    addXp(50, 'vitality'); 
+    addXp(50, profile.customStats[0]?.id);
     addGold(75);
-    showNotification("DAILY TRAINING COMPLETE", "Strength +1. Gold +75.", 'shield');
+    showNotification(t.notifications.trainingComplete, t.notifications.trainingCompleteSub, 'shield');
   };
 
-  // --- Shop Mechanics ---
   const buyItem = (item: RewardItem) => {
     if (profile.gold >= item.cost) {
       setProfile(prev => ({ ...prev, gold: prev.gold - item.cost }));
-      showNotification("ITEM PURCHASED", `You acquired ${item.name}. Enjoy your reward.`, 'quest');
+      showNotification(t.notifications.itemPurchased, t.notifications.itemPurchasedSub(item.name), 'quest');
     } else {
-      showNotification("INSUFFICIENT FUNDS", "You need more Gold to purchase this item.", 'warning');
+      showNotification(t.notifications.insufficientFunds, t.notifications.insufficientFundsSub, 'warning');
     }
   };
 
-  // --- Habit / Lifestyle Mechanics ---
   const toggleHabit = (id: string) => {
     setHabits(prev => prev.map(h => {
       if (h.id === id && !h.isCompleted) {
-        // Complete the habit
-        const isGood = h.type === 'good';
-        addXp(isGood ? 30 : 0);
-        addGold(isGood ? 20 : -50); // Lose gold if you do a bad habit? 
-        // Logic: Bad habit is 'Procrastination'. If you check it, you DID IT (failed).
-        
-        if (isGood) {
-           showNotification("PROTOCOL ADHERED", `${h.title} (+30 XP)`, 'shield');
-        } else {
-           showNotification("PROTOCOL BREACHED", `${h.title} detected. Penalty applied.`, 'warning');
-        }
-        
+        addXp(30);
+        addGold(20);
+        showNotification(t.notifications.protocolAdhered, `${h.title} (+30 XP)`, 'shield');
         return { ...h, isCompleted: true, streak: h.streak + 1 };
       }
       return h;
@@ -470,94 +375,353 @@ const App: React.FC = () => {
     const newHabit: Habit = {
       id: `h-${Date.now()}`,
       title: newHabitTitle,
-      type: 'good',
       isCompleted: false,
-      streak: 0
+      streak: 0,
+      repeatType: 'daily',
     };
     setHabits([...habits, newHabit]);
     setNewHabitTitle('');
-    showNotification("NEW PROTOCOL ADDED", "System updated.", 'info');
+    showNotification(t.notifications.newProtocol, t.notifications.newProtocolSub, 'info');
   };
 
-  // --- Vitality Mechanics ---
   const simulateStreakBreak = () => {
-    const vitality = profile.stats.vitality;
-    const retentionRate = Math.min(100, vitality) / 100;
+    const totalPower = profile.customStats.reduce((sum, s) => sum + s.value, 0);
+    const retentionRate = Math.min(100, totalPower) / 100;
     const currentStreak = profile.streakDays;
-    
     if (currentStreak === 0) {
-      showNotification("NO STREAK", "There is no streak to break.", 'info');
+      showNotification(t.notifications.noStreak, t.notifications.noStreakSub, 'info');
       return;
     }
-
     const retainedDays = Math.floor(currentStreak * retentionRate);
-    const lostDays = currentStreak - retainedDays;
-
-    setProfile(prev => ({
-      ...prev,
-      streakDays: retainedDays
-    }));
-
+    setProfile(prev => ({ ...prev, streakDays: retainedDays }));
     if (retainedDays > 0) {
-      showNotification(
-        "PASSIVE ACTIVATED: UNDYING WILL",
-        `Missed a day? Vitality (Lvl ${vitality}) saved ${retainedDays} days.`,
-        'shield'
-      );
+      showNotification(t.notifications.passiveActivated, t.notifications.passiveSub(totalPower, retainedDays), 'shield');
     } else {
-      showNotification(
-        "STREAK BROKEN",
-        `Vitality too low to preserve streak. Progress reset to 0.`,
-        'warning'
-      );
+      showNotification(t.notifications.streakBroken, t.notifications.streakBrokenSub, 'warning');
     }
   };
 
-  // --- Name Editing ---
   const saveName = () => {
-    if (tempName.trim()) {
-      setProfile(prev => ({ ...prev, name: tempName.trim() }));
-    }
+    if (tempName.trim()) setProfile(prev => ({ ...prev, name: tempName.trim() }));
     setIsEditingName(false);
   };
 
-  // --- System Architect / Upload ---
+  // --- Custom Stats CRUD ---
+  const getNextStatColor = () => {
+    const usedColors = profile.customStats.map(s => s.color);
+    return STAT_COLOR_PALETTE.find(c => !usedColors.includes(c)) || STAT_COLOR_PALETTE[profile.customStats.length % STAT_COLOR_PALETTE.length];
+  };
+
+  const addCustomStat = () => {
+    if (!newStatName.trim()) return;
+    const newStat: CustomStat = {
+      id: `s-${Date.now()}`,
+      name: newStatName.trim(),
+      emoji: newStatEmoji.trim() || '⭐',
+      color: getNextStatColor(),
+      value: 10,
+    };
+    setProfile(prev => ({ ...prev, customStats: [...prev.customStats, newStat] }));
+    setNewStatName('');
+    setNewStatEmoji('');
+    showNotification(t.notifications.statAdded, t.notifications.statAddedSub(newStat.name), 'quest');
+  };
+
+  const handleDeleteStatRequest = (id: string) => {
+    if (profile.customStats.length <= 1) {
+      showNotification(t.notifications.minStatWarning, t.notifications.minStatWarningSub, 'warning');
+      return;
+    }
+    setConfirmDeleteStatId(id);
+  };
+
+  const deleteStat = (id: string) => {
+    const fallbackId = profile.customStats.find(s => s.id !== id)?.id || '';
+    setProfile(prev => ({ ...prev, customStats: prev.customStats.filter(s => s.id !== id) }));
+    setQuests(prev => prev.map(q => q.rewardStat === id ? { ...q, rewardStat: fallbackId } : q));
+    setConfirmDeleteStatId(null);
+    showNotification(t.notifications.statDeleted, t.notifications.statDeletedSub, 'info');
+  };
+
+  // --- Task helpers ---
+  const isTodayActive = (habit: Habit): boolean => {
+    const day = new Date().getDay(); // 0=Sun
+    if (habit.repeatType === 'daily' || habit.repeatType === 'oneTime') return true;
+    if (habit.repeatType === 'weekdays') return day >= 1 && day <= 5;
+    if (habit.repeatType === 'custom') return (habit.repeatDays || []).includes(day);
+    return true;
+  };
+
+  const getRepeatLabel = (habit: Habit): string => {
+    switch (habit.repeatType) {
+      case 'daily': return `🔄 ${t.missions.repeatDaily}`;
+      case 'weekdays': return `📅 ${t.missions.repeatWeekdays}`;
+      case 'custom': {
+        const days = (habit.repeatDays || []).map(d => t.missions.repeatDayLabels[d]).join(' ');
+        return `🗓️ ${days}`;
+      }
+      case 'oneTime': return `⭐ ${t.missions.repeatOneTime}`;
+    }
+  };
+
+  const toggleTaskDay = (day: number) => {
+    setNewTaskDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
+  };
+
+  const addTask = () => {
+    if (!newTaskTitle.trim()) return;
+    const newHabit: Habit = {
+      id: `h-${Date.now()}`,
+      title: newTaskTitle.trim(),
+      isCompleted: false,
+      streak: 0,
+      repeatType: newTaskRepeat,
+      repeatDays: newTaskRepeat === 'custom' ? [...newTaskDays].sort() : undefined,
+    };
+    setHabits(prev => [...prev, newHabit]);
+    setNewTaskTitle('');
+    setNewTaskRepeat('daily');
+    setNewTaskDays([1, 2, 3, 4, 5]);
+    setShowAddTaskForm(false);
+    showNotification(t.notifications.newProtocol, t.notifications.newProtocolSub, 'info');
+  };
+
+  const handleDeleteHabitRequest = (id: string) => setConfirmDeleteHabitId(id);
+
+  const deleteHabit = (id: string) => {
+    setHabits(prev => prev.filter(h => h.id !== id));
+    setConfirmDeleteHabitId(null);
+  };
+
+  // --- Procrastination Vault ---
+  const getDaysAgo = (dateString: string): number => {
+    return Math.floor((Date.now() - new Date(dateString).getTime()) / 86400000);
+  };
+
+  const getDaysUntil = (dateString: string): number => {
+    return Math.floor((new Date(dateString).getTime() - Date.now()) / 86400000);
+  };
+
+  const getSortedObjectives = (): ProcrastinationItem[] => {
+    const order = { high: 0, medium: 1, low: 2 };
+    return [...procrastinationItems].sort((a, b) => {
+      const pDiff = order[a.priority] - order[b.priority];
+      if (pDiff !== 0) return pDiff;
+      if (a.dueDate && b.dueDate) return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+      return 0;
+    });
+  };
+
+  const addObjective = () => {
+    if (!newObjTitle.trim()) return;
+    const item: ProcrastinationItem = {
+      id: `obj-${Date.now()}`,
+      title: newObjTitle.trim(),
+      description: newObjDesc.trim(),
+      priority: newObjPriority,
+      dueDate: newObjDueDate || undefined,
+      dateAdded: new Date().toISOString().split('T')[0],
+      status: 'open',
+    };
+    setProcrastinationItems(prev => [...prev, item]);
+    setNewObjTitle('');
+    setNewObjDesc('');
+    setNewObjPriority('medium');
+    setNewObjDueDate('');
+    setShowAddObjectiveForm(false);
+  };
+
+  const handleDeleteObjectiveRequest = (id: string) => setConfirmDeleteObjId(id);
+
+  const deleteObjective = (id: string) => {
+    setProcrastinationItems(prev => prev.filter(item => item.id !== id));
+    setConfirmDeleteObjId(null);
+  };
+
+  const startActivateBoss = (item: ProcrastinationItem) => {
+    setActivatingBossId(item.id);
+    setBossFormDueDate(item.dueDate || '');
+    setBossFormSubTasks([]);
+    setBossFormSubInput('');
+  };
+
+  const addBossFormSubTask = () => {
+    if (!bossFormSubInput.trim()) return;
+    setBossFormSubTasks(prev => [...prev, { id: `bst-${Date.now()}`, title: bossFormSubInput.trim(), completed: false }]);
+    setBossFormSubInput('');
+  };
+
+  const confirmActivateBoss = (item: ProcrastinationItem) => {
+    const xpReward = Math.floor(Math.random() * 151) + 150;  // 150–300
+    const goldReward = Math.floor(Math.random() * 41) + 60;  // 60–100
+    const boss: BossFight = {
+      id: `boss-${Date.now()}`,
+      specialMissionId: item.id,
+      title: item.title,
+      description: item.description,
+      xpReward,
+      goldReward,
+      startDate: new Date().toISOString().split('T')[0],
+      dueDate: bossFormDueDate,
+      progress: 0,
+      subTasks: [...bossFormSubTasks],
+      history: [{ id: `h-${Date.now()}`, timestamp: new Date().toISOString(), action: 'started' }],
+      status: 'active',
+      failPenalty: 'loseStreak',
+    };
+    setBossFights(prev => [...prev, boss]);
+    setProcrastinationItems(prev => prev.map(p =>
+      p.id === item.id ? { ...p, status: 'active' as ObjectiveStatus } : p
+    ));
+    setActivatingBossId(null);
+    showNotification(t.notifications.bossActivated, t.notifications.bossActivatedSub, 'warning');
+  };
+
+  const toggleBossSubTask = (bossId: string, subTaskId: string) => {
+    setBossFights(prev => prev.map(boss => {
+      if (boss.id !== bossId) return boss;
+      const subTask = boss.subTasks.find(st => st.id === subTaskId);
+      if (!subTask) return boss;
+      const wasCompleted = subTask.completed;
+      const now = new Date().toISOString();
+      const updated = boss.subTasks.map(st =>
+        st.id === subTaskId
+          ? { ...st, completed: !st.completed, completedAt: !st.completed ? now : undefined }
+          : st
+      );
+      const progress = updated.length > 0 ? Math.round(updated.filter(s => s.completed).length / updated.length * 100) : 0;
+      const entry: BossHistoryEntry = {
+        id: `h-${Date.now()}`,
+        timestamp: now,
+        action: wasCompleted ? 'uncompleted' : 'completed',
+        subTaskTitle: subTask.title,
+      };
+      return { ...boss, subTasks: updated, progress, history: [...boss.history, entry] };
+    }));
+  };
+
+  const addBossSubTask = (bossId: string) => {
+    const input = (bossNewSubInputs[bossId] || '').trim();
+    if (!input) return;
+    setBossFights(prev => prev.map(boss => {
+      if (boss.id !== bossId) return boss;
+      const updated = [...boss.subTasks, { id: `bst-${Date.now()}`, title: input, completed: false }];
+      const progress = Math.round(updated.filter(s => s.completed).length / updated.length * 100);
+      return { ...boss, subTasks: updated, progress };
+    }));
+    setBossNewSubInputs(prev => ({ ...prev, [bossId]: '' }));
+  };
+
+  const startEditSubTask = (bossId: string, st: BossSubTask) => {
+    setEditingSubTaskId(`${bossId}::${st.id}`);
+    setEditingSubTaskText(st.title);
+  };
+
+  const confirmEditSubTask = (bossId: string, subTaskId: string) => {
+    if (editingSubTaskText.trim()) {
+      setBossFights(prev => prev.map(boss => {
+        if (boss.id !== bossId) return boss;
+        return { ...boss, subTasks: boss.subTasks.map(st => st.id === subTaskId ? { ...st, title: editingSubTaskText.trim() } : st) };
+      }));
+    }
+    setEditingSubTaskId(null);
+  };
+
+  const deleteBossSubTask = (bossId: string, subTaskId: string) => {
+    setBossFights(prev => prev.map(boss => {
+      if (boss.id !== bossId) return boss;
+      const updated = boss.subTasks.filter(st => st.id !== subTaskId);
+      const progress = updated.length > 0 ? Math.round(updated.filter(s => s.completed).length / updated.length * 100) : 0;
+      return { ...boss, subTasks: updated, progress };
+    }));
+  };
+
+  const handleDragStart = (bossId: string, subTaskId: string) => setDragState({ bossId, subTaskId });
+
+  const handleDragOver = (e: React.DragEvent, subTaskId: string) => {
+    e.preventDefault();
+    setDragOverId(subTaskId);
+  };
+
+  const handleDrop = (bossId: string, targetId: string) => {
+    if (!dragState || dragState.bossId !== bossId || dragState.subTaskId === targetId) {
+      setDragState(null); setDragOverId(null); return;
+    }
+    setBossFights(prev => prev.map(boss => {
+      if (boss.id !== bossId) return boss;
+      const items = [...boss.subTasks];
+      const from = items.findIndex(st => st.id === dragState.subTaskId);
+      const to = items.findIndex(st => st.id === targetId);
+      if (from === -1 || to === -1) return boss;
+      const [moved] = items.splice(from, 1);
+      items.splice(to, 0, moved);
+      return { ...boss, subTasks: items };
+    }));
+    setDragState(null); setDragOverId(null);
+  };
+
+  const handleDragEnd = () => { setDragState(null); setDragOverId(null); };
+
+  const completeBossFight = (bossId: string) => {
+    const boss = bossFights.find(b => b.id === bossId);
+    if (!boss) return;
+    addXp(boss.xpReward);
+    addGold(boss.goldReward);
+    showNotification(t.notifications.bossDefeated, t.notifications.bossDefeatedSub(boss.title, boss.xpReward, boss.goldReward), 'levelup');
+    setBossFights(prev => prev.map(b => b.id === bossId ? { ...b, status: 'completed' } : b));
+    setProcrastinationItems(prev => prev.map(p =>
+      p.id === boss.specialMissionId ? { ...p, status: 'completed' as ObjectiveStatus } : p
+    ));
+    setTimeout(() => setBossFights(prev => prev.filter(b => b.id !== bossId)), 2000);
+  };
+
+  const cancelBossFight = (bossId: string) => {
+    const boss = bossFights.find(b => b.id === bossId);
+    if (!boss) return;
+    setBossFights(prev => prev.filter(b => b.id !== bossId));
+    setProcrastinationItems(prev => prev.map(p =>
+      p.id === boss.specialMissionId ? { ...p, status: 'open' as ObjectiveStatus } : p
+    ));
+    setConfirmCancelBossId(null);
+    showNotification(t.notifications.bossCancelled, t.notifications.bossCancelledSub, 'info');
+  };
+
+  const applyBossPenalty = (bossId: string) => {
+    const boss = bossFights.find(b => b.id === bossId);
+    if (!boss) return;
+    setProfile(prev => ({ ...prev, streakDays: Math.max(0, prev.streakDays - 7) }));
+    setBossFights(prev => prev.map(b => b.id === bossId ? { ...b, status: 'failed' } : b));
+    setProcrastinationItems(prev => prev.map(p =>
+      p.id === boss.specialMissionId ? { ...p, status: 'open' as ObjectiveStatus } : p
+    ));
+    showNotification(t.notifications.bossFailed, t.notifications.bossFailedSub, 'warning');
+    setTimeout(() => setBossFights(prev => prev.filter(b => b.id !== bossId)), 1500);
+  };
+
   const handleUpload = () => {
     if (!uploadTitle.trim()) return;
-    
     setIsProcessingUpload(true);
-    showNotification("SYSTEM ANALYSIS INITIATED", "Analyzing source material...", 'processing');
+    showNotification(t.notifications.analysisInitiated, t.notifications.analysisSub, 'processing');
 
     setTimeout(() => {
-      // Simulate creating a new dungeon
-      const partName = `PART IV: ${uploadTitle.toUpperCase()}`;
+      const partName = `${t.upload.partPrefix} ${uploadTitle.toUpperCase()}`;
       const newChapters: Chapter[] = [
-        { id: `c-${Date.now()}-1`, title: `${uploadTitle} - Fundamentals`, part: partName, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: true },
-        { id: `c-${Date.now()}-2`, title: `${uploadTitle} - Advanced Concepts`, part: partName, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-        { id: `c-${Date.now()}-3`, title: `${uploadTitle} - Practical Application`, part: partName, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
+        { id: `c-${Date.now()}-1`, title: `${uploadTitle} - ${t.upload.fundamentals}`, part: partName, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: true },
+        { id: `c-${Date.now()}-2`, title: `${uploadTitle} - ${t.upload.advanced}`, part: partName, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
+        { id: `c-${Date.now()}-3`, title: `${uploadTitle} - ${t.upload.practical}`, part: partName, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
       ];
-
       setChapters(prev => [...prev.filter(c => c.part !== DungeonPart.BOSS), ...newChapters, ...prev.filter(c => c.part === DungeonPart.BOSS)]);
       setIsProcessingUpload(false);
       setShowUploadModal(false);
       setUploadTitle('');
       setUploadFile(null);
       setView('DUNGEON_MAP');
-      showNotification("NEW DUNGEON GENERATED", `The System has created a plan for "${uploadTitle}".`, 'levelup');
+      showNotification(t.notifications.dungeonGeneratedTitle, t.notifications.dungeonGeneratedSub(uploadTitle), 'levelup');
     }, 2500);
-  };
-
-  // --- Helper: World Rank Logic ---
-  const getGlobalStanding = (rank: HunterRank) => {
-    switch(rank) {
-      case HunterRank.E: return { percentile: 'Top 90%', msg: 'You are just a Commoner.' };
-      case HunterRank.D: return { percentile: 'Top 60%', msg: 'You have potential.' };
-      case HunterRank.C: return { percentile: 'Top 35%', msg: 'You are surpassing the masses.' };
-      case HunterRank.B: return { percentile: 'Top 10%', msg: 'You are an Elite Hunter.' };
-      case HunterRank.A: return { percentile: 'Top 1%', msg: 'You are a National Authority.' };
-      case HunterRank.S: return { percentile: 'Top 0.01%', msg: 'You are a Monarch.' };
-      default: return { percentile: 'Unknown', msg: 'System Error.' };
-    }
   };
 
   // --- Render Modals ---
@@ -566,61 +730,55 @@ const App: React.FC = () => {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md animate-fade-in">
         <div className="bg-system-panel border border-system-blue w-full max-w-lg p-6 rounded-lg shadow-[0_0_50px_rgba(59,130,246,0.3)] relative overflow-hidden">
-          {/* Decorative scanline */}
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-system-blue to-transparent animate-slide-in-right"></div>
 
           <h2 className="text-2xl font-bold font-mono text-system-blue mb-6 flex items-center gap-2">
-            <Brain size={24} /> SYSTEM ARCHITECT
+            <Brain size={24} /> {t.upload.title}
           </h2>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-slate-400 font-mono text-sm mb-1">GOAL / SKILL NAME</label>
-              <input 
-                type="text" 
+              <label className="block text-slate-400 font-mono text-sm mb-1">{t.upload.goalLabel}</label>
+              <input
+                type="text"
                 value={uploadTitle}
                 onChange={(e) => setUploadTitle(e.target.value)}
-                placeholder="e.g., Master Python, Lose Weight, Read 'Atomic Habits'"
+                placeholder={t.upload.goalPlaceholder}
                 className="w-full bg-slate-900 border border-slate-700 p-3 rounded text-white font-bold focus:border-system-blue outline-none transition-colors"
                 autoFocus
               />
             </div>
 
             <div>
-               <label className="block text-slate-400 font-mono text-sm mb-1">SOURCE MATERIAL (Optional)</label>
-               <div className="border-2 border-dashed border-slate-700 rounded-lg p-6 flex flex-col items-center justify-center text-slate-500 hover:border-system-blue/50 hover:bg-system-blue/5 transition-all cursor-pointer relative">
-                 <input 
-                   type="file" 
-                   className="absolute inset-0 opacity-0 cursor-pointer"
-                   onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
-                 />
-                 <Upload size={32} className="mb-2" />
-                 <span className="text-xs font-mono">{uploadFile ? uploadFile.name : "DRAG FILE OR CLICK TO UPLOAD"}</span>
-               </div>
+              <label className="block text-slate-400 font-mono text-sm mb-1">{t.upload.materialLabel}</label>
+              <div className="border-2 border-dashed border-slate-700 rounded-lg p-6 flex flex-col items-center justify-center text-slate-500 hover:border-system-blue/50 hover:bg-system-blue/5 transition-all cursor-pointer relative">
+                <input
+                  type="file"
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
+                />
+                <Upload size={32} className="mb-2" />
+                <span className="text-xs font-mono">{uploadFile ? uploadFile.name : t.upload.dragFile}</span>
+              </div>
             </div>
 
             <div className="bg-blue-900/20 p-3 rounded border border-blue-900/50 text-xs text-blue-200 font-mono">
-              <p>{`> The System will analyze the input.`}</p>
-              <p>{`> A custom learning path (Dungeon) will be generated.`}</p>
+              <p>{t.upload.hint1}</p>
+              <p>{t.upload.hint2}</p>
             </div>
           </div>
 
           <div className="mt-8 flex gap-3">
-             <button 
-               onClick={() => setShowUploadModal(false)}
-               className="flex-1 py-3 border border-slate-700 text-slate-400 hover:text-white rounded font-mono font-bold"
-             >
-               CANCEL
-             </button>
-             <button 
-               onClick={handleUpload}
-               disabled={!uploadTitle || isProcessingUpload}
-               className={`flex-1 py-3 bg-system-blue text-black font-bold rounded font-mono flex items-center justify-center gap-2 hover:shadow-[0_0_20px_#3b82f6] transition-all
-                 ${isProcessingUpload ? 'opacity-50 cursor-wait' : ''}
-               `}
-             >
-               {isProcessingUpload ? <Loader className="animate-spin" /> : 'INITIALIZE'}
-             </button>
+            <button onClick={() => setShowUploadModal(false)} className="flex-1 py-3 border border-slate-700 text-slate-400 hover:text-white rounded font-mono font-bold">
+              {t.upload.cancel}
+            </button>
+            <button
+              onClick={handleUpload}
+              disabled={!uploadTitle || isProcessingUpload}
+              className={`flex-1 py-3 bg-system-blue text-black font-bold rounded font-mono flex items-center justify-center gap-2 hover:shadow-[0_0_20px_#3b82f6] transition-all ${isProcessingUpload ? 'opacity-50 cursor-wait' : ''}`}
+            >
+              {isProcessingUpload ? <Loader className="animate-spin" /> : t.upload.initialize}
+            </button>
           </div>
         </div>
       </div>
@@ -629,106 +787,96 @@ const App: React.FC = () => {
 
   const renderReportModal = () => {
     if (!showReportModal) return null;
-
-    // Determine predicted days to S-Rank
-    const xpPerDay = 150; // Simple estimate
     const xpNeeded = RANK_THRESHOLDS[HunterRank.S] - profile.currentXp;
-    const daysRemaining = Math.max(0, Math.ceil(xpNeeded / xpPerDay));
+    const daysRemaining = Math.max(0, Math.ceil(xpNeeded / 150));
+    const standing = getGlobalStanding(profile.rank);
+
+    const reportTabs: { key: 'DAILY' | 'WEEKLY' | 'MONTHLY'; label: string }[] = [
+      { key: 'DAILY', label: t.analytics.daily },
+      { key: 'WEEKLY', label: t.analytics.weekly },
+      { key: 'MONTHLY', label: t.analytics.monthly },
+    ];
+
+    const weeklyDataLocalized = MOCK_WEEKLY_DATA.map((d, i) => ({ ...d, day: t.weeklyDays[i] }));
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md animate-fade-in p-4">
         <div className="bg-system-panel border border-slate-600 w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-lg shadow-[0_0_50px_rgba(255,255,255,0.1)] relative">
-          
-          <button 
-            onClick={() => setShowReportModal(false)}
-            className="absolute top-4 right-4 text-slate-400 hover:text-white"
-          >
+          <button onClick={() => setShowReportModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
             <Check size={24} />
           </button>
 
           <div className="p-6">
             <h2 className="text-2xl font-bold font-mono text-system-blue mb-1 flex items-center gap-2">
-              <BarChart2 size={24} /> SYSTEM ANALYTICS
+              <BarChart2 size={24} /> {t.analytics.title}
             </h2>
-            <p className="text-slate-400 text-sm mb-6 font-mono">Performance Evaluation Report</p>
+            <p className="text-slate-400 text-sm mb-6 font-mono">{t.analytics.subtitle}</p>
 
-            {/* Tabs */}
             <div className="flex gap-2 mb-6 border-b border-slate-800 pb-2">
-              {(['DAILY', 'WEEKLY', 'MONTHLY'] as const).map(tab => (
+              {reportTabs.map(({ key, label }) => (
                 <button
-                  key={tab}
-                  onClick={() => setReportTab(tab)}
-                  className={`px-4 py-2 font-mono text-sm font-bold transition-all ${reportTab === tab ? 'text-system-blue border-b-2 border-system-blue' : 'text-slate-500 hover:text-slate-300'}`}
+                  key={key}
+                  onClick={() => setReportTab(key)}
+                  className={`px-4 py-2 font-mono text-sm font-bold transition-all ${reportTab === key ? 'text-system-blue border-b-2 border-system-blue' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                  {tab}
+                  {label}
                 </button>
               ))}
             </div>
 
-            {/* Content */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-               {/* Graph */}
-               <div className="lg:col-span-2 bg-slate-900/50 p-4 rounded border border-slate-800">
-                  <h3 className="text-sm font-bold text-slate-300 mb-4 font-mono">XP GROWTH TRAJECTORY</h3>
-                  <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={MOCK_WEEKLY_DATA}>
-                        <XAxis dataKey="day" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
-                        <Tooltip 
-                          contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }}
-                          cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }}
-                        />
-                        <Bar dataKey="xp" fill="#3b82f6" radius={[4, 4, 0, 0]}>
-                           {MOCK_WEEKLY_DATA.map((entry, index) => (
-                             <Cell key={`cell-${index}`} fill={entry.xp > 400 ? '#60a5fa' : '#1e3a8a'} />
-                           ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-               </div>
+              <div className="lg:col-span-2 bg-slate-900/50 p-4 rounded border border-slate-800">
+                <h3 className="text-sm font-bold text-slate-300 mb-4 font-mono">{t.analytics.xpChart}</h3>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={weeklyDataLocalized}>
+                      <XAxis dataKey="day" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }} cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }} />
+                      <Bar dataKey="xp" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                        {weeklyDataLocalized.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.xp > 400 ? '#60a5fa' : '#1e3a8a'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
 
-               {/* Predictions Side Panel */}
-               <div className="space-y-4">
-                  <div className="bg-slate-900/50 p-4 rounded border border-slate-800">
-                    <h3 className="text-sm font-bold text-green-400 mb-2 font-mono flex items-center gap-2">
-                      <Activity size={14} /> PREDICTION
-                    </h3>
-                    <div className="text-3xl font-bold text-white mb-1">{daysRemaining} DAYS</div>
-                    <p className="text-xs text-slate-400">Estimated time to reach S-Rank at current velocity.</p>
-                  </div>
+              <div className="space-y-4">
+                <div className="bg-slate-900/50 p-4 rounded border border-slate-800">
+                  <h3 className="text-sm font-bold text-green-400 mb-2 font-mono flex items-center gap-2">
+                    <Activity size={14} /> {t.analytics.prediction}
+                  </h3>
+                  <div className="text-3xl font-bold text-white mb-1">{daysRemaining} {t.analytics.daysUnit}</div>
+                  <p className="text-xs text-slate-400">{t.analytics.estimatedTime}</p>
+                </div>
 
-                  <div className="bg-slate-900/50 p-4 rounded border border-slate-800">
-                    <h3 className="text-sm font-bold text-yellow-400 mb-2 font-mono flex items-center gap-2">
-                       <Crown size={14} /> STATUS
-                    </h3>
-                    <div className="flex justify-between items-end mb-1">
-                      <span className="text-slate-300 text-xs">Global Rank</span>
-                      <span className="text-white font-bold">{getGlobalStanding(profile.rank).percentile}</span>
-                    </div>
-                    <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
-                       <div className="h-full bg-yellow-500 w-[85%]"></div>
-                    </div>
-                    <p className="text-[10px] text-slate-500 mt-2 italic">
-                      "You are currently outperforming 85% of active Hunters."
-                    </p>
+                <div className="bg-slate-900/50 p-4 rounded border border-slate-800">
+                  <h3 className="text-sm font-bold text-yellow-400 mb-2 font-mono flex items-center gap-2">
+                    <Crown size={14} /> {t.analytics.status}
+                  </h3>
+                  <div className="flex justify-between items-end mb-1">
+                    <span className="text-slate-300 text-xs">{t.analytics.globalRank}</span>
+                    <span className="text-white font-bold">{standing.percentile}</span>
                   </div>
-               </div>
+                  <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                    <div className="h-full bg-yellow-500 w-[85%]"></div>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-2 italic">{t.analytics.outperforming}</p>
+                </div>
+              </div>
             </div>
-
           </div>
         </div>
       </div>
     );
-  }
+  };
 
   // --- Views ---
-
   const renderDashboard = () => (
     <div className="space-y-6 animate-slide-up">
-      
-      {/* Daily Quote / System Message */}
+      {/* Daily Quote */}
       <div className="bg-gradient-to-r from-slate-900 to-system-panel border border-system-blue/30 rounded-lg p-4 relative overflow-hidden shadow-lg group">
         <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
           <Quote size={64} />
@@ -738,44 +886,43 @@ const App: React.FC = () => {
             <Quote size={20} />
           </div>
           <div>
-            <h3 className="text-system-blue font-mono font-bold text-xs uppercase tracking-widest mb-1">System Message</h3>
+            <h3 className="text-system-blue font-mono font-bold text-xs uppercase tracking-widest mb-1">{t.dashboard.systemMessage}</h3>
             <p className="text-white font-serif italic text-lg leading-relaxed">"{dailyQuote.text}"</p>
             <p className="text-slate-500 text-xs font-mono mt-2 text-right">- {dailyQuote.author}</p>
           </div>
         </div>
       </div>
 
-      {/* Header Card */}
+      {/* Profile Card */}
       <div className="bg-system-panel border border-system-border p-6 rounded-lg relative overflow-hidden shadow-lg transform transition-all hover:scale-[1.01]">
         <div className="absolute top-0 right-0 p-2 opacity-20">
           <Shield size={100} />
         </div>
-        
         <div className="flex items-center space-x-4 mb-4">
           <div className="w-16 h-16 bg-system-blue rounded-full flex items-center justify-center text-black font-bold text-3xl ring-4 ring-system-blue/30 animate-pulse-glow">
             {profile.rank}
           </div>
           <div className="flex-1">
-             {isEditingName ? (
-               <div className="flex items-center gap-2">
-                 <input 
-                   type="text" 
-                   value={tempName}
-                   onChange={(e) => setTempName(e.target.value)}
-                   className="bg-slate-800 text-white font-mono font-bold text-lg px-2 py-1 rounded border border-system-blue outline-none w-full"
-                   autoFocus
-                   onBlur={saveName}
-                   onKeyDown={(e) => e.key === 'Enter' && saveName()}
-                 />
-                 <button onClick={saveName} className="text-green-500"><Check size={20} /></button>
-               </div>
-             ) : (
-                <div className="flex items-center gap-2 group cursor-pointer" onClick={() => { setTempName(profile.name); setIsEditingName(true); }}>
-                  <h2 className="text-xl font-bold font-mono tracking-wider">HUNTER {profile.name.toUpperCase()}</h2>
-                  <Edit3 size={14} className="text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-             )}
-            <p className="text-sm text-slate-400">The Navigator's System</p>
+            {isEditingName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  className="bg-slate-800 text-white font-mono font-bold text-lg px-2 py-1 rounded border border-system-blue outline-none w-full"
+                  autoFocus
+                  onBlur={saveName}
+                  onKeyDown={(e) => e.key === 'Enter' && saveName()}
+                />
+                <button onClick={saveName} className="text-green-500"><Check size={20} /></button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 group cursor-pointer" onClick={() => { setTempName(profile.name); setIsEditingName(true); }}>
+                <h2 className="text-xl font-bold font-mono tracking-wider">{t.dashboard.hunter} {profile.name.toUpperCase()}</h2>
+                <Edit3 size={14} className="text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            )}
+            <p className="text-sm text-slate-400">{t.dashboard.navigatorSystem}</p>
           </div>
           <div className="flex items-center gap-1 text-yellow-400 font-mono bg-yellow-900/20 px-3 py-1 rounded-full border border-yellow-700/50">
             <Coins size={16} />
@@ -783,116 +930,106 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* XP Bar */}
         <div className="mt-2">
           <div className="flex justify-between text-xs text-system-blue font-mono mb-1">
-            <span>XP</span>
+            <span>{t.dashboard.xp}</span>
             <span>{profile.currentXp} / {RANK_THRESHOLDS[getNextRank(profile.currentXp + 100)]}</span>
           </div>
           <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-system-blue shadow-[0_0_10px_#3b82f6] transition-all duration-1000 ease-out" 
+            <div
+              className="h-full bg-system-blue shadow-[0_0_10px_#3b82f6] transition-all duration-1000 ease-out"
               style={{ width: `${getXpProgress(profile.currentXp, profile.rank)}%` }}
             ></div>
           </div>
         </div>
       </div>
 
-      {/* Global Standing & Report Buttons */}
+      {/* World Standing & Analytics */}
       <div className="grid grid-cols-2 gap-4">
-         <div className="bg-system-panel border border-slate-700 p-4 rounded-lg flex flex-col justify-between">
-            <div className="flex items-center gap-2 text-slate-400 text-xs font-mono mb-2">
-              <Globe size={14} /> WORLD RANKING
-            </div>
-            <div>
-              <div className="text-xl font-bold text-white">{getGlobalStanding(profile.rank).percentile}</div>
-              <div className="text-[10px] text-slate-500 mt-1">{getGlobalStanding(profile.rank).msg}</div>
-            </div>
-         </div>
-         <button 
-           onClick={() => setShowReportModal(true)}
-           className="bg-system-panel border border-slate-700 hover:border-system-blue hover:bg-system-blue/10 p-4 rounded-lg flex flex-col justify-between transition-all group text-left"
-         >
-            <div className="flex items-center gap-2 text-slate-400 text-xs font-mono mb-2 group-hover:text-system-blue">
-              <BarChart2 size={14} /> ANALYTICS
-            </div>
-            <div>
-              <div className="text-sm font-bold text-white group-hover:text-system-blue">VIEW SYSTEM REPORT</div>
-              <div className="text-[10px] text-slate-500 mt-1">Detailed performance analysis.</div>
-            </div>
-         </button>
+        <div className="bg-system-panel border border-slate-700 p-4 rounded-lg flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-400 text-xs font-mono mb-2">
+            <Globe size={14} /> {t.dashboard.worldRanking}
+          </div>
+          <div>
+            <div className="text-xl font-bold text-white">{getGlobalStanding(profile.rank).percentile}</div>
+            <div className="text-[10px] text-slate-500 mt-1">{getGlobalStanding(profile.rank).msg}</div>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowReportModal(true)}
+          className="bg-system-panel border border-slate-700 hover:border-system-blue hover:bg-system-blue/10 p-4 rounded-lg flex flex-col justify-between transition-all group text-left"
+        >
+          <div className="flex items-center gap-2 text-slate-400 text-xs font-mono mb-2 group-hover:text-system-blue">
+            <BarChart2 size={14} /> {t.dashboard.analytics}
+          </div>
+          <div>
+            <div className="text-sm font-bold text-white group-hover:text-system-blue">{t.dashboard.viewReport}</div>
+            <div className="text-[10px] text-slate-500 mt-1">{t.dashboard.reportDesc}</div>
+          </div>
+        </button>
       </div>
 
-      {/* Initialize System Button */}
-      <button 
+      {/* Initialize Plan */}
+      <button
         onClick={() => setShowUploadModal(true)}
         className="w-full py-4 border-2 border-dashed border-system-blue/50 rounded-lg flex items-center justify-center gap-2 text-system-blue hover:bg-system-blue/10 hover:border-system-blue transition-all group font-mono font-bold"
       >
         <Plus size={20} className="group-hover:rotate-90 transition-transform" />
-        INITIALIZE NEW SYSTEM PLAN
+        {t.dashboard.initPlan}
       </button>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Radar Chart */}
         <div className="bg-system-panel border border-system-border p-4 rounded-lg hover:border-system-blue/30 transition-colors">
           <h3 className="text-system-blue font-mono text-sm mb-4 border-b border-slate-800 pb-2 flex items-center gap-2">
-            <Activity size={16} /> PARAMETERS
+            <Activity size={16} /> {t.dashboard.parameters}
           </h3>
-          <StatRadar stats={profile.stats} />
+          <StatRadar customStats={profile.customStats} />
         </div>
 
-        {/* Numeric Stats */}
-        <div className="bg-system-panel border border-system-border p-4 rounded-lg flex flex-col justify-center space-y-4">
-           <div className="flex items-center justify-between p-2 bg-slate-900/50 rounded border border-slate-800 hover:bg-slate-800 transition-colors">
-             <span className="flex items-center gap-2 text-yellow-500 font-mono"><Brain size={16}/> INT (Radio)</span>
-             <span className="text-xl font-bold">{profile.stats.intelligence}</span>
-           </div>
-           
-           <div className="flex items-center justify-between p-2 bg-slate-900/50 rounded border border-slate-800 hover:bg-slate-800 transition-colors">
-             <span className="flex items-center gap-2 text-green-500 font-mono"><Eye size={16}/> PER (General)</span>
-             <span className="text-xl font-bold">{profile.stats.perception}</span>
-           </div>
-           
-           <div className="relative group overflow-hidden bg-slate-900/50 rounded border border-red-900/30 p-2 transition-all hover:border-red-500/50 hover:bg-red-900/10 cursor-help" title="Higher Vitality reduces streak loss when you miss a day.">
-             <div className="flex items-center justify-between relative z-10">
-               <span className="flex items-center gap-2 text-red-500 font-mono"><Zap size={16}/> VIT (Endurance)</span>
-               <span className="text-xl font-bold">{profile.stats.vitality}</span>
-             </div>
-             <div className="mt-2 pt-2 border-t border-red-900/30 text-[10px] font-mono text-red-300 flex justify-between items-center relative z-10">
-                <span className="flex items-center gap-1"><Shield size={10} /> STREAK GUARD</span>
-                <span>{Math.min(100, profile.stats.vitality)}% RETENTION</span>
-             </div>
-           </div>
-           
-           <div className="flex items-center justify-between p-2 bg-slate-900/50 rounded border border-slate-800 hover:bg-slate-800 transition-colors">
-             <span className="flex items-center gap-2 text-blue-500 font-mono"><Wind size={16}/> AGI (Instr.)</span>
-             <span className="text-xl font-bold">{profile.stats.agility}</span>
-           </div>
+        <div className="bg-system-panel border border-system-border p-4 rounded-lg flex flex-col justify-between">
+          <div className="space-y-2 flex-1">
+            {profile.customStats.map(stat => (
+              <div key={stat.id} className="flex items-center justify-between p-2 bg-slate-900/50 rounded border border-slate-800 hover:bg-slate-800 transition-colors">
+                <span className="flex items-center gap-2 font-mono text-sm" style={{ color: stat.color }}>
+                  {stat.emoji} {stat.name}
+                </span>
+                <span className="text-xl font-bold">{stat.value}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-slate-400 flex items-center gap-1">
+              <Zap size={12} /> {t.dashboard.totalPower}
+            </span>
+            <span className="text-lg font-bold text-system-blue">
+              {profile.customStats.reduce((sum, s) => sum + s.value, 0)}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Gym Tracker - Daily Training */}
+      {/* Gym Tracker */}
       <div className="bg-system-panel border border-system-border p-4 rounded-lg">
         <h3 className="text-orange-500 font-mono text-sm mb-4 border-b border-orange-900/30 pb-2 flex items-center gap-2">
-           <Dumbbell size={16} /> PHYSICAL TRAINING
+          <Dumbbell size={16} /> {t.dashboard.physicalTraining}
         </h3>
-        <p className="text-xs text-slate-400 mb-3">Goal: Complete training on M, T, W, F, S.</p>
+        <p className="text-xs text-slate-400 mb-3">{t.dashboard.gymGoal}</p>
         <div className="flex justify-between items-center">
-          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, idx) => {
+          {t.dashboard.gymDays.map((day, idx) => {
             const isTarget = GYM_TARGET_DAYS.includes(idx);
             const isDone = profile.weeklyGymProgress[idx];
             return (
               <div key={idx} className="flex flex-col items-center gap-1">
                 <span className={`text-[10px] font-mono font-bold ${isTarget ? 'text-orange-400' : 'text-slate-600'}`}>{day}</span>
-                <button 
+                <button
                   onClick={() => toggleGymDay(idx)}
                   disabled={isDone}
                   className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all duration-300
-                    ${isDone 
-                      ? 'bg-orange-500 border-orange-400 text-black shadow-[0_0_10px_#f97316]' 
-                      : isTarget 
-                        ? 'bg-slate-900 border-orange-900/50 hover:border-orange-500 cursor-pointer' 
+                    ${isDone
+                      ? 'bg-orange-500 border-orange-400 text-black shadow-[0_0_10px_#f97316]'
+                      : isTarget
+                        ? 'bg-slate-900 border-orange-900/50 hover:border-orange-500 cursor-pointer'
                         : 'bg-slate-950 border-slate-800 opacity-30'}
                   `}
                 >
@@ -904,35 +1041,41 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Daily Quest */}
+      {/* Daily Quests */}
       <div className="bg-system-panel border border-system-border p-4 rounded-lg">
         <h3 className="text-red-500 font-mono text-sm mb-4 border-b border-red-900/30 pb-2 flex items-center gap-2 animate-pulse">
-           <Trophy size={16} /> DAILY QUESTS
+          <Trophy size={16} /> {t.dashboard.dailyQuests}
         </h3>
         <div className="space-y-3">
-          {quests.map(q => (
-            <div key={q.id} className={`p-3 border rounded flex justify-between items-center transition-colors duration-300 ${q.isCompleted ? 'bg-green-900/20 border-green-800' : 'bg-slate-900 border-slate-800 hover:bg-slate-800'}`}>
-              <div>
-                <p className="font-bold text-sm">{q.description}</p>
-                <div className="text-xs text-slate-500 font-mono mt-1">
-                  Rewards: {q.rewardXp} XP, +1 {q.rewardStat.toUpperCase()}
+          {quests.map(q => {
+            const linkedStat = profile.customStats.find(s => s.id === q.rewardStat);
+            return (
+              <div key={q.id} className={`p-3 border rounded flex justify-between items-center transition-colors duration-300 ${q.isCompleted ? 'bg-green-900/20 border-green-800' : 'bg-slate-900 border-slate-800 hover:bg-slate-800'}`}>
+                <div>
+                  <p className="font-bold text-sm">{q.description}</p>
+                  <div className="text-xs text-slate-500 font-mono mt-1">
+                    {t.dashboard.rewards} {q.rewardXp} XP
+                    {linkedStat && (
+                      <span style={{ color: linkedStat.color }}> +1 {linkedStat.emoji} {linkedStat.name}</span>
+                    )}
+                    {!linkedStat && <span className="text-slate-600"> — {t.dashboard.noStatLinked}</span>}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className={`text-sm font-mono ${q.isCompleted ? 'text-green-500' : 'text-slate-400'}`}>
+                    {q.current}/{q.target}
+                  </span>
+                  {q.isCompleted && <CheckMark />}
                 </div>
               </div>
-              <div className="text-right">
-                <span className={`text-sm font-mono ${q.isCompleted ? 'text-green-500' : 'text-slate-400'}`}>
-                  {q.current}/{q.target}
-                </span>
-                {q.isCompleted && <CheckMark />}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
   );
 
   const renderDungeonMap = () => {
-    // Group chapters by part
     const groupedChapters: { [key: string]: Chapter[] } = {};
     chapters.forEach(c => {
       if (!groupedChapters[c.part]) groupedChapters[c.part] = [];
@@ -942,15 +1085,15 @@ const App: React.FC = () => {
     return (
       <div className="space-y-8 animate-slide-in-right">
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold font-mono text-system-blue tracking-widest">DUNGEON SELECT</h2>
-          <p className="text-slate-400 text-sm">Choose a gate to enter.</p>
+          <h2 className="text-2xl font-bold font-mono text-system-blue tracking-widest">{t.dungeon.title}</h2>
+          <p className="text-slate-400 text-sm">{t.dungeon.subtitle}</p>
         </div>
 
         {Object.entries(groupedChapters)
           .filter(([part]) => part !== DungeonPart.BOSS)
           .map(([part, partChapters]) => (
             <div key={part} className="space-y-3">
-              <h3 className="text-lg font-bold text-white border-l-4 border-system-blue pl-3 sticky top-16 bg-system-dark/90 backdrop-blur z-20 py-2 shadow-lg">{part}</h3>
+              <h3 className="text-lg font-bold text-white border-l-4 border-system-blue pl-3 sticky top-16 bg-system-dark/90 backdrop-blur z-20 py-2 shadow-lg">{translatePart(part)}</h3>
               <div className="grid gap-3">
                 {partChapters.map(chapter => (
                   <button
@@ -958,10 +1101,10 @@ const App: React.FC = () => {
                     disabled={!chapter.unlocked}
                     onClick={() => startDungeon(chapter.id)}
                     className={`w-full text-left p-4 rounded-lg border flex justify-between items-center transition-all duration-200 group transform active:scale-[0.99]
-                      ${chapter.isCleared 
-                        ? 'bg-shadow-dark border-shadow-purple/50 text-shadow-purple hover:bg-shadow-purple/20 hover:shadow-[0_0_15px_rgba(139,92,246,0.3)]' 
-                        : chapter.unlocked 
-                          ? 'bg-slate-900 border-red-900/50 hover:border-red-500 hover:bg-red-900/10 hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]' 
+                      ${chapter.isCleared
+                        ? 'bg-shadow-dark border-shadow-purple/50 text-shadow-purple hover:bg-shadow-purple/20 hover:shadow-[0_0_15px_rgba(139,92,246,0.3)]'
+                        : chapter.unlocked
+                          ? 'bg-slate-900 border-red-900/50 hover:border-red-500 hover:bg-red-900/10 hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]'
                           : 'bg-slate-950 border-slate-800 opacity-50 cursor-not-allowed'}
                     `}
                   >
@@ -971,35 +1114,35 @@ const App: React.FC = () => {
                         <h4 className="font-bold">{chapter.title}</h4>
                       </div>
                       <div className="text-xs mt-1 font-mono">
-                        {chapter.isCleared ? 'STATUS: CLEARED (SHADOW EXTRACTED)' : chapter.unlocked ? 'STATUS: GATE OPEN' : 'STATUS: LOCKED'}
+                        {chapter.isCleared ? t.dungeon.statusCleared : chapter.unlocked ? t.dungeon.statusOpen : t.dungeon.statusLocked}
                       </div>
                     </div>
                     <div>
-                       {chapter.isCleared ? <Ghost className="text-shadow-purple" /> : <Sword className={`${chapter.unlocked ? 'text-red-500 group-hover:scale-110 transition-transform duration-300' : 'text-slate-700'}`} />}
+                      {chapter.isCleared ? <Ghost className="text-shadow-purple" /> : <Sword className={`${chapter.unlocked ? 'text-red-500 group-hover:scale-110 transition-transform duration-300' : 'text-slate-700'}`} />}
                     </div>
                   </button>
                 ))}
               </div>
             </div>
-        ))}
+          ))}
 
         <div className="mt-12 mb-20 border-t border-slate-800 pt-8">
           <div className={`p-1 rounded-xl bg-gradient-to-r transition-all duration-500 ${chapters.some(c => c.part === DungeonPart.BOSS && c.unlocked) ? 'from-red-500 via-purple-600 to-red-500 animate-pulse-glow shadow-[0_0_30px_rgba(220,38,38,0.4)]' : 'from-slate-800 to-slate-900'}`}>
             <div className="bg-black rounded-lg p-6 text-center">
-              <h3 className="text-2xl font-bold text-red-500 font-mono tracking-[0.2em] mb-4">S-RANK GATE</h3>
+              <h3 className="text-2xl font-bold text-red-500 font-mono tracking-[0.2em] mb-4">{t.dungeon.sRankGate}</h3>
               {chapters.filter(c => c.part === DungeonPart.BOSS).map(boss => (
-                 <button
-                    key={boss.id}
-                    disabled={!boss.unlocked}
-                    onClick={() => startDungeon(boss.id)}
-                    className={`w-full py-4 border-2 font-bold text-lg rounded uppercase tracking-widest transition-all duration-300 active:scale-95
-                      ${boss.unlocked 
-                        ? 'border-red-500 bg-red-900/20 text-red-500 hover:bg-red-500 hover:text-white hover:shadow-[0_0_30px_#ef4444]' 
-                        : 'border-slate-800 text-slate-600 cursor-not-allowed'}
-                    `}
-                 >
-                   {boss.unlocked ? boss.title : 'LOCKED - CLEAR ALL GATES'}
-                 </button>
+                <button
+                  key={boss.id}
+                  disabled={!boss.unlocked}
+                  onClick={() => startDungeon(boss.id)}
+                  className={`w-full py-4 border-2 font-bold text-lg rounded uppercase tracking-widest transition-all duration-300 active:scale-95
+                    ${boss.unlocked
+                      ? 'border-red-500 bg-red-900/20 text-red-500 hover:bg-red-500 hover:text-white hover:shadow-[0_0_30px_#ef4444]'
+                      : 'border-slate-800 text-slate-600 cursor-not-allowed'}
+                  `}
+                >
+                  {boss.unlocked ? boss.title : t.dungeon.lockedMsg}
+                </button>
               ))}
             </div>
           </div>
@@ -1017,10 +1160,10 @@ const App: React.FC = () => {
       <div className="h-[calc(100vh-140px)] flex flex-col items-center justify-center space-y-8 animate-zoom-in">
         <div className="text-center space-y-2">
           <span className={`font-mono animate-pulse ${isBoss ? 'text-red-500 font-bold text-xl' : 'text-red-500'}`}>
-            {isBoss ? '⚠️ BOSS RAID IN PROGRESS ⚠️' : 'WARNING: MONSTERS DETECTED'}
+            {isBoss ? t.dungeon.bossRaid : t.dungeon.monstersDetected}
           </span>
           <h2 className="text-3xl font-bold text-white max-w-xs mx-auto leading-tight">{chapter.title.toUpperCase()}</h2>
-          <p className="text-system-blue font-mono">{chapter.part}</p>
+          <p className="text-system-blue font-mono">{translatePart(chapter.part)}</p>
         </div>
 
         <div className={`w-64 h-64 border-4 rounded-full flex items-center justify-center relative overflow-hidden bg-slate-900 transition-all duration-500
@@ -1031,24 +1174,24 @@ const App: React.FC = () => {
         </div>
 
         <div className="text-center text-slate-400 text-sm max-w-sm">
-          <p>{isBoss ? "Final Exam Simulation." : "Study Timer Active..."}</p>
-          <p>Read the materials. Complete the quiz to {isBoss ? "conquer the system." : "clear the dungeon."}</p>
+          <p>{isBoss ? t.dungeon.finalExam : t.dungeon.studyTimer}</p>
+          <p>{isBoss ? t.dungeon.conquerSystem : t.dungeon.readMaterials}</p>
         </div>
 
         <div className="flex gap-4 w-full max-w-sm">
-          <button 
+          <button
             onClick={() => finishDungeon(false)}
             className="flex-1 py-3 border border-slate-600 text-slate-400 hover:bg-slate-800 hover:text-white rounded font-mono uppercase font-bold transition-all duration-200 active:scale-95"
           >
-            Retreat
+            {t.dungeon.retreat}
           </button>
-          <button 
+          <button
             onClick={() => finishDungeon(true)}
             className={`flex-1 py-3 text-black hover:opacity-90 rounded font-mono uppercase font-bold shadow-[0_0_15px_currentColor] transition-all duration-200 active:scale-95
               ${isBoss ? 'bg-red-600 text-white shadow-red-600 hover:shadow-red-500' : 'bg-system-blue shadow-blue-500 hover:shadow-blue-400'}
             `}
           >
-            {isBoss ? 'Slay Boss' : 'Clear Dungeon'}
+            {isBoss ? t.dungeon.slayBoss : t.dungeon.clearDungeon}
           </button>
         </div>
       </div>
@@ -1057,40 +1200,42 @@ const App: React.FC = () => {
 
   const renderShadowArmy = () => (
     <div className="space-y-6 animate-fade-in">
-       <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold font-mono text-shadow-purple tracking-widest">SHADOW ARMY</h2>
-        <p className="text-slate-400 text-sm">Review extracted knowledge to maintain mastery.</p>
+      <div className="text-center mb-6">
+        <h2 className="text-2xl font-bold font-mono text-shadow-purple tracking-widest">{t.shadows.title}</h2>
+        <p className="text-slate-400 text-sm">{t.shadows.subtitle}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4">
         {chapters.filter(c => c.isCleared && c.part !== DungeonPart.BOSS).length === 0 ? (
           <div className="text-center py-20 text-slate-600 border border-dashed border-slate-800 rounded-lg">
             <Ghost size={48} className="mx-auto mb-4 opacity-20" />
-            <p>No Shadows extracted yet.</p>
-            <p className="text-sm">Clear dungeons to build your army.</p>
+            <p>{t.shadows.empty}</p>
+            <p className="text-sm">{t.shadows.emptyHint}</p>
           </div>
         ) : (
           chapters.filter(c => c.isCleared && c.part !== DungeonPart.BOSS).map(chapter => (
-            <div key={chapter.id} className="bg-slate-900 border border-shadow-purple/30 p-4 rounded-lg flex items-center gap-4 hover:bg-shadow-purple/10 hover:border-shadow-purple/60 transition-all duration-300 cursor-pointer active:scale-[0.99] group" onClick={() => summonShadow(chapter.id)}>
-               <div className="bg-shadow-purple/20 p-2 rounded-full group-hover:bg-shadow-purple/40 transition-colors shrink-0">
-                  <Ghost size={20} className="text-shadow-purple" />
-               </div>
-               
-               <div className="flex-1 min-w-0">
-                 <div className="flex justify-between items-center mb-1">
-                   <h4 className="font-bold text-slate-200 group-hover:text-white truncate text-sm">{chapter.title}</h4>
-                   <span className="text-[10px] text-shadow-purple font-mono font-bold">{chapter.masteryLevel}%</span>
-                 </div>
-                 <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                   <div 
-                     className="h-full bg-gradient-to-r from-shadow-purple to-cyan-400 shadow-[0_0_8px_rgba(139,92,246,0.4)] transition-all duration-500"
-                     style={{ width: `${chapter.masteryLevel}%` }}
-                   />
-                 </div>
-               </div>
-
+            <div
+              key={chapter.id}
+              className="bg-slate-900 border border-shadow-purple/30 p-4 rounded-lg flex items-center gap-4 hover:bg-shadow-purple/10 hover:border-shadow-purple/60 transition-all duration-300 cursor-pointer active:scale-[0.99] group"
+              onClick={() => summonShadow(chapter.id)}
+            >
+              <div className="bg-shadow-purple/20 p-2 rounded-full group-hover:bg-shadow-purple/40 transition-colors shrink-0">
+                <Ghost size={20} className="text-shadow-purple" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center mb-1">
+                  <h4 className="font-bold text-slate-200 group-hover:text-white truncate text-sm">{chapter.title}</h4>
+                  <span className="text-[10px] text-shadow-purple font-mono font-bold">{chapter.masteryLevel}%</span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-shadow-purple to-cyan-400 shadow-[0_0_8px_rgba(139,92,246,0.4)] transition-all duration-500"
+                    style={{ width: `${chapter.masteryLevel}%` }}
+                  />
+                </div>
+              </div>
               <button className="shrink-0 text-xs bg-slate-800 px-3 py-1 rounded border border-slate-700 hover:border-shadow-purple hover:text-shadow-purple hover:bg-shadow-purple/20 font-mono transition-all">
-                SUMMON
+                {t.shadows.summon}
               </button>
             </div>
           ))
@@ -1102,41 +1247,37 @@ const App: React.FC = () => {
   const renderShadowReview = () => {
     const chapter = chapters.find(c => c.id === activeChapterId);
     if (!chapter) return null;
+    const partLabel = translatePart(chapter.part).split(':')[1]?.trim() || translatePart(chapter.part);
 
     return (
       <div className="h-[calc(100vh-140px)] flex flex-col items-center justify-center space-y-6 animate-fade-in">
         <div className="w-full max-w-md bg-slate-900 border border-shadow-purple p-8 rounded-lg shadow-[0_0_30px_rgba(139,92,246,0.2)] text-center relative hover:shadow-[0_0_40px_rgba(139,92,246,0.3)] transition-shadow duration-500">
-           <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-shadow-purple text-black font-bold px-4 py-1 rounded-full text-sm font-mono animate-bounce">
-             REVIEW MODE
-           </div>
-           
-           <Ghost size={48} className="mx-auto mb-4 text-shadow-purple" />
-           
-           <h3 className="text-xl font-bold mb-2">{chapter.title}</h3>
-           <p className="text-slate-400 text-sm mb-6">
-             "To navigate is to survive. Remember the core principles of {chapter.part.split(':')[1]?.trim() || chapter.part}."
-           </p>
+          <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-shadow-purple text-black font-bold px-4 py-1 rounded-full text-sm font-mono animate-bounce">
+            {t.shadows.reviewMode}
+          </div>
+          <Ghost size={48} className="mx-auto mb-4 text-shadow-purple" />
+          <h3 className="text-xl font-bold mb-2">{chapter.title}</h3>
+          <p className="text-slate-400 text-sm mb-6">"{t.shadows.reviewQuote} {partLabel}."</p>
 
-           <div className="bg-black/30 p-4 rounded text-left mb-6 font-mono text-xs text-green-400">
-              {`> Accessing System Database...`} <br/>
-              {`> Retrieving flashcards...`} <br/>
-              {`> Topic: ${chapter.title}`} <br/>
-              {`> Status: Extracted`}
-           </div>
+          <div className="bg-black/30 p-4 rounded text-left mb-6 font-mono text-xs text-green-400">
+            {t.shadows.dbAccess}<br />
+            {t.shadows.dbRetrieve}<br />
+            {t.shadows.dbTopic} {chapter.title}<br />
+            {t.shadows.dbStatus}
+          </div>
 
-           <button 
-             onClick={completeShadowReview}
-             className="w-full py-3 bg-shadow-purple text-white font-bold rounded hover:bg-purple-600 hover:shadow-[0_0_20px_rgba(147,51,234,0.5)] transition-all duration-300 flex items-center justify-center gap-2 active:scale-95"
-           >
-             <RotateCw size={18} /> COMPLETE REVIEW
-           </button>
-           
-           <button 
-             onClick={() => { setView('SHADOW_ARMY'); setActiveChapterId(null); }}
-             className="mt-4 text-slate-500 hover:text-white text-sm transition-colors"
-           >
-             Dismiss Shadow
-           </button>
+          <button
+            onClick={completeShadowReview}
+            className="w-full py-3 bg-shadow-purple text-white font-bold rounded hover:bg-purple-600 hover:shadow-[0_0_20px_rgba(147,51,234,0.5)] transition-all duration-300 flex items-center justify-center gap-2 active:scale-95"
+          >
+            <RotateCw size={18} /> {t.shadows.completeReview}
+          </button>
+          <button
+            onClick={() => { setView('SHADOW_ARMY'); setActiveChapterId(null); }}
+            className="mt-4 text-slate-500 hover:text-white text-sm transition-colors"
+          >
+            {t.shadows.dismiss}
+          </button>
         </div>
       </div>
     );
@@ -1144,27 +1285,26 @@ const App: React.FC = () => {
 
   const renderShop = () => (
     <div className="space-y-6 animate-slide-up">
-       <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold font-mono text-yellow-500 tracking-widest">HUNTER STORE</h2>
+      <div className="text-center mb-6">
+        <h2 className="text-2xl font-bold font-mono text-yellow-500 tracking-widest">{t.shop.title}</h2>
         <div className="flex items-center justify-center gap-2 mt-2">
-           <span className="text-slate-400 text-sm">Exchange Gold for Real-World Rewards.</span>
-           <div className="flex items-center gap-1 text-yellow-400 font-mono bg-yellow-900/20 px-2 py-0.5 rounded border border-yellow-700/50 text-xs">
-              <Coins size={12} />
-              <span>{profile.gold}</span>
-           </div>
+          <span className="text-slate-400 text-sm">{t.shop.subtitle}</span>
+          <div className="flex items-center gap-1 text-yellow-400 font-mono bg-yellow-900/20 px-2 py-0.5 rounded border border-yellow-700/50 text-xs">
+            <Coins size={12} />
+            <span>{profile.gold}</span>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        {INITIAL_REWARDS.map(item => (
+        {localizedRewards.map(item => (
           <div key={item.id} className="bg-slate-900 border border-slate-700 p-4 rounded-lg flex flex-col justify-between hover:border-yellow-500/50 hover:shadow-[0_0_15px_rgba(234,179,8,0.2)] transition-all group">
             <div className="text-center mb-4">
               <div className="text-4xl mb-2 group-hover:scale-110 transition-transform duration-300">{item.icon}</div>
               <h3 className="font-bold text-white leading-tight">{item.name}</h3>
               <p className="text-[10px] text-slate-500 mt-1">{item.description}</p>
             </div>
-            
-            <button 
+            <button
               onClick={() => buyItem(item)}
               className="w-full py-2 bg-slate-800 border border-slate-700 rounded text-yellow-500 font-mono text-sm font-bold hover:bg-yellow-500 hover:text-black transition-colors active:scale-95 flex items-center justify-center gap-1"
             >
@@ -1179,51 +1319,48 @@ const App: React.FC = () => {
   const renderLifestyleControl = () => (
     <div className="space-y-6 animate-slide-up">
       <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold font-mono text-green-500 tracking-widest">LIFESTYLE CONTROL</h2>
-        <p className="text-slate-400 text-sm">Maintain protocols for optimal performance.</p>
+        <h2 className="text-2xl font-bold font-mono text-green-500 tracking-widest">{t.lifestyle.title}</h2>
+        <p className="text-slate-400 text-sm">{t.lifestyle.subtitle}</p>
       </div>
 
       <div className="bg-system-panel border border-slate-700 p-4 rounded-lg">
         <div className="flex gap-2 mb-4">
-          <input 
-            type="text" 
+          <input
+            type="text"
             value={newHabitTitle}
             onChange={(e) => setNewHabitTitle(e.target.value)}
-            placeholder="Add new protocol..."
+            placeholder={t.lifestyle.addPlaceholder}
             className="flex-1 bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white outline-none focus:border-green-500 font-mono text-sm"
             onKeyDown={(e) => e.key === 'Enter' && addNewHabit()}
           />
-          <button 
-            onClick={addNewHabit}
-            className="bg-green-600 hover:bg-green-500 text-white px-3 rounded"
-          >
+          <button onClick={addNewHabit} className="bg-green-600 hover:bg-green-500 text-white px-3 rounded">
             <Plus size={20} />
           </button>
         </div>
 
         <div className="space-y-3">
           {habits.map(habit => (
-            <div key={habit.id} className={`p-4 border rounded-lg flex items-center justify-between transition-all group
-              ${habit.isCompleted 
-                ? 'bg-slate-900/50 border-slate-800 opacity-60' 
-                : 'bg-slate-900 border-slate-700 hover:border-green-500/50'}
-            `}>
+            <div
+              key={habit.id}
+              className={`p-4 border rounded-lg flex items-center justify-between transition-all group
+                ${habit.isCompleted ? 'bg-slate-900/50 border-slate-800 opacity-60' : 'bg-slate-900 border-slate-700 hover:border-green-500/50'}
+              `}
+            >
               <div className="flex items-center gap-3">
-                 <div className={`p-2 rounded-full ${habit.type === 'good' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
-                   {habit.type === 'good' ? <Heart size={16} /> : <Skull size={16} />}
-                 </div>
-                 <div>
-                   <h4 className={`font-bold ${habit.isCompleted ? 'line-through text-slate-500' : 'text-white'}`}>{habit.title}</h4>
-                   <p className="text-[10px] text-slate-500 font-mono">Streak: {habit.streak} Days</p>
-                 </div>
+                <div className="p-2 rounded-full bg-blue-500/20 text-blue-400">
+                  <Sword size={16} />
+                </div>
+                <div>
+                  <h4 className={`font-bold ${habit.isCompleted ? 'line-through text-slate-500' : 'text-white'}`}>{habit.title}</h4>
+                  <p className="text-[10px] text-slate-500 font-mono">{t.lifestyle.streakLabel} {habit.streak} {t.lifestyle.streakUnit}</p>
+                </div>
               </div>
-              
-              <button 
+              <button
                 onClick={() => toggleHabit(habit.id)}
                 disabled={habit.isCompleted}
                 className={`w-10 h-10 rounded border flex items-center justify-center transition-all
-                  ${habit.isCompleted 
-                    ? 'bg-slate-800 border-slate-700 text-slate-500' 
+                  ${habit.isCompleted
+                    ? 'bg-slate-800 border-slate-700 text-slate-500'
                     : 'bg-slate-950 border-slate-600 hover:bg-green-500/20 hover:border-green-500 hover:text-green-500 text-slate-400'}
                 `}
               >
@@ -1236,14 +1373,802 @@ const App: React.FC = () => {
     </div>
   );
 
+  const renderMissions = () => {
+    const sorted = getSortedObjectives();
+
+    const priorityCfg = {
+      high:   { label: t.missions.priorityHigh,   textCls: 'text-red-400',    borderCls: 'border-red-500/40',    badge: 'bg-red-500/15 text-red-400 border border-red-500/50' },
+      medium: { label: t.missions.priorityMedium, textCls: 'text-yellow-400', borderCls: 'border-yellow-500/40', badge: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/50' },
+      low:    { label: t.missions.priorityLow,    textCls: 'text-blue-400',   borderCls: 'border-blue-400/40',   badge: 'bg-blue-400/15 text-blue-400 border border-blue-400/50' },
+    };
+
+    return (
+      <div className="space-y-8 animate-slide-up">
+        {/* Header */}
+        <div className="text-center">
+          <h2 className="text-2xl font-bold font-mono text-white tracking-widest">{t.missions.title}</h2>
+        </div>
+
+        {/* ── BOSS FIGHTS ── */}
+        {bossFights.some(b => b.status === 'active') && (
+          <section className="space-y-4">
+            <h3 className="text-purple-400 font-mono text-sm font-bold flex items-center gap-2 border-b border-purple-900/50 pb-2">
+              ⚔️ {t.missions.bossFightHeader}
+            </h3>
+            <div className="space-y-4">
+              {bossFights.filter(b => b.status === 'active').map(boss => {
+                const isExpired = !!boss.dueDate && new Date(boss.dueDate) < new Date(new Date().toDateString());
+                const daysLeft = boss.dueDate ? getDaysUntil(boss.dueDate) : null;
+                const allDone = boss.subTasks.length > 0 && boss.subTasks.every(s => s.completed);
+                return (
+                  <div key={boss.id} className="relative border-2 border-purple-500/60 rounded-lg bg-purple-950/20 shadow-[0_0_24px_rgba(168,85,247,0.18)] overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-purple-500 to-transparent" />
+
+                    <div className="p-4 space-y-4">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="text-purple-200 font-mono font-bold text-sm leading-snug">
+                            ⚔️ BOSS FIGHT: {boss.title.toUpperCase()}
+                          </h4>
+                          {boss.description && <p className="text-slate-400 text-xs mt-1">{boss.description}</p>}
+                        </div>
+                        {isExpired ? (
+                          <span className="text-[9px] font-mono font-bold px-2 py-1 bg-red-500/20 border border-red-500 text-red-400 rounded shrink-0 animate-pulse">
+                            ⚠️ {t.missions.bossExpired}
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-mono px-2 py-1 bg-purple-500/15 border border-purple-500/40 text-purple-300 rounded shrink-0">
+                            {t.missions.bossActive}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Deadline */}
+                      {boss.dueDate && (
+                        <p className={`text-xs font-mono font-bold ${isExpired ? 'text-red-400' : daysLeft !== null && daysLeft <= 3 ? 'text-yellow-400' : 'text-slate-400'}`}>
+                          {isExpired
+                            ? `⚠️ Prazo expirou há ${Math.abs(daysLeft!)}d`
+                            : `📅 ${boss.dueDate} (${daysLeft}d restantes)`}
+                        </p>
+                      )}
+
+                      {/* Progress bar */}
+                      <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-[10px] font-mono text-slate-400">{t.missions.bossProgress}</span>
+                          <span className="text-[10px] font-mono text-purple-300 font-bold">{boss.progress}%</span>
+                        </div>
+                        <div className="w-full bg-slate-800 rounded-full h-2">
+                          <div
+                            className="h-2 rounded-full bg-gradient-to-r from-purple-700 to-purple-400 transition-all duration-500"
+                            style={{ width: `${boss.progress}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Rewards */}
+                      <div className="flex gap-4 text-[11px] font-mono font-bold">
+                        <span className="text-yellow-400">+{boss.xpReward} XP</span>
+                        <span className="text-amber-400">+{boss.goldReward} Gold</span>
+                      </div>
+
+                      {/* Sub-tasks with drag / edit / delete */}
+                      {boss.subTasks.length > 0 && (
+                        <div className="space-y-0.5">
+                          {boss.subTasks.map(st => {
+                            const editKey = `${boss.id}::${st.id}`;
+                            const isEditing = editingSubTaskId === editKey;
+                            const isDragging = dragState?.bossId === boss.id && dragState?.subTaskId === st.id;
+                            const isDragOver = dragOverId === st.id && dragState?.bossId === boss.id && !isDragging;
+                            return (
+                              <div
+                                key={st.id}
+                                draggable={!isEditing}
+                                onDragStart={() => handleDragStart(boss.id, st.id)}
+                                onDragOver={e => handleDragOver(e, st.id)}
+                                onDrop={() => handleDrop(boss.id, st.id)}
+                                onDragEnd={handleDragEnd}
+                                className={`flex items-center gap-2 group rounded-md px-1.5 py-1 transition-all duration-150 select-none
+                                  ${isDragging ? 'opacity-30 scale-95' : 'opacity-100'}
+                                  ${isDragOver ? 'border-t-2 border-purple-400 bg-purple-950/40' : 'border-t-2 border-transparent'}
+                                  hover:bg-purple-950/40
+                                `}
+                              >
+                                {/* Drag handle */}
+                                <span className="text-[10px] text-slate-600 cursor-grab shrink-0 opacity-0 group-hover:opacity-100 transition-opacity leading-none">⋮⋮</span>
+
+                                {/* Checkbox */}
+                                <button
+                                  onClick={() => !isEditing && toggleBossSubTask(boss.id, st.id)}
+                                  className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all
+                                    ${st.completed ? 'bg-purple-600 border-purple-500 text-white' : 'border-slate-600 hover:border-purple-400'}`}
+                                >
+                                  {st.completed && <Check size={10} />}
+                                </button>
+
+                                {/* Title or edit input */}
+                                {isEditing ? (
+                                  <input
+                                    autoFocus
+                                    value={editingSubTaskText}
+                                    onChange={e => setEditingSubTaskText(e.target.value)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') confirmEditSubTask(boss.id, st.id);
+                                      if (e.key === 'Escape') setEditingSubTaskId(null);
+                                    }}
+                                    onBlur={() => confirmEditSubTask(boss.id, st.id)}
+                                    className="flex-1 bg-slate-700/80 border border-purple-500 rounded px-2 py-0.5 text-sm text-white font-mono outline-none"
+                                  />
+                                ) : (
+                                  <span
+                                    onDoubleClick={() => startEditSubTask(boss.id, st)}
+                                    className={`flex-1 text-sm ${st.completed ? 'line-through text-slate-500' : 'text-slate-300 group-hover:text-white'}`}
+                                  >
+                                    {st.title}
+                                  </span>
+                                )}
+
+                                {/* Edit / Delete icons (hover only) */}
+                                {!isEditing && (
+                                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                    <button onClick={() => startEditSubTask(boss.id, st)} className="text-slate-600 hover:text-purple-400 transition-colors p-0.5">
+                                      <Edit3 size={11} />
+                                    </button>
+                                    <button onClick={() => deleteBossSubTask(boss.id, st.id)} className="text-slate-600 hover:text-red-400 transition-colors p-0.5">
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* History */}
+                      {boss.history.length > 0 && (
+                        <div className="pt-2 border-t border-slate-800/60 space-y-1.5">
+                          <p className="text-[10px] font-mono text-slate-500 font-bold tracking-wider">📋 {t.missions.bossHistoryTitle}</p>
+                          <div className="space-y-1">
+                            {boss.history.map((entry, idx) => {
+                              const time = new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                              const isLast = idx === boss.history.length - 1;
+                              return (
+                                <div key={entry.id} className="flex items-start gap-1.5 text-[10px] font-mono">
+                                  <span className="text-slate-700 shrink-0 leading-4">{isLast ? '└─' : '├─'}</span>
+                                  <span className={`shrink-0 leading-4 ${
+                                    entry.action === 'started' ? 'text-purple-500/80' :
+                                    entry.action === 'completed' ? 'text-green-500/80' : 'text-yellow-500/80'
+                                  }`}>{time}</span>
+                                  <span className="text-slate-500 leading-4">
+                                    {entry.action === 'started' && t.missions.bossHistoryStarted}
+                                    {entry.action === 'completed' && t.missions.bossHistoryCompleted(entry.subTaskTitle || '')}
+                                    {entry.action === 'uncompleted' && t.missions.bossHistoryUncompleted(entry.subTaskTitle || '')}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            <div className="flex items-start gap-1.5 text-[10px] font-mono">
+                              <span className="text-slate-700 shrink-0 leading-4">└─</span>
+                              <span className="text-slate-600 leading-4 italic">{t.missions.bossHistoryAwaiting}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Add sub-task inline */}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={bossNewSubInputs[boss.id] || ''}
+                          onChange={e => setBossNewSubInputs(prev => ({ ...prev, [boss.id]: e.target.value }))}
+                          placeholder={t.missions.bossAddSubTask}
+                          className="flex-1 bg-slate-800 border border-slate-700 p-1.5 rounded text-white font-mono text-xs outline-none focus:border-purple-500"
+                          onKeyDown={e => e.key === 'Enter' && addBossSubTask(boss.id)}
+                        />
+                        <button onClick={() => addBossSubTask(boss.id)}
+                          className="px-2 bg-purple-600/20 border border-purple-500/50 text-purple-400 hover:bg-purple-600/40 rounded transition-all">
+                          <Plus size={13} />
+                        </button>
+                      </div>
+
+                      {/* Expired: penalty or abandon */}
+                      {isExpired && (
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={() => applyBossPenalty(boss.id)}
+                            className="flex-1 py-2 bg-red-500/20 border border-red-500 text-red-400 hover:bg-red-500/30 rounded font-mono text-xs font-bold transition-all">
+                            ⚠️ {t.missions.bossApplyPenalty} (-7d streak)
+                          </button>
+                          <button onClick={() => cancelBossFight(boss.id)}
+                            className="flex-1 py-2 bg-slate-800 border border-slate-600 text-slate-400 hover:text-white rounded font-mono text-xs transition-all">
+                            {t.missions.bossAbandon}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Active: complete + cancel */}
+                      {!isExpired && (
+                        <div className="flex gap-2 pt-1">
+                          {allDone && (
+                            <button onClick={() => completeBossFight(boss.id)}
+                              className="flex-1 py-2.5 bg-purple-600/40 border-2 border-purple-400 text-purple-100 hover:bg-purple-600/60 rounded font-mono text-xs font-bold transition-all shadow-[0_0_12px_rgba(168,85,247,0.4)]">
+                              ⚔️ {t.missions.bossComplete}
+                            </button>
+                          )}
+                          {confirmCancelBossId === boss.id ? (
+                            <>
+                              <button onClick={() => cancelBossFight(boss.id)}
+                                className="flex-1 py-2 bg-red-500/20 border border-red-500 text-red-400 rounded font-mono text-xs font-bold">
+                                {t.missions.confirm}
+                              </button>
+                              <button onClick={() => setConfirmCancelBossId(null)}
+                                className="py-2 px-3 bg-slate-800 border border-slate-600 text-slate-400 rounded font-mono text-xs">
+                                ✕
+                              </button>
+                            </>
+                          ) : (
+                            <button onClick={() => setConfirmCancelBossId(boss.id)}
+                              className={`${allDone ? '' : 'flex-1'} py-2 bg-slate-800/50 border border-slate-700 text-slate-500 hover:text-slate-300 rounded font-mono text-xs transition-all`}>
+                              {t.missions.bossCancel}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* ── OPEN OBJECTIVES ── */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between border-b border-purple-900/50 pb-2">
+            <h3 className="text-purple-400 font-mono text-sm font-bold flex items-center gap-2">
+              <Target size={15} /> {t.missions.objectivesHeader}
+            </h3>
+            <button
+              onClick={() => setShowAddObjectiveForm(v => !v)}
+              className="flex items-center gap-1 text-xs font-mono text-purple-400 hover:text-white border border-purple-500/50 hover:border-purple-400 px-2 py-1 rounded transition-all"
+            >
+              <Plus size={12} /> {t.missions.addObjective}
+            </button>
+          </div>
+
+          {/* Add form */}
+          {showAddObjectiveForm && (
+            <div className="bg-slate-900/80 border border-purple-500/30 rounded-lg p-4 space-y-3 animate-fade-in">
+              <input
+                type="text"
+                value={newObjTitle}
+                onChange={e => setNewObjTitle(e.target.value)}
+                placeholder={t.missions.titlePlaceholder}
+                className="w-full bg-slate-800 border border-slate-700 p-2 rounded text-white font-mono text-sm outline-none focus:border-purple-500"
+                autoFocus
+                onKeyDown={e => e.key === 'Enter' && addObjective()}
+              />
+              <input
+                type="text"
+                value={newObjDesc}
+                onChange={e => setNewObjDesc(e.target.value)}
+                placeholder={t.missions.descPlaceholder}
+                className="w-full bg-slate-800 border border-slate-700 p-2 rounded text-white font-mono text-sm outline-none focus:border-purple-500"
+              />
+              <div className="flex gap-2 flex-wrap">
+                {(['high', 'medium', 'low'] as Priority[]).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setNewObjPriority(p)}
+                    className={`px-3 py-1 rounded text-xs font-mono font-bold border transition-all ${
+                      newObjPriority === p ? priorityCfg[p].badge : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    {priorityCfg[p].label}
+                  </button>
+                ))}
+                <input
+                  type="date"
+                  value={newObjDueDate}
+                  onChange={e => setNewObjDueDate(e.target.value)}
+                  className="flex-1 min-w-[120px] bg-slate-800 border border-slate-700 p-1 rounded text-white font-mono text-xs outline-none focus:border-purple-500"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setShowAddObjectiveForm(false); setNewObjTitle(''); setNewObjDesc(''); }}
+                  className="flex-1 py-2 border border-slate-700 text-slate-400 hover:text-white rounded font-mono text-xs transition-colors"
+                >
+                  {t.upload.cancel}
+                </button>
+                <button
+                  onClick={addObjective}
+                  disabled={!newObjTitle.trim()}
+                  className="flex-1 py-2 bg-purple-600/20 border border-purple-500 text-purple-400 hover:bg-purple-600/40 rounded font-mono text-xs font-bold transition-all disabled:opacity-40"
+                >
+                  {t.missions.addObjective}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Objectives list */}
+          {sorted.length === 0 ? (
+            <div className="text-center py-10 text-slate-600 border border-dashed border-slate-800 rounded-lg">
+              <Target size={36} className="mx-auto mb-3 opacity-20" />
+              <p className="font-mono text-sm">{t.missions.empty}</p>
+              <p className="text-xs mt-1">{t.missions.emptyHint}</p>
+            </div>
+          ) : sorted.map(item => {
+            const cfg = priorityCfg[item.priority];
+            const daysAgo = getDaysAgo(item.dateAdded);
+            const daysUntil = item.dueDate ? getDaysUntil(item.dueDate) : null;
+            const isActive = item.status === 'active';
+
+            return (
+              <div
+                key={item.id}
+                className={`bg-slate-900 rounded-lg p-4 border transition-all duration-300 relative overflow-hidden
+                  ${isActive
+                    ? 'border-purple-500/70 shadow-[0_0_20px_rgba(139,92,246,0.25)]'
+                    : cfg.borderCls}
+                `}
+              >
+                {isActive && (
+                  <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-purple-500 to-transparent" />
+                )}
+
+                {/* Top row: badges + delete */}
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${cfg.badge}`}>
+                      {cfg.label}
+                    </span>
+                    {isActive && (
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/50 animate-pulse">
+                        {t.missions.statusActive}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {confirmDeleteObjId === item.id ? (
+                      <>
+                        <button
+                          onClick={() => deleteObjective(item.id)}
+                          className="text-[10px] px-2 py-1 bg-red-500/20 border border-red-500 text-red-400 rounded font-mono hover:bg-red-500/40 transition-colors"
+                        >
+                          {t.missions.confirm}
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteObjId(null)}
+                          className="text-[10px] px-2 py-1 bg-slate-800 border border-slate-600 text-slate-400 rounded font-mono hover:text-white transition-colors"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => handleDeleteObjectiveRequest(item.id)} className="text-slate-600 hover:text-red-500 transition-colors p-1">
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Content */}
+                <h4 className="font-bold text-white mb-1 leading-snug">{item.title}</h4>
+                {item.description && (
+                  <p className="text-slate-400 text-xs mb-2 leading-relaxed">{item.description}</p>
+                )}
+
+                {/* Footer row */}
+                <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-800/60">
+                  <div className="flex items-center gap-3 text-[10px] text-slate-500 font-mono">
+                    <span>{t.missions.addedDaysAgo(daysAgo)}</span>
+                    {daysUntil !== null && (
+                      <span className={`flex items-center gap-1 ${daysUntil < 0 ? 'text-red-400' : daysUntil <= 3 ? 'text-yellow-400' : 'text-slate-400'}`}>
+                        <Calendar size={10} />
+                        {daysUntil < 0 ? t.missions.overdue(-daysUntil) : t.missions.dueIn(daysUntil)}
+                      </span>
+                    )}
+                  </div>
+                  {!isActive && (
+                    <button
+                      onClick={() => startActivateBoss(item)}
+                      className="flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-1 rounded border border-purple-500/50 text-purple-400 hover:bg-purple-500/20 hover:border-purple-400 transition-all active:scale-95"
+                    >
+                      <Sword size={10} /> {t.missions.activateBoss}
+                    </button>
+                  )}
+                </div>
+
+                {/* Boss activation form */}
+                {activatingBossId === item.id && (
+                  <div className="mt-3 pt-3 border-t border-purple-500/30 space-y-3">
+                    <p className="text-[10px] font-mono text-purple-400 font-bold">⚔️ {t.missions.bossSetup}</p>
+
+                    <div>
+                      <label className="text-[10px] font-mono text-slate-400 block mb-1">{t.missions.bossDueDateLabel}</label>
+                      <input
+                        type="date"
+                        value={bossFormDueDate}
+                        onChange={e => setBossFormDueDate(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 p-1.5 rounded text-white font-mono text-xs outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    <p className="text-[10px] font-mono text-slate-500">⚡ Recompensas geradas automaticamente: 150–300 XP · 60–100 Gold</p>
+
+                    <div className="space-y-1.5">
+                      {bossFormSubTasks.map(st => (
+                        <div key={st.id} className="flex items-center gap-2">
+                          <span className="text-purple-400 text-xs shrink-0">◆</span>
+                          <span className="flex-1 text-xs text-slate-300">{st.title}</span>
+                          <button onClick={() => setBossFormSubTasks(prev => prev.filter(s => s.id !== st.id))} className="text-slate-600 hover:text-red-500 transition-colors">
+                            <Trash2 size={10} />
+                          </button>
+                        </div>
+                      ))}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={bossFormSubInput}
+                          onChange={e => setBossFormSubInput(e.target.value)}
+                          placeholder={t.missions.bossAddSubTask}
+                          className="flex-1 bg-slate-800 border border-slate-700 p-1.5 rounded text-white font-mono text-xs outline-none focus:border-purple-500"
+                          onKeyDown={e => e.key === 'Enter' && addBossFormSubTask()}
+                        />
+                        <button onClick={addBossFormSubTask} className="px-2 bg-purple-600/20 border border-purple-500/50 text-purple-400 hover:bg-purple-600/40 rounded transition-all">
+                          <Plus size={12} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button onClick={() => setActivatingBossId(null)}
+                        className="flex-1 py-1.5 border border-slate-700 text-slate-400 hover:text-white rounded font-mono text-xs transition-colors">
+                        {t.upload.cancel}
+                      </button>
+                      <button onClick={() => confirmActivateBoss(item)}
+                        className="flex-1 py-1.5 bg-purple-600/30 border border-purple-500 text-purple-300 hover:bg-purple-600/50 rounded font-mono text-xs font-bold transition-all">
+                        ⚔️ {t.missions.bossActivate}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </section>
+
+        {/* ── TAREFAS ── */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between border-b border-green-900/40 pb-2">
+            <h3 className="text-system-blue font-mono text-sm font-bold flex items-center gap-2">
+              <Sword size={15} /> {t.missions.tasksHeader}
+            </h3>
+            <button
+              onClick={() => setShowAddTaskForm(v => !v)}
+              className="flex items-center gap-1 text-xs font-mono text-system-blue hover:text-white border border-system-blue/50 hover:border-system-blue px-2 py-1 rounded transition-all"
+            >
+              <Plus size={12} /> {t.missions.addTask}
+            </button>
+          </div>
+
+          {/* ── Add task form ── */}
+          {showAddTaskForm && (
+            <div className="bg-slate-900/80 border border-system-blue/25 rounded-lg p-4 space-y-3 animate-fade-in">
+              <input
+                type="text"
+                value={newTaskTitle}
+                onChange={e => setNewTaskTitle(e.target.value)}
+                placeholder={t.missions.taskTitlePlaceholder}
+                className="w-full bg-slate-800 border border-slate-700 p-2 rounded text-white font-mono text-sm outline-none focus:border-system-blue"
+                autoFocus
+                onKeyDown={e => e.key === 'Enter' && addTask()}
+              />
+
+              {/* Repeat pattern */}
+              <div className="flex gap-1.5 flex-wrap">
+                {(['daily', 'weekdays', 'custom', 'oneTime'] as RepeatType[]).map(r => {
+                  const labels: Record<RepeatType, string> = {
+                    daily: `🔄 ${t.missions.repeatDaily}`,
+                    weekdays: `📅 ${t.missions.repeatWeekdays}`,
+                    custom: `🗓️ ${t.missions.repeatCustom}`,
+                    oneTime: `⭐ ${t.missions.repeatOneTime}`,
+                  };
+                  return (
+                    <button
+                      key={r}
+                      onClick={() => setNewTaskRepeat(r)}
+                      className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold border transition-all ${
+                        newTaskRepeat === r
+                          ? 'bg-system-blue/20 border-system-blue text-system-blue'
+                          : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {labels[r]}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Custom day selector */}
+              {newTaskRepeat === 'custom' && (
+                <div className="flex gap-1.5 justify-center pt-1">
+                  {t.missions.repeatDayLabels.map((label, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => toggleTaskDay(idx)}
+                      className={`w-8 h-8 rounded-full text-[11px] font-mono font-bold border transition-all ${
+                        newTaskDays.includes(idx)
+                          ? 'bg-system-blue border-system-blue text-black'
+                          : 'bg-slate-800 border-slate-700 text-slate-500 hover:border-system-blue/50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => { setShowAddTaskForm(false); setNewTaskTitle(''); setNewTaskRepeat('daily'); }}
+                  className="flex-1 py-2 border border-slate-700 text-slate-400 hover:text-white rounded font-mono text-xs transition-colors"
+                >
+                  {t.upload.cancel}
+                </button>
+                <button
+                  onClick={addTask}
+                  disabled={!newTaskTitle.trim() || (newTaskRepeat === 'custom' && newTaskDays.length === 0)}
+                  className="flex-1 py-2 bg-system-blue/20 border border-system-blue text-system-blue hover:bg-system-blue/40 rounded font-mono text-xs font-bold transition-all disabled:opacity-40"
+                >
+                  {t.missions.addTask}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Task list */}
+          {habits.length === 0 ? (
+            <div className="text-center py-8 text-slate-600 border border-dashed border-slate-800 rounded-lg">
+              <p className="font-mono text-sm">{t.missions.noTasks}</p>
+              <p className="text-xs mt-1">{t.missions.noTasksHint}</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {habits.map(habit => {
+                const active = isTodayActive(habit);
+                return (
+                  <div
+                    key={habit.id}
+                    className={`p-3 border rounded-lg flex items-center gap-3 transition-all duration-200
+                      ${!active
+                        ? 'opacity-40 bg-slate-950 border-slate-800'
+                        : habit.isCompleted
+                          ? 'bg-system-blue/5 border-system-blue/30'
+                          : 'bg-slate-900 border-slate-800 hover:border-slate-700'}
+                    `}
+                  >
+                    {/* Mission icon */}
+                    <div className="p-1.5 rounded-full shrink-0 bg-system-blue/15 text-system-blue">
+                      <Sword size={13} />
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-bold text-sm leading-tight ${habit.isCompleted ? 'line-through text-slate-500' : 'text-white'}`}>
+                        {habit.title}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="text-[10px] font-mono text-slate-500">{getRepeatLabel(habit)}</span>
+                        {!active && (
+                          <span className="text-[10px] font-mono text-slate-600">· {t.missions.notScheduledToday}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right: streak + delete + toggle */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {habit.streak > 0 && (
+                        <span className="text-[10px] font-mono text-yellow-500 flex items-center gap-0.5">
+                          <Zap size={9} fill="currentColor" />{habit.streak}
+                        </span>
+                      )}
+                      {confirmDeleteHabitId === habit.id ? (
+                        <>
+                          <button
+                            onClick={() => deleteHabit(habit.id)}
+                            className="text-[10px] px-1.5 py-0.5 bg-red-500/20 border border-red-500 text-red-400 rounded font-mono hover:bg-red-500/40"
+                          >
+                            {t.missions.confirm}
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteHabitId(null)}
+                            className="text-[10px] px-1.5 py-0.5 bg-slate-800 border border-slate-600 text-slate-400 rounded font-mono hover:text-white"
+                          >
+                            ✕
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => handleDeleteHabitRequest(habit.id)} className="text-slate-700 hover:text-red-500 transition-colors p-0.5">
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => !habit.isCompleted && toggleHabit(habit.id)}
+                        disabled={habit.isCompleted}
+                        className={`w-8 h-8 rounded border flex items-center justify-center transition-all
+                          ${habit.isCompleted
+                            ? 'bg-system-blue/20 border-system-blue/50 text-system-blue'
+                            : 'bg-slate-950 border-slate-700 hover:border-system-blue hover:text-system-blue text-slate-500'}
+                        `}
+                      >
+                        {habit.isCompleted ? <Check size={15} /> : <div className="w-3 h-3 rounded-sm border border-current" />}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+          {/* System quests inline — amber/optional */}
+          <div className="space-y-2 pt-1">
+            {quests.map(q => {
+              const linkedStat = profile.customStats.find(s => s.id === q.rewardStat);
+              return (
+                <div
+                  key={q.id}
+                  className={`p-3 border rounded-lg flex items-center gap-3 transition-colors duration-300
+                    ${q.isCompleted ? 'bg-yellow-900/10 border-yellow-900/30 opacity-60' : 'bg-amber-900/10 border-amber-700/40 hover:border-amber-600/60'}
+                  `}
+                >
+                  {/* System icon */}
+                  <div className="p-1.5 rounded-full shrink-0 bg-amber-500/15 text-amber-400">
+                    <Trophy size={13} />
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className={`font-bold text-sm ${q.isCompleted ? 'line-through text-slate-500' : 'text-white'}`}>{q.description}</p>
+                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 bg-amber-500/15 border border-amber-500/40 text-amber-400 rounded">
+                        {t.missions.systemOptional}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 font-mono mt-0.5">
+                      {t.dashboard.rewards} {q.rewardXp} XP
+                      {linkedStat && <span style={{ color: linkedStat.color }}> +1 {linkedStat.emoji} {linkedStat.name}</span>}
+                    </div>
+                  </div>
+
+                  {/* Progress */}
+                  <div className="text-right shrink-0">
+                    <span className={`text-sm font-mono ${q.isCompleted ? 'text-green-500' : 'text-amber-400'}`}>
+                      {q.current}/{q.target}
+                    </span>
+                    {q.isCompleted && <CheckMark />}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+      </div>
+    );
+  };
+
+  const renderSettings = () => (
+    <div className="space-y-6 animate-slide-up">
+      <div className="text-center mb-6">
+        <h2 className="text-2xl font-bold font-mono text-system-blue tracking-widest">{t.settings.title}</h2>
+        <p className="text-slate-400 text-sm">{t.settings.subtitle}</p>
+      </div>
+
+      {/* Custom Stats CRUD */}
+      <div className="bg-system-panel border border-slate-700 p-4 rounded-lg">
+        <h3 className="text-system-blue font-mono text-sm mb-2 border-b border-slate-800 pb-2 flex items-center gap-2">
+          <Activity size={16} /> {t.settings.statsSection}
+        </h3>
+        <p className="text-slate-400 text-xs mb-4">{t.settings.statsDesc}</p>
+
+        <div className="space-y-2 mb-4">
+          {profile.customStats.map(stat => (
+            <div key={stat.id} className="flex items-center gap-3 p-2 bg-slate-900/50 rounded border border-slate-800">
+              <span className="text-lg w-6 text-center">{stat.emoji}</span>
+              <span className="flex-1 font-mono text-sm font-bold" style={{ color: stat.color }}>{stat.name}</span>
+              <span className="text-sm font-mono text-slate-400 w-8 text-right">{stat.value}</span>
+              {confirmDeleteStatId === stat.id ? (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => deleteStat(stat.id)}
+                    className="text-xs px-2 py-1 bg-red-500/20 border border-red-500 text-red-400 rounded font-mono hover:bg-red-500/40 transition-colors"
+                  >
+                    {t.settings.confirm}
+                  </button>
+                  <button
+                    onClick={() => setConfirmDeleteStatId(null)}
+                    className="text-xs px-2 py-1 bg-slate-800 border border-slate-600 text-slate-400 rounded font-mono hover:text-white transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleDeleteStatRequest(stat.id)}
+                  className="text-slate-600 hover:text-red-500 transition-colors p-1"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newStatEmoji}
+            onChange={(e) => setNewStatEmoji(e.target.value)}
+            placeholder={t.settings.statEmojiPlaceholder}
+            className="w-14 bg-slate-900 border border-slate-700 p-2 rounded text-white text-center outline-none focus:border-system-blue font-mono"
+            maxLength={2}
+          />
+          <input
+            type="text"
+            value={newStatName}
+            onChange={(e) => setNewStatName(e.target.value)}
+            placeholder={t.settings.statNamePlaceholder}
+            className="flex-1 bg-slate-900 border border-slate-700 p-2 rounded text-white outline-none focus:border-system-blue font-mono text-sm"
+            onKeyDown={(e) => e.key === 'Enter' && addCustomStat()}
+          />
+          <button
+            onClick={addCustomStat}
+            className="bg-system-blue/20 hover:bg-system-blue/40 border border-system-blue text-system-blue px-3 rounded font-mono text-sm transition-all"
+          >
+            <Plus size={16} />
+          </button>
+        </div>
+
+        {profile.customStats.length <= 1 && (
+          <p className="text-red-400 text-xs mt-2 font-mono">{t.settings.minStatWarning}</p>
+        )}
+      </div>
+
+      {/* Language */}
+      <div className="bg-system-panel border border-slate-700 p-4 rounded-lg">
+        <h3 className="text-system-blue font-mono text-sm mb-2 border-b border-slate-800 pb-2 flex items-center gap-2">
+          <Globe size={16} /> {t.settings.languageSection}
+        </h3>
+        <p className="text-slate-400 text-xs mb-4">{t.settings.languageDesc}</p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setLanguage('pt-BR')}
+            className={`flex-1 py-3 rounded border font-mono font-bold transition-all ${language === 'pt-BR' ? 'bg-system-blue text-black border-system-blue' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-system-blue hover:text-white'}`}
+          >
+            🇧🇷 Português (BR)
+          </button>
+          <button
+            onClick={() => setLanguage('en')}
+            className={`flex-1 py-3 rounded border font-mono font-bold transition-all ${language === 'en' ? 'bg-system-blue text-black border-system-blue' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-system-blue hover:text-white'}`}
+          >
+            🇺🇸 English
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-system-dark text-slate-200 pb-20 font-sans selection:bg-system-blue selection:text-black">
       {notification && (
-        <SystemNotification 
-          message={notification.msg} 
-          subMessage={notification.sub} 
+        <SystemNotification
+          message={notification.msg}
+          subMessage={notification.sub}
           type={notification.type}
-          onClose={() => setNotification(null)} 
+          onClose={() => setNotification(null)}
         />
       )}
 
@@ -1253,37 +2178,30 @@ const App: React.FC = () => {
       {/* Top Bar */}
       <header className="sticky top-0 z-30 bg-system-dark/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex justify-between items-center shadow-md">
         <div className="flex items-center gap-2">
-          <div className="text-system-blue font-bold font-mono tracking-tighter text-lg animate-pulse">SYS_NAV</div>
+          <div className="text-system-blue font-bold font-mono tracking-tighter text-lg animate-pulse">{t.header.title}</div>
         </div>
         <div className="flex items-center gap-2 sm:gap-4">
-          {/* Voice System Link */}
-          <button 
+          <button
             onClick={connectToSystem}
             className={`flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-mono transition-all duration-300
-              ${isVoiceConnected 
-                ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse' 
-                : isVoiceConnecting 
+              ${isVoiceConnected
+                ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse'
+                : isVoiceConnecting
                   ? 'bg-yellow-500/10 border-yellow-500 text-yellow-500'
                   : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-system-blue hover:text-system-blue'}
             `}
           >
-             {isVoiceConnecting ? (
-               <Loader size={12} className="animate-spin" />
-             ) : isVoiceConnected ? (
-               <Mic size={12} />
-             ) : (
-               <MicOff size={12} />
-             )}
-             <span className="hidden sm:inline">{isVoiceConnected ? "SYSTEM LINK: ONLINE" : "SYSTEM LINK: OFFLINE"}</span>
+            {isVoiceConnecting ? <Loader size={12} className="animate-spin" /> : isVoiceConnected ? <Mic size={12} /> : <MicOff size={12} />}
+            <span className="hidden sm:inline">{isVoiceConnected ? t.header.systemLinkOnline : t.header.systemLinkOffline}</span>
           </button>
 
-          <button 
+          <button
             onClick={simulateStreakBreak}
             className="flex items-center gap-1 text-yellow-500 font-mono text-sm hover:text-red-500 transition-colors hover:scale-105 active:scale-95"
-            title="Click to Simulate Missing a Day (Test Vitality Protection)"
+            title="Click to Simulate Missing a Day"
           >
-             <Zap size={14} fill="currentColor"/> 
-             <span>{profile.streakDays} DAYS</span>
+            <Zap size={14} fill="currentColor" />
+            <span>{profile.streakDays} {t.header.days}</span>
           </button>
         </div>
       </header>
@@ -1297,41 +2215,19 @@ const App: React.FC = () => {
         {view === 'SHADOW_REVIEW' && renderShadowReview()}
         {view === 'SHOP' && renderShop()}
         {view === 'LIFESTYLE' && renderLifestyleControl()}
+        {view === 'MISSIONS' && renderMissions()}
+        {view === 'SETTINGS' && renderSettings()}
       </main>
 
       {/* Bottom Nav */}
       <nav className="fixed bottom-0 left-0 right-0 bg-system-panel border-t border-slate-800 pb-safe z-40">
         <div className="flex justify-around items-center h-16 max-w-2xl mx-auto px-1">
-          <NavButton 
-            active={view === 'DASHBOARD'} 
-            onClick={() => setView('DASHBOARD')} 
-            icon={<User size={18} />} 
-            label="STATUS" 
-          />
-          <NavButton 
-            active={view === 'DUNGEON_MAP' || view === 'ACTIVE_DUNGEON'} 
-            onClick={() => setView('DUNGEON_MAP')} 
-            icon={<MapIcon size={18} />} 
-            label="DUNGEON" 
-          />
-          <NavButton 
-            active={view === 'SHOP'} 
-            onClick={() => setView('SHOP')} 
-            icon={<ShoppingBag size={18} />} 
-            label="STORE" 
-          />
-          <NavButton 
-            active={view === 'LIFESTYLE'} 
-            onClick={() => setView('LIFESTYLE')} 
-            icon={<Activity size={18} />} 
-            label="PROTOCOLS" 
-          />
-          <NavButton 
-            active={view === 'SHADOW_ARMY' || view === 'SHADOW_REVIEW'} 
-            onClick={() => setView('SHADOW_ARMY')} 
-            icon={<Ghost size={18} />} 
-            label="SHADOWS" 
-          />
+          <NavButton active={view === 'DASHBOARD'} onClick={() => setView('DASHBOARD')} icon={<User size={18} />} label={t.nav.status} />
+          <NavButton active={view === 'MISSIONS'} onClick={() => setView('MISSIONS')} icon={<Target size={18} />} label={t.nav.missions} />
+          <NavButton active={view === 'DUNGEON_MAP' || view === 'ACTIVE_DUNGEON'} onClick={() => setView('DUNGEON_MAP')} icon={<MapIcon size={18} />} label={t.nav.dungeon} />
+          <NavButton active={view === 'SHOP'} onClick={() => setView('SHOP')} icon={<ShoppingBag size={18} />} label={t.nav.store} />
+          <NavButton active={view === 'SHADOW_ARMY' || view === 'SHADOW_REVIEW'} onClick={() => setView('SHADOW_ARMY')} icon={<Ghost size={18} />} label={t.nav.shadows} />
+          <NavButton active={view === 'SETTINGS'} onClick={() => setView('SETTINGS')} icon={<Settings size={18} />} label={t.nav.settings} />
         </div>
       </nav>
     </div>
@@ -1339,7 +2235,7 @@ const App: React.FC = () => {
 };
 
 const NavButton: React.FC<{ active: boolean; onClick: () => void; icon: React.ReactNode; label: string }> = ({ active, onClick, icon, label }) => (
-  <button 
+  <button
     onClick={onClick}
     className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-300 ${active ? 'text-system-blue' : 'text-slate-600 hover:text-slate-400'}`}
   >

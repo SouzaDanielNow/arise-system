@@ -1,13 +1,9 @@
-
-
 import { Chapter, DungeonPart, HunterRank, Quest, RewardItem, Habit, AnalyticsData, SystemQuote } from './types';
 
-export const INITIAL_STATS = {
-  intelligence: 10,
-  perception: 10,
-  vitality: 10,
-  agility: 10
-};
+export const STAT_COLOR_PALETTE = [
+  '#ff6b6b', '#4ecdc4', '#ffd93d', '#9b59b6',
+  '#3b82f6', '#10b981', '#f97316', '#ec4899',
+];
 
 export const RANK_THRESHOLDS = {
   [HunterRank.E]: 0,
@@ -18,9 +14,6 @@ export const RANK_THRESHOLDS = {
   [HunterRank.S]: 15000
 };
 
-// Target Days: Mon(0), Tue(1), Wed(2), Thu(3), Fri(4), Sat(5), Sun(6)
-// User requested M, T, W, F, S. Assuming Mon=0.
-// M=0, T=1, W=2, F=4, S=5.
 export const GYM_TARGET_DAYS = [0, 1, 2, 4, 5];
 
 export const INITIAL_REWARDS: RewardItem[] = [
@@ -28,15 +21,14 @@ export const INITIAL_REWARDS: RewardItem[] = [
   { id: 'r-2', name: 'Protein Bar', cost: 100, description: 'Restore stamina after a workout.', icon: '🍫' },
   { id: 'r-3', name: '1 Hour Gaming', cost: 200, description: 'Mental recovery time.', icon: '🎮' },
   { id: 'r-4', name: 'Cheat Meal', cost: 500, description: 'A reward for a week of hard work.', icon: '🍔' },
-  { id: 'r-5', name: 'New Book', cost: 800, description: 'Expand your intelligence stat.', icon: '📚' },
+  { id: 'r-5', name: 'New Book', cost: 800, description: 'Expand your knowledge.', icon: '📚' },
   { id: 'r-6', name: 'Movie Night', cost: 1000, description: 'Complete relaxation.', icon: '🎬' }
 ];
 
 export const INITIAL_HABITS: Habit[] = [
-  { id: 'h-1', title: 'Wake up at 5 AM', type: 'good', isCompleted: false, streak: 0 },
-  { id: 'h-2', title: 'Deep Work (2 Hours)', type: 'good', isCompleted: false, streak: 0 },
-  { id: 'h-3', title: 'No Sugar', type: 'good', isCompleted: false, streak: 0 }, // Treated as "good" habit to maintain (avoid sugar)
-  { id: 'h-4', title: 'Procrastination', type: 'bad', isCompleted: false, streak: 0 }
+  { id: 'h-1', title: 'Wake up at 5 AM', isCompleted: false, streak: 0, repeatType: 'daily' },
+  { id: 'h-2', title: 'Deep Work (2 Hours)', isCompleted: false, streak: 0, repeatType: 'weekdays' },
+  { id: 'h-3', title: 'No Sugar', isCompleted: false, streak: 0, repeatType: 'daily' },
 ];
 
 export const SYSTEM_QUOTES: SystemQuote[] = [
@@ -60,9 +52,7 @@ export const MOCK_WEEKLY_DATA: AnalyticsData[] = [
   { day: 'SUN', xp: 0, focusMinutes: 0 },
 ];
 
-// Full Syllabus from DGCA Navigation (RK Bali / Oxford)
 export const INITIAL_CHAPTERS: Chapter[] = [
-  // --- PART I: GENERAL NAVIGATION ---
   { id: '1-1', title: 'The Solar System', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: true },
   { id: '1-2', title: 'The Earth', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
   { id: '1-3', title: 'Projections', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
@@ -79,8 +69,6 @@ export const INITIAL_CHAPTERS: Chapter[] = [
   { id: '1-14', title: 'Mass and Balance', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
   { id: '1-15', title: 'Performance', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
   { id: '1-16', title: 'Flight Planning and Monitoring', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  
-  // --- PART II: AIRCRAFT INSTRUMENTS ---
   { id: '2-1', title: 'Air Data Systems', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
   { id: '2-2', title: 'Altimeter', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
   { id: '2-3', title: 'Air Speed Indicator (ASI)', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
@@ -90,8 +78,6 @@ export const INITIAL_CHAPTERS: Chapter[] = [
   { id: '2-7', title: 'Radio/Radar Altimeter', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
   { id: '2-8', title: 'Power Plant & Monitoring', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
   { id: '2-9', title: 'Electronic Displays', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-
-  // --- PART III: RADIO NAVIGATION ---
   { id: '3-1', title: 'Basic Radio Theory', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
   { id: '3-2', title: 'ADF / NDB', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
   { id: '3-3', title: 'Track and Drift', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
@@ -102,14 +88,12 @@ export const INITIAL_CHAPTERS: Chapter[] = [
   { id: '3-8', title: 'Radar', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
   { id: '3-9', title: 'GNSS / GPS', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
   { id: '3-10', title: 'Nav Aids Summary', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-
-  // --- BOSS RAID ---
   { id: 'BOSS-1', title: 'DGCA MOCK EXAM', part: DungeonPart.BOSS, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
 ];
 
 export const DAILY_QUESTS: Quest[] = [
-  { id: 'dq-1', description: 'Complete 1 Dungeon Run', target: 1, current: 0, isCompleted: false, rewardXp: 100, rewardStat: 'vitality' },
-  { id: 'dq-2', description: 'Review a Shadow (Cleared Chapter)', target: 1, current: 0, isCompleted: false, rewardXp: 50, rewardStat: 'intelligence' }
+  { id: 'dq-1', description: 'Complete 1 Dungeon Run', target: 1, current: 0, isCompleted: false, rewardXp: 100, rewardStat: '1' },
+  { id: 'dq-2', description: 'Review a Shadow (Cleared Chapter)', target: 1, current: 0, isCompleted: false, rewardXp: 50, rewardStat: '2' }
 ];
 
 export const getNextRank = (xp: number): HunterRank => {
@@ -123,16 +107,13 @@ export const getNextRank = (xp: number): HunterRank => {
 
 export const getXpProgress = (currentXp: number, rank: HunterRank): number => {
   const currentThreshold = RANK_THRESHOLDS[rank];
-  
-  let nextThreshold = RANK_THRESHOLDS[HunterRank.S] * 1.5; // Cap for S rank
+  let nextThreshold = RANK_THRESHOLDS[HunterRank.S] * 1.5;
   const ranks = Object.values(HunterRank);
   const currentIndex = ranks.indexOf(rank);
   if (currentIndex < ranks.length - 1) {
-     nextThreshold = RANK_THRESHOLDS[ranks[currentIndex + 1]];
+    nextThreshold = RANK_THRESHOLDS[ranks[currentIndex + 1]];
   }
-
   const denominator = nextThreshold - currentThreshold;
   if (denominator <= 0) return 100;
-  
   return Math.min(100, Math.max(0, ((currentXp - currentThreshold) / denominator) * 100));
 };

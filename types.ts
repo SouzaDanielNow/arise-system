@@ -1,5 +1,3 @@
-
-
 export enum HunterRank {
   E = 'E',
   D = 'D',
@@ -16,11 +14,12 @@ export enum DungeonPart {
   BOSS = 'S-Rank Gate: DGCA Final Exam'
 }
 
-export interface Stats {
-  intelligence: number; // INT: Radio Nav
-  perception: number;   // PER: General Nav
-  vitality: number;     // VIT: Streak/Endurance
-  agility: number;      // AGI: Instruments
+export interface CustomStat {
+  id: string;
+  name: string;
+  emoji: string;
+  color: string;
+  value: number;
 }
 
 export interface HunterProfile {
@@ -29,19 +28,19 @@ export interface HunterProfile {
   level: number;
   currentXp: number;
   requiredXp: number;
-  stats: Stats;
+  customStats: CustomStat[];
   streakDays: number;
   lastLoginDate: string;
   gold: number;
-  weeklyGymProgress: boolean[]; // Array of 7 booleans (Mon-Sun)
+  weeklyGymProgress: boolean[];
 }
 
 export interface Chapter {
   id: string;
   title: string;
-  part: string; // Changed from DungeonPart to string to allow custom parts
+  part: string;
   isCleared: boolean;
-  masteryLevel: number; // 0-100%
+  masteryLevel: number;
   timeSpentMinutes: number;
   unlocked: boolean;
 }
@@ -53,7 +52,51 @@ export interface Quest {
   current: number;
   isCompleted: boolean;
   rewardXp: number;
-  rewardStat: keyof Stats;
+  rewardStat: string;
+  questType?: 'daily' | 'oneTime';
+}
+
+export interface BossSubTask {
+  id: string;
+  title: string;
+  completed: boolean;
+  completedAt?: string;
+}
+
+export interface BossHistoryEntry {
+  id: string;
+  timestamp: string;
+  action: 'started' | 'completed' | 'uncompleted';
+  subTaskTitle?: string;
+}
+
+export interface BossFight {
+  id: string;
+  specialMissionId: string;
+  title: string;
+  description: string;
+  xpReward: number;
+  goldReward: number;
+  startDate: string;
+  dueDate: string;
+  progress: number;
+  subTasks: BossSubTask[];
+  history: BossHistoryEntry[];
+  status: 'active' | 'completed' | 'failed';
+  failPenalty: 'loseStreak';
+}
+
+export type Priority = 'high' | 'medium' | 'low';
+export type ObjectiveStatus = 'open' | 'active' | 'completed';
+
+export interface ProcrastinationItem {
+  id: string;
+  title: string;
+  description: string;
+  priority: Priority;
+  dueDate?: string;
+  dateAdded: string;
+  status: ObjectiveStatus;
 }
 
 export interface RewardItem {
@@ -61,15 +104,18 @@ export interface RewardItem {
   name: string;
   cost: number;
   description: string;
-  icon: string; // Emoji or Icon name
+  icon: string;
 }
+
+export type RepeatType = 'daily' | 'weekdays' | 'custom' | 'oneTime';
 
 export interface Habit {
   id: string;
   title: string;
-  type: 'good' | 'bad'; // 'good' = buff (do it), 'bad' = debuff (avoid it)
-  isCompleted: boolean; // For good: done? For bad: done (failed)?
+  isCompleted: boolean;
   streak: number;
+  repeatType: RepeatType;
+  repeatDays?: number[];
 }
 
 export interface AnalyticsData {
@@ -80,7 +126,7 @@ export interface AnalyticsData {
 
 export interface SystemQuote {
   text: string;
-  author: string; // usually 'The System' or 'Shadow Monarch'
+  author: string;
 }
 
-export type ViewState = 'DASHBOARD' | 'DUNGEON_MAP' | 'ACTIVE_DUNGEON' | 'SHADOW_ARMY' | 'SHADOW_REVIEW' | 'SHOP' | 'LIFESTYLE';
+export type ViewState = 'DASHBOARD' | 'DUNGEON_MAP' | 'ACTIVE_DUNGEON' | 'SHADOW_ARMY' | 'SHADOW_REVIEW' | 'SHOP' | 'LIFESTYLE' | 'SETTINGS' | 'MISSIONS';
