@@ -182,7 +182,8 @@ const App: React.FC = () => {
         .select('profile_data')
         .eq('id', session.user.id)
         .single();
-      if (data?.profile_data) {
+      // profile_data?.profile distinguishes a real GameState from the trigger's empty {}
+      if (data?.profile_data?.profile) {
         const gs = data.profile_data as GameState;
         setProfile(gs.profile);
         setChapters(gs.chapters);
@@ -191,9 +192,19 @@ const App: React.FC = () => {
         setProcrastinationItems(gs.procrastinationItems ?? []);
         setBossFights(gs.bossFights ?? []);
       } else {
+        const hunterName = session.user.user_metadata?.username || 'Jin-Woo';
+        const defaultState: GameState = {
+          profile: { ...profile, name: hunterName },
+          chapters,
+          quests,
+          habits,
+          procrastinationItems,
+          bossFights,
+        };
+        setProfile(prev => ({ ...prev, name: hunterName }));
         await supabase.from('profiles').upsert({
           id: session.user.id,
-          profile_data: { profile, chapters, quests, habits, procrastinationItems, bossFights } as GameState,
+          profile_data: defaultState,
         });
       }
       isDataLoadedRef.current = true;

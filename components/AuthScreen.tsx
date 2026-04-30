@@ -6,11 +6,63 @@ type AuthMode = 'login' | 'register';
 
 const AuthScreen: React.FC = () => {
   const [mode, setMode] = useState<AuthMode>('login');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const handleLogin = async () => {
+    // Look up email by hunter name
+    const { data, error: lookupErr } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('username', username.trim().toLowerCase())
+      .single();
+
+    if (lookupErr || !data?.email) {
+      setError('Hunter not found. Check your username.');
+      setLoading(false);
+      return;
+    }
+
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email: data.email,
+      password,
+    });
+    if (signInErr) setError(signInErr.message);
+  };
+
+  const handleRegister = async () => {
+    if (username.trim().length < 3) {
+      setError('Hunter name must be at least 3 characters.');
+      setLoading(false);
+      return;
+    }
+
+    // Check if username already taken
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', username.trim().toLowerCase())
+      .single();
+
+    if (existing) {
+      setError('This hunter name is already taken.');
+      setLoading(false);
+      return;
+    }
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { username: username.trim().toLowerCase() } },
+    });
+
+    if (error) setError(error.message);
+    else setSuccessMsg('Registration complete! Check your email to confirm your account.');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,20 +70,15 @@ const AuthScreen: React.FC = () => {
     setError(null);
     setSuccessMsg(null);
 
-    if (mode === 'login') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message);
-    } else {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) setError(error.message);
-      else setSuccessMsg('Registration complete. Check your email to confirm your account.');
-    }
+    if (mode === 'login') await handleLogin();
+    else await handleRegister();
+
     setLoading(false);
   };
 
   return (
     <div className="min-h-screen bg-[#020617] flex items-center justify-center px-4 font-mono">
-      {/* Background grid effect */}
+      {/* Background grid */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 opacity-5"
           style={{
@@ -63,7 +110,7 @@ const AuthScreen: React.FC = () => {
 
         {/* Card */}
         <div className="bg-[#0f172a] border border-slate-700 rounded-lg p-6 shadow-[0_0_40px_rgba(59,130,246,0.08)]">
-          {/* Mode toggle tabs */}
+          {/* Mode toggle */}
           <div className="flex mb-6 border border-slate-700 rounded overflow-hidden">
             <button
               onClick={() => { setMode('login'); setError(null); setSuccessMsg(null); }}
@@ -82,18 +129,35 @@ const AuthScreen: React.FC = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Hunter name — always shown */}
             <div>
-              <label className="block text-slate-400 text-xs tracking-wider mb-1">EMAIL</label>
+              <label className="block text-slate-400 text-xs tracking-wider mb-1">HUNTER NAME</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
-                autoComplete="email"
-                placeholder="hunter@arise.sys"
+                autoComplete="username"
+                placeholder="your_hunter_name"
                 className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2.5 text-white text-sm outline-none focus:border-blue-500 transition-colors placeholder:text-slate-600"
               />
             </div>
+
+            {/* Email — only on register */}
+            {mode === 'register' && (
+              <div>
+                <label className="block text-slate-400 text-xs tracking-wider mb-1">EMAIL</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  placeholder="hunter@arise.sys"
+                  className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2.5 text-white text-sm outline-none focus:border-blue-500 transition-colors placeholder:text-slate-600"
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-slate-400 text-xs tracking-wider mb-1">PASSWORD</label>
