@@ -6,7 +6,7 @@ type AuthMode = 'login' | 'register';
 
 // Only lowercase letters, numbers, underscore — no spaces
 const USERNAME_REGEX = /^[a-z0-9_]{3,20}$/;
-const USERNAME_HINT = 'Letters, numbers and _ only. Example: daniel_souza';
+const USERNAME_HINT = 'Letters, numbers and _ only. Example: jin_woo';
 
 const normalizeUsername = (raw: string) =>
   raw.trim().toLowerCase().replace(/\s+/g, '_');
@@ -167,7 +167,7 @@ const AuthScreen: React.FC = () => {
                 onChange={(e) => handleUsernameChange(e.target.value)}
                 required
                 autoComplete="username"
-                placeholder="daniel_souza"
+                placeholder="jin_woo"
                 maxLength={20}
                 className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2.5 text-white text-sm outline-none focus:border-blue-500 transition-colors placeholder:text-slate-600"
               />
