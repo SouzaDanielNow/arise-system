@@ -20,23 +20,16 @@ import {
 import {
   INITIAL_CHAPTERS, DAILY_QUESTS, RANK_THRESHOLDS, INITIAL_REWARDS,
   GYM_TARGET_DAYS, INITIAL_HABITS, MOCK_WEEKLY_DATA, getNextRank, getXpProgress,
-  STAT_COLOR_PALETTE
+  STAT_COLOR_PALETTE, RANK_COLORS
 } from './constants';
 import StatRadar from './components/StatRadar';
 import SystemNotification, { NotificationType } from './components/SystemNotification';
 import { useLanguage } from './i18n/LanguageContext';
 import { supabase } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
+import DevPanel from './components/DevPanel';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 
-const RANK_COLORS: Record<HunterRank, string> = {
-  [HunterRank.E]: '#9ca3af',
-  [HunterRank.D]: '#10b981',
-  [HunterRank.C]: '#3b82f6',
-  [HunterRank.B]: '#8b5cf6',
-  [HunterRank.A]: '#ec4899',
-  [HunterRank.S]: '#facc15',
-};
 
 // --- Audio Helper Functions ---
 function createBlob(data: Float32Array): GenAIBlob {
@@ -411,6 +404,21 @@ const App: React.FC = () => {
 
   const addGold = (amount: number) => {
     setProfile(prev => ({ ...prev, gold: prev.gold + amount }));
+  };
+
+  // --- Admin / Dev Panel ---
+  const isAdmin = session?.user?.email === 'dany_ops@hotmail.com';
+
+  const handleForceRank = (rank: HunterRank) => {
+    const xp = RANK_THRESHOLDS[rank];
+    setProfile(prev => ({ ...prev, rank, currentXp: xp }));
+  };
+
+  const handleSetStatValue = (statId: string, value: number) => {
+    setProfile(prev => ({
+      ...prev,
+      customStats: prev.customStats.map(s => s.id === statId ? { ...s, value } : s),
+    }));
   };
 
   // --- Voice / Live API ---
@@ -2400,6 +2408,18 @@ const App: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Dev Panel — admin only */}
+      {isAdmin && (
+        <DevPanel
+          profile={profile}
+          onAddXp={(amt) => addXp(amt)}
+          onResetXp={() => setProfile(prev => ({ ...prev, currentXp: 0, rank: HunterRank.E }))}
+          onAddGold={addGold}
+          onForceRank={handleForceRank}
+          onSetStatValue={handleSetStatValue}
+        />
+      )}
 
       {/* Account */}
       {session && (

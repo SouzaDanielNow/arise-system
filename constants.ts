@@ -1,5 +1,14 @@
 import { Chapter, DungeonPart, HunterRank, Quest, RewardItem, Habit, AnalyticsData, SystemQuote } from './types';
 
+export const RANK_COLORS: Record<HunterRank, string> = {
+  [HunterRank.E]: '#9ca3af',
+  [HunterRank.D]: '#10b981',
+  [HunterRank.C]: '#3b82f6',
+  [HunterRank.B]: '#8b5cf6',
+  [HunterRank.A]: '#ec4899',
+  [HunterRank.S]: '#facc15',
+};
+
 export const STAT_COLOR_PALETTE = [
   '#ff6b6b', '#4ecdc4', '#ffd93d', '#9b59b6',
   '#3b82f6', '#10b981', '#f97316', '#ec4899',
