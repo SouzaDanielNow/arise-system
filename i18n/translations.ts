@@ -8,7 +8,8 @@ const en = {
     days: 'DAYS',
   },
   nav: {
-    status: 'IDENTITY',
+    status: 'STATUS',
+    identity: 'IDENTITY',
     missions: 'MISSIONS',
     dungeon: 'DUNGEON',
     store: 'STORE',
@@ -337,7 +338,8 @@ const ptBR: Translations = {
     days: 'DIAS',
   },
   nav: {
-    status: 'IDENTIDADE',
+    status: 'STATUS',
+    identity: 'IDENTIDADE',
     missions: 'MISSÕES',
     dungeon: 'MASMORRA',
     store: 'LOJA',
