@@ -80,9 +80,15 @@ function applyDailyReset(gs: GameState): { state: GameState; hadStreakBreak: boo
     (new Date(today).getTime() - new Date(lastLogin).getTime()) / 86400000
   );
 
+  // Only recurring habits (daily / weekdays / custom) count for streak.
+  // If the user has zero recurring habits, a missed day never breaks streak.
+  const hasRecurringHabits = gs.habits.some(
+    h => h.repeatType === 'daily' || h.repeatType === 'weekdays' || h.repeatType === 'custom'
+  );
+
   let newStreakDays = gs.profile.streakDays;
   let hadStreakBreak = false;
-  if (daysDiff > 1 && newStreakDays > 0) {
+  if (daysDiff > 1 && newStreakDays > 0 && hasRecurringHabits) {
     const totalPower = gs.profile.customStats.reduce((s, c) => s + c.value, 0);
     const protection = Math.min(50, totalPower);
     newStreakDays = Math.floor(newStreakDays * (protection / 100));
@@ -935,7 +941,8 @@ const App: React.FC = () => {
             ),
           };
         });
-        return { ...h, isCompleted: true, streak: h.streak + 1 };
+        const isRecurring = h.repeatType !== 'oneTime';
+        return { ...h, isCompleted: true, streak: isRecurring ? h.streak + 1 : h.streak };
       }
       return h;
     }));
@@ -1433,57 +1440,50 @@ const App: React.FC = () => {
   // --- Views ---
   const renderDashboard = () => (
     <div className="space-y-6 animate-slide-up">
-      {/* Daily Quote */}
-      <div className="bg-gradient-to-r from-slate-900 to-system-panel border border-system-blue/30 rounded-lg p-4 relative overflow-hidden shadow-lg group">
-        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-          <Quote size={64} />
-        </div>
-        <div className="flex items-start gap-3 relative z-10">
-          <div className="bg-system-blue/20 p-2 rounded-full text-system-blue">
-            <Quote size={20} />
-          </div>
-          <div>
-            <h3 className="text-system-blue font-mono font-bold text-xs uppercase tracking-widest mb-1">{t.dashboard.systemMessage}</h3>
-            <p className="text-white font-serif italic text-lg leading-relaxed">"{dailyQuote.text}"</p>
-            <p className="text-slate-500 text-xs font-mono mt-2 text-right">- {dailyQuote.author}</p>
-          </div>
-        </div>
-      </div>
 
-      {/* Profile Card */}
-      <div className="bg-system-panel border border-system-border p-6 rounded-lg relative overflow-hidden shadow-lg transform transition-all hover:scale-[1.01]">
-        <div className="absolute top-0 right-0 p-2 opacity-20">
+      {/* Hunter Identity Card — placeholder for Etapa 2 */}
+      <div className="bg-system-panel border border-system-border p-6 rounded-lg relative overflow-hidden shadow-lg">
+        <div className="absolute top-0 right-0 p-2 opacity-10 pointer-events-none">
           <Shield size={100} />
         </div>
-        <div className="flex items-center space-x-4 mb-4">
-          <div className="w-16 h-16 bg-system-blue rounded-full flex items-center justify-center text-black font-bold text-3xl ring-4 ring-system-blue/30 animate-pulse-glow">
+
+        {/* Rank badge + name */}
+        <div className="flex items-center space-x-4 mb-5">
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center text-black font-bold text-3xl ring-4 shrink-0 animate-pulse-glow"
+            style={{ background: RANK_COLORS[profile.rank], '--tw-ring-color': `${RANK_COLORS[profile.rank]}50` } as React.CSSProperties}
+          >
             {profile.rank}
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             {isEditingName ? (
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   value={tempName}
-                  onChange={(e) => setTempName(e.target.value)}
+                  onChange={e => setTempName(e.target.value)}
                   className="bg-slate-800 text-white font-mono font-bold text-lg px-2 py-1 rounded border border-system-blue outline-none w-full"
                   autoFocus
                   onBlur={saveName}
-                  onKeyDown={(e) => e.key === 'Enter' && saveName()}
+                  onKeyDown={e => e.key === 'Enter' && saveName()}
                 />
-                <button onClick={saveName} className="text-green-500"><Check size={20} /></button>
+                <button onClick={saveName} className="text-green-500 shrink-0"><Check size={20} /></button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 group cursor-pointer" onClick={() => { setTempName(profile.name); setIsEditingName(true); }}>
-                <h2 className="text-xl font-bold font-mono tracking-wider">{t.dashboard.hunter} {profile.name.toUpperCase()}</h2>
-                <Edit3 size={14} className="text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div
+                className="flex items-center gap-2 group cursor-pointer"
+                onClick={() => { setTempName(profile.name); setIsEditingName(true); }}
+              >
+                <h2 className="text-xl font-bold font-mono tracking-wider truncate">{t.dashboard.hunter} {profile.name.toUpperCase()}</h2>
+                <Edit3 size={14} className="text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
               </div>
             )}
             <p className="text-sm text-slate-400">{t.dashboard.navigatorSystem}</p>
           </div>
         </div>
 
-        <div className="mt-2">
+        {/* XP bar */}
+        <div>
           <div className="flex justify-between text-xs text-system-blue font-mono mb-1">
             <span>{t.dashboard.xp}</span>
             <span>{profile.currentXp} / {RANK_THRESHOLDS[getNextRank(profile.currentXp + 100)]}</span>
@@ -1492,21 +1492,12 @@ const App: React.FC = () => {
             <div
               className="h-full bg-system-blue shadow-[0_0_10px_#3b82f6] transition-all duration-1000 ease-out"
               style={{ width: `${getXpProgress(profile.currentXp, profile.rank)}%` }}
-            ></div>
+            />
           </div>
         </div>
       </div>
 
-      {/* Initialize Plan */}
-      <button
-        onClick={() => setShowUploadModal(true)}
-        className="w-full py-4 border-2 border-dashed border-system-blue/50 rounded-lg flex items-center justify-center gap-2 text-system-blue hover:bg-system-blue/10 hover:border-system-blue transition-all group font-mono font-bold"
-      >
-        <Plus size={20} className="group-hover:rotate-90 transition-transform" />
-        {t.dashboard.initPlan}
-      </button>
-
-      {/* Stats Grid */}
+      {/* Stats — RadarChart + values (Etapa 2 will move/expand this) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-system-panel border border-system-border p-4 rounded-lg hover:border-system-blue/30 transition-colors">
           <h3 className="text-system-blue font-mono text-sm mb-4 border-b border-slate-800 pb-2 flex items-center gap-2">
@@ -1514,7 +1505,6 @@ const App: React.FC = () => {
           </h3>
           <StatRadar customStats={profile.customStats} />
         </div>
-
         <div className="bg-system-panel border border-system-border p-4 rounded-lg flex flex-col justify-between">
           <div className="space-y-2 flex-1">
             {profile.customStats.map(stat => (
@@ -2327,29 +2317,46 @@ const App: React.FC = () => {
                 onKeyDown={e => e.key === 'Enter' && addTask()}
               />
 
-              {/* Repeat pattern */}
-              <div className="flex gap-1.5 flex-wrap">
-                {(['daily', 'weekdays', 'custom', 'oneTime'] as RepeatType[]).map(r => {
-                  const labels: Record<RepeatType, string> = {
-                    daily: `🔄 ${t.missions.repeatDaily}`,
-                    weekdays: `📅 ${t.missions.repeatWeekdays}`,
-                    custom: `🗓️ ${t.missions.repeatCustom}`,
-                    oneTime: `⭐ ${t.missions.repeatOneTime}`,
-                  };
-                  return (
-                    <button
-                      key={r}
-                      onClick={() => setNewTaskRepeat(r)}
-                      className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold border transition-all ${
-                        newTaskRepeat === r
-                          ? 'bg-system-blue/20 border-system-blue text-system-blue'
-                          : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'
-                      }`}
-                    >
-                      {labels[r]}
-                    </button>
-                  );
-                })}
+              {/* Repeat pattern — recurring vs one-time */}
+              <div className="space-y-2">
+                <div>
+                  <p className="text-[9px] font-mono text-slate-500 tracking-widest mb-1.5">⚡ HÁBITO RECORRENTE</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {(['daily', 'weekdays', 'custom'] as RepeatType[]).map(r => {
+                      const labels: Record<string, string> = {
+                        daily: `🔄 ${t.missions.repeatDaily}`,
+                        weekdays: `📅 ${t.missions.repeatWeekdays}`,
+                        custom: `🗓️ ${t.missions.repeatCustom}`,
+                      };
+                      return (
+                        <button
+                          key={r}
+                          onClick={() => setNewTaskRepeat(r)}
+                          className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold border transition-all ${
+                            newTaskRepeat === r
+                              ? 'bg-system-blue/20 border-system-blue text-system-blue'
+                              : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'
+                          }`}
+                        >
+                          {labels[r]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[9px] font-mono text-amber-600/70 tracking-widest mb-1.5">📌 TAREFA PONTUAL <span className="text-slate-600 normal-case">(não conta para streak)</span></p>
+                  <button
+                    onClick={() => setNewTaskRepeat('oneTime')}
+                    className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold border transition-all ${
+                      newTaskRepeat === 'oneTime'
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-400'
+                        : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    ⭐ {t.missions.repeatOneTime}
+                  </button>
+                </div>
               </div>
 
               {/* Custom day selector */}
