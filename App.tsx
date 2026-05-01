@@ -15,12 +15,12 @@ import {
   HunterProfile, Chapter, Quest, ViewState, HunterRank, DungeonPart,
   CustomStat, RewardItem, Habit, SystemQuote, RepeatType,
   BossFight, BossSubTask, BossHistoryEntry, GameState,
-  Shadow, ShadowRank, ShadowRole
+  Shadow, ShadowRank, ShadowRole, ShadowStatus, ShadowMission
 } from './types';
 import {
   INITIAL_CHAPTERS, DAILY_QUESTS, RANK_THRESHOLDS, INITIAL_REWARDS,
   GYM_TARGET_DAYS, INITIAL_HABITS, MOCK_WEEKLY_DATA, getNextRank, getXpProgress,
-  STAT_COLOR_PALETTE, RANK_COLORS, SHADOW_RANK_COLORS, extractShadow
+  STAT_COLOR_PALETTE, RANK_COLORS, SHADOW_RANK_COLORS, extractShadow, generateDailyMissions
 } from './constants';
 import StatRadar from './components/StatRadar';
 import SystemNotification, { NotificationType } from './components/SystemNotification';
@@ -251,15 +251,35 @@ const STATUS_STYLE: Record<Shadow['status'], string> = {
   'Regenerando':'text-red-400 border-red-500/40 bg-red-500/10',
 };
 
-const ShadowCard: React.FC<{ shadow: Shadow }> = ({ shadow }) => {
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return '00:00:00';
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+const ShadowCard: React.FC<{ shadow: Shadow; onTrain?: () => void }> = ({ shadow, onTrain }) => {
   const color = SHADOW_RANK_COLORS[shadow.rank];
   const xpForNextLevel = shadow.level * 100;
   const xpPct = Math.min(100, Math.round((shadow.xp / xpForNextLevel) * 100));
+  const [countdown, setCountdown] = useState('');
+
+  useEffect(() => {
+    if (!shadow.returnTime) { setCountdown(''); return; }
+    const tick = () => setCountdown(formatCountdown(shadow.returnTime! - Date.now()));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [shadow.returnTime]);
+
+  const isBusy = shadow.status !== 'Pronta';
 
   return (
     <div
       className="bg-slate-900 rounded-lg p-4 border relative overflow-hidden transition-all duration-200 hover:scale-[1.01]"
-      style={{ borderColor: `${color}35`, boxShadow: `0 0 12px ${color}10` }}
+      style={{ borderColor: isBusy ? `${color}20` : `${color}35`, boxShadow: `0 0 12px ${color}10`, opacity: isBusy ? 0.75 : 1 }}
     >
       <div className="absolute top-0 left-0 w-full h-0.5" style={{ background: `linear-gradient(90deg, transparent, ${color}88, transparent)` }} />
 
@@ -285,6 +305,14 @@ const ShadowCard: React.FC<{ shadow: Shadow }> = ({ shadow }) => {
         </div>
       </div>
 
+      {/* Countdown if busy */}
+      {isBusy && countdown && (
+        <div className="mb-2 bg-slate-800/60 rounded px-3 py-1.5 flex items-center justify-between text-xs font-mono">
+          <span className="text-slate-500">⏳</span>
+          <span className="text-slate-300 tabular-nums">{countdown}</span>
+        </div>
+      )}
+
       {/* Power + Level */}
       <div className="flex items-center justify-between text-xs font-mono mb-2">
         <span className="text-slate-500">⚡ <span className="font-bold" style={{ color }}>{shadow.basePower}</span></span>
@@ -304,6 +332,16 @@ const ShadowCard: React.FC<{ shadow: Shadow }> = ({ shadow }) => {
           />
         </div>
       </div>
+
+      {/* Train button (only when Pronta) */}
+      {!isBusy && onTrain && (
+        <button
+          onClick={onTrain}
+          className="mt-3 w-full text-[10px] font-mono font-bold py-1.5 rounded border border-blue-500/40 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 transition-colors"
+        >
+          💪 TREINAR (200 Ouro)
+        </button>
+      )}
     </div>
   );
 };
@@ -389,6 +427,11 @@ const App: React.FC = () => {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const isDataLoadedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const profileRef = useRef<HunterProfile | null>(null);
+
+  // Shadow missions state
+  const [shadowMissions] = useState<ShadowMission[]>(() => generateDailyMissions());
+  const [missionModal, setMissionModal] = useState<{ mission: ShadowMission; selectedIds: string[] } | null>(null);
 
   // Visual effects state
   const [levelUpRank, setLevelUpRank] = useState<HunterRank | null>(null);
@@ -481,6 +524,91 @@ const App: React.FC = () => {
     document.documentElement.style.setProperty('--rank-color', RANK_COLORS[profile.rank]);
   }, [profile.rank]);
 
+  // Keep profileRef in sync for the time engine
+  useEffect(() => { profileRef.current = profile; }, [profile]);
+
+  // Shadow time engine — checks every 60s and on window focus
+  useEffect(() => {
+    const resolve = () => {
+      const now = Date.now();
+      const prev = profileRef.current;
+      if (!prev) return;
+
+      const hasDone = (prev.shadows ?? []).some(
+        s => s.returnTime && s.returnTime <= now
+      );
+      if (!hasDone) return;
+
+      type Resolution = { type: 'victory'; name: string; xp: number; gold: number }
+        | { type: 'defeat'; name: string }
+        | { type: 'trained'; name: string }
+        | { type: 'regen'; name: string };
+      const resolutions: Resolution[] = [];
+
+      setProfile(p => {
+        let addedXp = 0;
+        let addedGold = 0;
+
+        const newShadows: Shadow[] = (p.shadows ?? []).map(s => {
+          if (!s.returnTime || s.returnTime > now) return s;
+
+          if (s.status === 'Treinando') {
+            resolutions.push({ type: 'trained', name: s.name });
+            const gained = 100;
+            const xpAfter = s.xp + gained;
+            const needed = s.level * 100;
+            if (xpAfter >= needed) {
+              return { ...s, xp: xpAfter - needed, level: s.level + 1, basePower: s.basePower + 5, returnTime: undefined, status: 'Pronta' as ShadowStatus };
+            }
+            return { ...s, xp: xpAfter, returnTime: undefined, status: 'Pronta' as ShadowStatus };
+          }
+
+          if (s.status === 'Em Missão') {
+            const success = Math.random() * 100 < (s.missionChance ?? 50);
+            if (success) {
+              const xpR = 50; const goldR = 60;
+              resolutions.push({ type: 'victory', name: s.name, xp: xpR, gold: goldR });
+              addedXp += xpR; addedGold += goldR;
+              return { ...s, xp: s.xp + 30, returnTime: undefined, missionChance: undefined, status: 'Pronta' as ShadowStatus };
+            } else {
+              resolutions.push({ type: 'defeat', name: s.name });
+              return { ...s, returnTime: now + 7200000, missionChance: undefined, status: 'Regenerando' as ShadowStatus };
+            }
+          }
+
+          if (s.status === 'Regenerando') {
+            resolutions.push({ type: 'regen', name: s.name });
+            return { ...s, returnTime: undefined, status: 'Pronta' as ShadowStatus };
+          }
+
+          return s;
+        });
+
+        const newXp = p.currentXp + addedXp;
+        const newGold = p.gold + addedGold;
+        const newRank = getNextRank(newXp);
+        const didLevelUp = newRank !== p.rank;
+        if (didLevelUp) setTimeout(() => setLevelUpRank(newRank), 500);
+
+        return { ...p, shadows: newShadows, currentXp: newXp, gold: newGold, rank: newRank };
+      });
+
+      setTimeout(() => {
+        resolutions.forEach(r => {
+          if (r.type === 'victory')  showNotification(t.notifications.shadowMissionVictory, t.notifications.shadowMissionVictorySub(r.name, r.xp, r.gold), 'quest');
+          if (r.type === 'defeat')   showNotification(t.notifications.shadowMissionDefeat, t.notifications.shadowMissionDefeatSub(r.name), 'warning');
+          if (r.type === 'trained')  showNotification(t.notifications.shadowTrained, t.notifications.shadowTrainedSub(r.name), 'shield');
+          if (r.type === 'regen')    showNotification(t.notifications.shadowRegenDone, t.notifications.shadowRegenDoneSub(r.name), 'info');
+        });
+      }, 150);
+    };
+
+    const interval = setInterval(resolve, 60000);
+    window.addEventListener('focus', resolve);
+    resolve();
+    return () => { clearInterval(interval); window.removeEventListener('focus', resolve); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // --- Helpers ---
   const showNotification = (msg: string, sub?: string, type: NotificationType = 'info') => {
@@ -723,6 +851,23 @@ const App: React.FC = () => {
         addXp(30);
         addGold(20);
         showNotification(t.notifications.protocolAdhered, `${h.title} (+30 XP)`, 'shield');
+        // Monarch's Blessing — reduce all active shadow timers by 30 minutes
+        const BLESSING_MS = 1800000;
+        setProfile(pp => {
+          const activeShadows = (pp.shadows ?? []).filter(
+            s => s.returnTime && (s.status === 'Em Missão' || s.status === 'Treinando' || s.status === 'Regenerando')
+          );
+          if (activeShadows.length === 0) return pp;
+          setTimeout(() => showNotification(t.notifications.monarchBlessing, t.notifications.monarchBlessingSub, 'shield'), 300);
+          return {
+            ...pp,
+            shadows: (pp.shadows ?? []).map(s =>
+              s.returnTime && (s.status === 'Em Missão' || s.status === 'Treinando' || s.status === 'Regenerando')
+                ? { ...s, returnTime: Math.max(Date.now(), s.returnTime - BLESSING_MS) }
+                : s
+            ),
+          };
+        });
         return { ...h, isCompleted: true, streak: h.streak + 1 };
       }
       return h;
@@ -993,6 +1138,46 @@ const App: React.FC = () => {
       x: [0, -12, 12, -9, 9, -5, 5, -2, 2, 0],
       transition: { duration: 0.55, ease: 'easeOut' },
     });
+  };
+
+  const trainShadow = (shadowId: string) => {
+    const cost = 200;
+    if ((profileRef.current?.gold ?? 0) < cost) {
+      showNotification(t.notifications.insufficientGold, t.notifications.insufficientGoldSub, 'warning');
+      return;
+    }
+    setProfile(prev => ({
+      ...prev,
+      gold: prev.gold - cost,
+      shadows: (prev.shadows ?? []).map(s =>
+        s.id === shadowId
+          ? { ...s, status: 'Treinando' as ShadowStatus, returnTime: Date.now() + 7200000 }
+          : s
+      ),
+    }));
+  };
+
+  const sendOnMission = () => {
+    if (!missionModal) return;
+    const { mission, selectedIds } = missionModal;
+    if (selectedIds.length === 0) return;
+    const readyShadows = (profile.shadows ?? []).filter(s => selectedIds.includes(s.id));
+    const totalPower = readyShadows.reduce((sum, s) => {
+      const bonus = s.role === mission.recommendedRole ? 1.2 : 1;
+      return sum + s.basePower * bonus;
+    }, 0);
+    const chance = Math.min(100, Math.round((totalPower / mission.requiredPower) * 100));
+    const returnTime = Date.now() + mission.durationHours * 3600000;
+    setProfile(prev => ({
+      ...prev,
+      shadows: (prev.shadows ?? []).map(s =>
+        selectedIds.includes(s.id)
+          ? { ...s, status: 'Em Missão' as ShadowStatus, returnTime, missionChance: chance }
+          : s
+      ),
+    }));
+    setMissionModal(null);
+    showNotification('⚔️ MISSÃO INICIADA', `${readyShadows.length} sombra(s) enviadas — Chance: ${chance}%`, 'quest');
   };
 
   const cancelBossFight = (bossId: string) => {
@@ -1418,7 +1603,21 @@ const App: React.FC = () => {
 
   const renderShadowArmy = () => {
     const soldiers = profile.shadows ?? [];
+    const readySoldiers = soldiers.filter(s => s.status === 'Pronta');
     const clearedChapters = chapters.filter(c => c.isCleared && c.part !== DungeonPart.BOSS);
+
+    // Mission modal helpers
+    const selectedMission = missionModal?.mission ?? null;
+    const selectedIds = missionModal?.selectedIds ?? [];
+    const modalShadows = soldiers.filter(s => s.status === 'Pronta');
+    const calcChance = (mission: ShadowMission, ids: string[]) => {
+      const picked = soldiers.filter(s => ids.includes(s.id));
+      const totalPower = picked.reduce((sum, s) => {
+        const bonus = s.role === mission.recommendedRole ? 1.2 : 1;
+        return sum + s.basePower * bonus;
+      }, 0);
+      return Math.min(100, Math.round((totalPower / mission.requiredPower) * 100));
+    };
 
     return (
       <div className="space-y-8 animate-fade-in">
@@ -1426,6 +1625,44 @@ const App: React.FC = () => {
           <h2 className="text-2xl font-bold font-mono text-shadow-purple tracking-widest">{t.shadows.title}</h2>
           <p className="text-slate-400 text-sm">{t.shadows.subtitle}</p>
         </div>
+
+        {/* ── Mission Board ── */}
+        <section>
+          <h3 className="text-xs font-mono tracking-[0.35em] text-slate-500 mb-4 flex items-center gap-2">
+            <Target size={12} className="text-yellow-500" />
+            {t.shadows.missionBoardTitle}
+          </h3>
+          <div className="grid grid-cols-1 gap-3">
+            {shadowMissions.map(mission => (
+              <div
+                key={mission.id}
+                className="bg-slate-900 border border-yellow-500/20 rounded-lg p-4 hover:border-yellow-500/40 transition-all"
+              >
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <p className="font-mono font-bold text-sm text-white">{mission.title}</p>
+                    <div className="flex gap-3 mt-1 text-[10px] font-mono text-slate-500">
+                      <span>⚡ {t.shadows.missionRequiredPower}: <span className="text-yellow-400">{mission.requiredPower}</span></span>
+                      <span>🎭 {mission.recommendedRole}</span>
+                      <span>⏱ {mission.durationHours}h</span>
+                    </div>
+                  </div>
+                  <div className="text-right text-[10px] font-mono shrink-0">
+                    <p className="text-yellow-400">+{mission.rewardGold} Gold</p>
+                    <p className="text-blue-400">+{mission.rewardXP} XP</p>
+                  </div>
+                </div>
+                <button
+                  disabled={readySoldiers.length === 0}
+                  onClick={() => setMissionModal({ mission, selectedIds: [] })}
+                  className="w-full py-2 text-xs font-mono font-bold rounded border border-yellow-500/50 text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  {t.shadows.missionSendBtn}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {/* ── Shadow Soldiers ── */}
         <section>
@@ -1442,7 +1679,13 @@ const App: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {soldiers.map(s => <ShadowCard key={s.id} shadow={s} />)}
+              {soldiers.map(s => (
+                <ShadowCard
+                  key={s.id}
+                  shadow={s}
+                  onTrain={s.status === 'Pronta' ? () => trainShadow(s.id) : undefined}
+                />
+              ))}
             </div>
           )}
         </section>
@@ -1490,6 +1733,91 @@ const App: React.FC = () => {
             )}
           </div>
         </section>
+
+        {/* ── Mission Dispatch Modal ── */}
+        <AnimatePresence>
+          {selectedMission && (
+            <motion.div
+              className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMissionModal(null)}
+            >
+              <motion.div
+                className="w-full max-w-sm bg-slate-950 border border-yellow-500/30 rounded-xl p-5 shadow-2xl"
+                initial={{ y: 40, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 40, opacity: 0 }}
+                onClick={e => e.stopPropagation()}
+              >
+                <p className="text-xs font-mono tracking-[0.3em] text-yellow-500 mb-1">{t.shadows.missionSelectTitle}</p>
+                <p className="font-mono font-bold text-white mb-1">{selectedMission.title}</p>
+                <p className="text-[10px] font-mono text-slate-500 mb-4">{t.shadows.missionSelectHint}</p>
+
+                {modalShadows.length === 0 ? (
+                  <p className="text-center text-slate-500 text-sm py-4">{t.shadows.soldiersEmpty}</p>
+                ) : (
+                  <div className="space-y-2 mb-4 max-h-52 overflow-y-auto">
+                    {modalShadows.map(s => {
+                      const isSelected = selectedIds.includes(s.id);
+                      const color = SHADOW_RANK_COLORS[s.rank];
+                      const bonus = s.role === selectedMission.recommendedRole;
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => {
+                            const next = isSelected
+                              ? selectedIds.filter(x => x !== s.id)
+                              : selectedIds.length < 3 ? [...selectedIds, s.id] : selectedIds;
+                            setMissionModal(prev => prev ? { ...prev, selectedIds: next } : null);
+                          }}
+                          className={`w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-all ${
+                            isSelected
+                              ? 'border-yellow-400/60 bg-yellow-500/15'
+                              : 'border-slate-700/50 bg-slate-900 hover:border-slate-600'
+                          }`}
+                        >
+                          <span className="text-lg leading-none">{ROLE_ICONS[s.role]}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-mono font-bold text-white truncate">{s.name}</p>
+                            <p className="text-[10px] font-mono text-slate-500">⚡ {s.basePower}{bonus ? <span className="text-green-400 ml-1">+20%</span> : null}</p>
+                          </div>
+                          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border" style={{ color, borderColor: `${color}55`, background: `${color}18` }}>
+                            {s.rank}
+                          </span>
+                          {isSelected && <span className="text-yellow-400 text-xs">✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {selectedIds.length > 0 && (
+                  <div className="text-center text-xs font-mono text-slate-400 mb-3">
+                    {t.shadows.missionSuccessChance(calcChance(selectedMission, selectedIds))}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setMissionModal(null)}
+                    className="flex-1 py-2.5 rounded border border-slate-700 text-slate-400 text-xs font-mono hover:border-slate-500 transition-colors"
+                  >
+                    {t.missions.bossCancel.split(' ')[0]}
+                  </button>
+                  <button
+                    disabled={selectedIds.length === 0}
+                    onClick={sendOnMission}
+                    className="flex-1 py-2.5 rounded border-2 border-yellow-400 text-yellow-300 bg-yellow-500/10 hover:bg-yellow-500/20 text-xs font-mono font-bold disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {t.shadows.missionConfirmBtn}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   };

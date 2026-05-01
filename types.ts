@@ -37,6 +37,7 @@ export interface HunterProfile {
   lastLoginDate: string;
   gold: number;
   weeklyGymProgress: boolean[];
+  shadows: Shadow[];
 }
 
 export interface Chapter {
@@ -95,6 +96,33 @@ export interface RewardItem {
   cost: number;
   description: string;
   icon: string;
+}
+
+export type ShadowRank = 'Infantaria' | 'Elite' | 'Cavaleiro' | 'Comandante';
+export type ShadowRole = 'Tank' | 'Guerreiro' | 'Assassino' | 'Mago';
+export type ShadowStatus = 'Pronta' | 'Em Missão' | 'Treinando' | 'Regenerando';
+
+export interface Shadow {
+  id: string;
+  name: string;
+  level: number;
+  xp: number;
+  rank: ShadowRank;
+  role: ShadowRole;
+  basePower: number;
+  status: ShadowStatus;
+  returnTime?: number;
+  missionChance?: number;
+}
+
+export interface ShadowMission {
+  id: string;
+  title: string;
+  requiredPower: number;
+  recommendedRole: ShadowRole;
+  durationHours: number;
+  rewardGold: number;
+  rewardXP: number;
 }
 
 export type RepeatType = 'daily' | 'weekdays' | 'custom' | 'oneTime';

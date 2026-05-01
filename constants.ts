@@ -1,4 +1,4 @@
-import { Chapter, DungeonPart, HunterRank, Quest, RewardItem, Habit, AnalyticsData, SystemQuote } from './types';
+import { Chapter, DungeonPart, HunterRank, Quest, RewardItem, Habit, AnalyticsData, SystemQuote, Shadow, ShadowRank, ShadowRole, ShadowMission } from './types';
 
 export const RANK_COLORS: Record<HunterRank, string> = {
   [HunterRank.E]: '#9ca3af',
@@ -136,3 +136,76 @@ export const getXpProgress = (currentXp: number, rank: HunterRank): number => {
   if (denominator <= 0) return 100;
   return Math.min(100, Math.max(0, ((currentXp - currentThreshold) / denominator) * 100));
 };
+
+// ── Shadow Army ──────────────────────────────────────────────────────────────
+
+export const SHADOW_RANK_COLORS: Record<ShadowRank, string> = {
+  Infantaria: '#64748b',
+  Elite:      '#10b981',
+  Cavaleiro:  '#3b82f6',
+  Comandante: '#f59e0b',
+};
+
+const SHADOW_NAMES: Record<ShadowRank, string[]> = {
+  Infantaria: ['Soldado Orc', 'Goblin Guerreiro', 'Espectro Menor', 'Zumbi Orc', 'Lobo das Trevas', 'Esqueleto Armado', 'Verme das Sombras'],
+  Elite:      ['Lobo das Sombras', 'Cavaleiro Morto', 'Espectro Élite', 'Gargoyle Negro', 'Golem de Sombra', 'Arqueiro Espectral'],
+  Cavaleiro:  ['Cavaleiro das Sombras', 'Lich Menor', 'Berserker Espectral', 'Dragão das Sombras', 'Guardião Negro'],
+  Comandante: ['Igris', 'Beru', 'Iron', 'Bellion', 'Greed', 'Kaisel', 'Tusk'],
+};
+
+const SHADOW_ROLES: ShadowRole[] = ['Tank', 'Guerreiro', 'Assassino', 'Mago'];
+
+const SHADOW_POWER_RANGES: Record<ShadowRank, [number, number]> = {
+  Infantaria: [5, 10],
+  Elite:      [15, 30],
+  Cavaleiro:  [40, 70],
+  Comandante: [100, 150],
+};
+
+export function extractShadow(): Shadow {
+  const roll = Math.random() * 100;
+  const rank: ShadowRank =
+    roll < 70  ? 'Infantaria' :
+    roll < 90  ? 'Elite'      :
+    roll < 99  ? 'Cavaleiro'  : 'Comandante';
+
+  const role = SHADOW_ROLES[Math.floor(Math.random() * 4)];
+  const [min, max] = SHADOW_POWER_RANGES[rank];
+  const basePower = Math.floor(Math.random() * (max - min + 1)) + min;
+  const names = SHADOW_NAMES[rank];
+  const name = names[Math.floor(Math.random() * names.length)];
+
+  return {
+    id: `shadow-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name,
+    level: 1,
+    xp: 0,
+    rank,
+    role,
+    basePower,
+    status: 'Pronta',
+  };
+}
+
+// ── Shadow Missions ───────────────────────────────────────────────────────────
+
+const SHADOW_MISSION_POOL: Omit<ShadowMission, 'id'>[] = [
+  { title: 'Patrol the Dark Gate',        requiredPower: 15,  recommendedRole: 'Tank',      durationHours: 1,   rewardGold: 40,  rewardXP: 25  },
+  { title: 'Ambush Demon Scouts',          requiredPower: 30,  recommendedRole: 'Assassino', durationHours: 2,   rewardGold: 70,  rewardXP: 50  },
+  { title: 'Defend the Shadow Realm',      requiredPower: 50,  recommendedRole: 'Tank',      durationHours: 3,   rewardGold: 100, rewardXP: 75  },
+  { title: 'Hunt the Rogue Mage',          requiredPower: 40,  recommendedRole: 'Mago',      durationHours: 2,   rewardGold: 80,  rewardXP: 60  },
+  { title: 'Escort Shadow Convoy',         requiredPower: 20,  recommendedRole: 'Guerreiro', durationHours: 1.5, rewardGold: 55,  rewardXP: 35  },
+  { title: 'Infiltrate the Lich Tower',    requiredPower: 60,  recommendedRole: 'Assassino', durationHours: 4,   rewardGold: 130, rewardXP: 100 },
+  { title: 'Collect Mana Crystals',        requiredPower: 12,  recommendedRole: 'Mago',      durationHours: 1,   rewardGold: 35,  rewardXP: 20  },
+  { title: 'Suppress the Undead Riot',     requiredPower: 45,  recommendedRole: 'Guerreiro', durationHours: 3,   rewardGold: 90,  rewardXP: 65  },
+  { title: 'Clear the Cursed Catacombs',   requiredPower: 35,  recommendedRole: 'Tank',      durationHours: 2.5, rewardGold: 75,  rewardXP: 55  },
+  { title: 'Track the Phantom Assassin',   requiredPower: 55,  recommendedRole: 'Assassino', durationHours: 3.5, rewardGold: 115, rewardXP: 85  },
+];
+
+export function generateDailyMissions(): ShadowMission[] {
+  const shuffled = [...SHADOW_MISSION_POOL].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, 3).map((m, i) => ({
+    ...m,
+    id: `sm-${Date.now()}-${i}`,
+  }));
+}
