@@ -12,14 +12,14 @@ import {
   Target, Calendar, LogOut
 } from 'lucide-react';
 import {
-  HunterProfile, Chapter, Quest, ViewState, HunterRank, DungeonPart,
+  HunterProfile, Chapter, ViewState, HunterRank, DungeonPart,
   CustomStat, RewardItem, Habit, SystemQuote, RepeatType,
   BossFight, BossSubTask, BossHistoryEntry, GameState,
   Shadow, ShadowRank, ShadowRole, ShadowStatus, ShadowMission
 } from './types';
 import {
-  INITIAL_CHAPTERS, DAILY_QUESTS, RANK_THRESHOLDS, INITIAL_REWARDS,
-  GYM_TARGET_DAYS, INITIAL_HABITS, MOCK_WEEKLY_DATA, getNextRank, getXpProgress,
+  INITIAL_CHAPTERS, RANK_THRESHOLDS, INITIAL_REWARDS,
+  INITIAL_HABITS, MOCK_WEEKLY_DATA, getNextRank, getXpProgress,
   STAT_COLOR_PALETTE, RANK_COLORS, SHADOW_RANK_COLORS, extractShadow, generateDailyMissions
 } from './constants';
 import StatRadar from './components/StatRadar';
@@ -100,18 +100,11 @@ function applyDailyReset(gs: GameState): { state: GameState; hadStreakBreak: boo
     return active ? { ...h, isCompleted: false } : h;
   });
 
-  const resetQuests = gs.quests.map(q =>
-    (q.id === 'dq-1' || q.id === 'dq-2')
-      ? { ...q, isCompleted: false, current: 0 }
-      : q
-  );
-
   return {
     state: {
       ...gs,
       profile: { ...gs.profile, streakDays: newStreakDays, lastLoginDate: new Date().toISOString() },
       habits: resetHabits,
-      quests: resetQuests,
     },
     hadStreakBreak,
     retainedDays: newStreakDays,
@@ -457,10 +450,6 @@ const App: React.FC = () => {
   // --- State ---
   const [view, setView] = useState<ViewState>('DASHBOARD');
   const [chapters, setChapters] = useState<Chapter[]>(INITIAL_CHAPTERS);
-  const [quests, setQuests] = useState<Quest[]>(() => [
-    { ...DAILY_QUESTS[0], description: t.quests.dq1 },
-    { ...DAILY_QUESTS[1], description: t.quests.dq2 },
-  ]);
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
   const [habits, setHabits] = useState<Habit[]>(() =>
     INITIAL_HABITS.map((h, i) => ({ ...h, title: t.initialHabits[i].title }))
@@ -579,7 +568,6 @@ const App: React.FC = () => {
         const { state: gs, hadStreakBreak, retainedDays } = applyDailyReset(rawGs);
         setProfile(gs.profile);
         setChapters(gs.chapters);
-        setQuests(gs.quests);
         setHabits(gs.habits);
         setBossFights(gs.bossFights ?? []);
         if (hadStreakBreak) {
@@ -597,7 +585,6 @@ const App: React.FC = () => {
         const defaultState: GameState = {
           profile: { ...profile, name: hunterName },
           chapters,
-          quests,
           habits,
           bossFights,
         };
@@ -619,11 +606,11 @@ const App: React.FC = () => {
     if (!session || !isDataLoadedRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
-      const gameState: GameState = { profile, habits, quests, chapters, bossFights };
+      const gameState: GameState = { profile, habits, chapters, bossFights };
       await supabase.from('profiles').upsert({ id: session.user.id, profile_data: gameState });
     }, 2000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [profile, habits, quests, chapters, bossFights]);
+  }, [profile, habits, chapters, bossFights]);
 
   // Dynamic rank color CSS variable
   useEffect(() => {
@@ -850,18 +837,6 @@ const App: React.FC = () => {
     }
   };
 
-  const completeQuest = (questId: string) => {
-    setQuests(prev => prev.map(q => {
-      if (q.id === questId && !q.isCompleted) {
-        addXp(q.rewardXp, q.rewardStat);
-        addGold(50);
-        setTimeout(() => showNotification(t.notifications.questComplete, `${q.description} (+50 Gold)`, 'quest'), 200);
-        return { ...q, isCompleted: true, current: q.target };
-      }
-      return q;
-    }));
-  };
-
   const startDungeon = (chapterId: string) => {
     setActiveChapterId(chapterId);
     setView('ACTIVE_DUNGEON');
@@ -892,14 +867,6 @@ const App: React.FC = () => {
       addXp(chapter?.part === DungeonPart.BOSS ? 5000 : 150, statId);
       addGold(chapter?.part === DungeonPart.BOSS ? 2000 : 100);
 
-      setQuests(prev => prev.map(q => {
-        if (q.id === 'dq-1' && !q.isCompleted) return { ...q, current: q.current + 1 };
-        return q;
-      }));
-
-      const quest = quests.find(q => q.id === 'dq-1');
-      if (quest && !quest.isCompleted && quest.current + 1 >= quest.target) completeQuest('dq-1');
-
       if (!activeChapterId.startsWith('BOSS')) {
         showNotification(t.notifications.dungeonCleared, t.notifications.dungeonClearedSub, 'quest');
       }
@@ -919,12 +886,6 @@ const App: React.FC = () => {
   const completeShadowReview = () => {
     addXp(10, profile.customStats[1]?.id);
     addGold(20);
-    setQuests(prev => prev.map(q => {
-      if (q.id === 'dq-2' && !q.isCompleted) return { ...q, current: q.current + 1 };
-      return q;
-    }));
-    const quest = quests.find(q => q.id === 'dq-2');
-    if (quest && !quest.isCompleted && quest.current + 1 >= quest.target) completeQuest('dq-2');
     showNotification(t.notifications.shadowReviewComplete, t.notifications.shadowReviewSub, 'info');
     setView('SHADOW_ARMY');
     setActiveChapterId(null);
@@ -1048,7 +1009,6 @@ const App: React.FC = () => {
   const deleteStat = (id: string) => {
     const fallbackId = profile.customStats.find(s => s.id !== id)?.id || '';
     setProfile(prev => ({ ...prev, customStats: prev.customStats.filter(s => s.id !== id) }));
-    setQuests(prev => prev.map(q => q.rewardStat === id ? { ...q, rewardStat: fallbackId } : q));
     setConfirmDeleteStatId(null);
     showNotification(t.notifications.statDeleted, t.notifications.statDeletedSub, 'info');
   };
@@ -1520,10 +1480,6 @@ const App: React.FC = () => {
               </div>
             )}
             <p className="text-sm text-slate-400">{t.dashboard.navigatorSystem}</p>
-          </div>
-          <div className="flex items-center gap-1 text-yellow-400 font-mono bg-yellow-900/20 px-3 py-1 rounded-full border border-yellow-700/50">
-            <Coins size={16} />
-            <span>{profile.gold}</span>
           </div>
         </div>
 
@@ -2518,48 +2474,6 @@ const App: React.FC = () => {
           )}
         </section>
 
-          {/* System quests inline — amber/optional */}
-          <div className="space-y-2 pt-1">
-            {quests.map(q => {
-              const linkedStat = profile.customStats.find(s => s.id === q.rewardStat);
-              return (
-                <div
-                  key={q.id}
-                  className={`p-3 border rounded-lg flex items-center gap-3 transition-colors duration-300
-                    ${q.isCompleted ? 'bg-yellow-900/10 border-yellow-900/30 opacity-60' : 'bg-amber-900/10 border-amber-700/40 hover:border-amber-600/60'}
-                  `}
-                >
-                  {/* System icon */}
-                  <div className="p-1.5 rounded-full shrink-0 bg-amber-500/15 text-amber-400">
-                    <Trophy size={13} />
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className={`font-bold text-sm ${q.isCompleted ? 'line-through text-slate-500' : 'text-white'}`}>{q.description}</p>
-                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 bg-amber-500/15 border border-amber-500/40 text-amber-400 rounded">
-                        {t.missions.systemOptional}
-                      </span>
-                    </div>
-                    <div className="text-xs text-slate-500 font-mono mt-0.5">
-                      {t.dashboard.rewards} {q.rewardXp} XP
-                      {linkedStat && <span style={{ color: linkedStat.color }}> +1 {linkedStat.emoji} {linkedStat.name}</span>}
-                    </div>
-                  </div>
-
-                  {/* Progress */}
-                  <div className="text-right shrink-0">
-                    <span className={`text-sm font-mono ${q.isCompleted ? 'text-green-500' : 'text-amber-400'}`}>
-                      {q.current}/{q.target}
-                    </span>
-                    {q.isCompleted && <CheckMark />}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
         {/* ── ACTIVITY LOG ── */}
         {(completedHabits.length > 0 || completedBosses.length > 0) && (
           <section className="space-y-3">
@@ -2821,6 +2735,11 @@ const App: React.FC = () => {
             <span className="hidden sm:inline">{isVoiceConnected ? t.header.systemLinkOnline : t.header.systemLinkOffline}</span>
           </button>
 
+          <div className="flex items-center gap-1 text-yellow-400 font-mono text-sm bg-yellow-900/20 px-2.5 py-1 rounded-full border border-yellow-700/40">
+            <Coins size={13} />
+            <span>{profile.gold}</span>
+          </div>
+
           <button
             onClick={simulateStreakBreak}
             className="flex items-center gap-1 text-yellow-500 font-mono text-sm hover:text-red-500 transition-colors hover:scale-105 active:scale-95"
@@ -2835,8 +2754,6 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="container mx-auto max-w-2xl p-4">
         {view === 'DASHBOARD' && renderDashboard()}
-        {view === 'DUNGEON_MAP' && renderDungeonMap()}
-        {view === 'ACTIVE_DUNGEON' && renderActiveDungeon()}
         {view === 'SHADOW_ARMY' && renderShadowArmy()}
         {view === 'SHADOW_REVIEW' && renderShadowReview()}
         {view === 'SHOP' && renderShop()}
@@ -2850,7 +2767,6 @@ const App: React.FC = () => {
         <div className="flex justify-around items-center h-16 max-w-2xl mx-auto px-1">
           <NavButton active={view === 'DASHBOARD'} onClick={() => setView('DASHBOARD')} icon={<User size={18} />} label={t.nav.status} />
           <NavButton active={view === 'MISSIONS'} onClick={() => setView('MISSIONS')} icon={<Target size={18} />} label={t.nav.missions} />
-          <NavButton active={view === 'DUNGEON_MAP' || view === 'ACTIVE_DUNGEON'} onClick={() => setView('DUNGEON_MAP')} icon={<MapIcon size={18} />} label={t.nav.dungeon} />
           <NavButton active={view === 'SHOP'} onClick={() => setView('SHOP')} icon={<ShoppingBag size={18} />} label={t.nav.store} />
           <NavButton active={view === 'SHADOW_ARMY' || view === 'SHADOW_REVIEW'} onClick={() => setView('SHADOW_ARMY')} icon={<Ghost size={18} />} label={t.nav.shadows} />
           <NavButton active={view === 'SETTINGS'} onClick={() => setView('SETTINGS')} icon={<Settings size={18} />} label={t.nav.settings} />

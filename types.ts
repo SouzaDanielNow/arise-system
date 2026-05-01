@@ -152,7 +152,7 @@ export type ViewState = 'DASHBOARD' | 'DUNGEON_MAP' | 'ACTIVE_DUNGEON' | 'SHADOW
 export interface GameState {
   profile: HunterProfile;
   chapters: Chapter[];
-  quests: Quest[];
   habits: Habit[];
   bossFights: BossFight[];
+  quests?: Quest[];
 }
