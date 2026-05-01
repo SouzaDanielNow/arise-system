@@ -38,6 +38,8 @@ export interface HunterProfile {
   gold: number;
   weeklyGymProgress: boolean[];
   shadows: Shadow[];
+  avatarUrl?: string;
+  availableStatPoints?: number;
 }
 
 export interface Chapter {

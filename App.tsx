@@ -19,7 +19,7 @@ import {
 } from './types';
 import {
   INITIAL_CHAPTERS, RANK_THRESHOLDS, INITIAL_REWARDS,
-  INITIAL_HABITS, MOCK_WEEKLY_DATA, getNextRank, getXpProgress,
+  INITIAL_HABITS, MOCK_WEEKLY_DATA, getNextRank, getNextRankXp, getXpProgress,
   STAT_COLOR_PALETTE, RANK_COLORS, SHADOW_RANK_COLORS, extractShadow, generateDailyMissions
 } from './constants';
 import StatRadar from './components/StatRadar';
@@ -478,6 +478,7 @@ const App: React.FC = () => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(profile.name);
   const [identityStatsView, setIdentityStatsView] = useState<'radar' | 'bars'>('radar');
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const [newHabitTitle, setNewHabitTitle] = useState('');
   const [dailyQuote, setDailyQuote] = useState<SystemQuote>(t.quotes[0]);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -741,12 +742,57 @@ const App: React.FC = () => {
         }, 500);
       }
 
-      return { ...prev, currentXp: newXp, rank: newRank, customStats: newCustomStats };
+      return {
+        ...prev,
+        currentXp: newXp,
+        rank: newRank,
+        customStats: newCustomStats,
+        availableStatPoints: (prev.availableStatPoints ?? 0) + (didLevelUp ? 4 : 0),
+      };
     });
   };
 
   const addGold = (amount: number) => {
     setProfile(prev => ({ ...prev, gold: prev.gold + amount }));
+  };
+
+  const distributeStat = (statId: string) => {
+    setProfile(prev => {
+      const pts = prev.availableStatPoints ?? 0;
+      if (pts <= 0) return prev;
+      return {
+        ...prev,
+        availableStatPoints: pts - 1,
+        customStats: prev.customStats.map(s => s.id === statId ? { ...s, value: s.value + 1 } : s),
+      };
+    });
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showNotification(t.identity.fileTooLarge, '', 'warning');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = evt => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 300;
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const base64 = canvas.toDataURL('image/jpeg', 0.8);
+        setProfile(prev => ({ ...prev, avatarUrl: base64 }));
+      };
+      img.src = evt.target!.result as string;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   // --- Admin / Dev Panel ---
@@ -1204,7 +1250,11 @@ const App: React.FC = () => {
     showNotification(t.notifications.bossDefeated, t.notifications.bossDefeatedSub(boss.title, boss.xpReward, boss.goldReward), 'levelup');
     setBossFights(prev => prev.map(b => b.id === bossId ? { ...b, status: 'completed' } : b));
     const newShadow = extractShadow();
-    setProfile(prev => ({ ...prev, shadows: [...(prev.shadows ?? []), newShadow] }));
+    setProfile(prev => ({
+      ...prev,
+      shadows: [...(prev.shadows ?? []), newShadow],
+      availableStatPoints: (prev.availableStatPoints ?? 0) + 1,
+    }));
     setShadowExtracted(newShadow);
     setShowBossFlash(true);
     setTimeout(() => setShowBossFlash(false), 700);
@@ -1494,7 +1544,11 @@ const App: React.FC = () => {
         <div className="mt-2">
           <div className="flex justify-between text-xs text-system-blue font-mono mb-1">
             <span>{t.dashboard.xp}</span>
-            <span>{profile.currentXp} / {RANK_THRESHOLDS[getNextRank(profile.currentXp + 100)]}</span>
+            <span>
+              {getNextRankXp(profile.rank) !== null
+                ? `${profile.currentXp} / ${getNextRankXp(profile.rank)}`
+                : t.identity.xpMax}
+            </span>
           </div>
           <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
             <div
@@ -1578,8 +1632,15 @@ const App: React.FC = () => {
               {/* Avatar + name row */}
               <div className="flex items-start gap-4 mb-5">
 
-                {/* Avatar circle — cyberpunk silhouette */}
-                <div className="relative shrink-0">
+                {/* Avatar — clicável para upload */}
+                <div className="relative shrink-0 group cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarChange}
+                  />
                   <div
                     className="w-[76px] h-[76px] rounded-full overflow-hidden bg-slate-800 flex items-center justify-center"
                     style={{
@@ -1587,24 +1648,27 @@ const App: React.FC = () => {
                       boxShadow: `0 0 18px ${rankColor}45, inset 0 0 20px ${rankColor}10`,
                     }}
                   >
-                    <svg viewBox="0 0 80 80" className="w-full h-full" aria-hidden>
-                      <defs>
-                        <radialGradient id={`avatarG-${profile.rank}`} cx="50%" cy="35%" r="65%">
-                          <stop offset="0%" stopColor={rankColor} stopOpacity="0.18" />
-                          <stop offset="100%" stopColor="#0f172a" stopOpacity="1" />
-                        </radialGradient>
-                      </defs>
-                      <rect width="80" height="80" fill={`url(#avatarG-${profile.rank})`} />
-                      {/* Head */}
-                      <ellipse cx="40" cy="27" rx="12" ry="13" fill={`${rankColor}22`} stroke={`${rankColor}55`} strokeWidth="1" />
-                      {/* Body silhouette */}
-                      <path d="M16 78 Q19 54 40 49 Q61 54 64 78 Z" fill={`${rankColor}18`} stroke={`${rankColor}45`} strokeWidth="1" />
-                      {/* Circuit lines */}
-                      <line x1="27" y1="62" x2="20" y2="76" stroke={rankColor} strokeWidth="0.6" strokeOpacity="0.45" />
-                      <line x1="53" y1="62" x2="60" y2="76" stroke={rankColor} strokeWidth="0.6" strokeOpacity="0.45" />
-                      <line x1="34" y1="50" x2="30" y2="56" stroke={rankColor} strokeWidth="0.5" strokeOpacity="0.3" />
-                      <line x1="46" y1="50" x2="50" y2="56" stroke={rankColor} strokeWidth="0.5" strokeOpacity="0.3" />
-                    </svg>
+                    {profile.avatarUrl ? (
+                      <img src={profile.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <svg viewBox="0 0 80 80" className="w-full h-full" aria-hidden>
+                        <defs>
+                          <radialGradient id={`avatarG-${profile.rank}`} cx="50%" cy="35%" r="65%">
+                            <stop offset="0%" stopColor={rankColor} stopOpacity="0.18" />
+                            <stop offset="100%" stopColor="#0f172a" stopOpacity="1" />
+                          </radialGradient>
+                        </defs>
+                        <rect width="80" height="80" fill={`url(#avatarG-${profile.rank})`} />
+                        <ellipse cx="40" cy="27" rx="12" ry="13" fill={`${rankColor}22`} stroke={`${rankColor}55`} strokeWidth="1" />
+                        <path d="M16 78 Q19 54 40 49 Q61 54 64 78 Z" fill={`${rankColor}18`} stroke={`${rankColor}45`} strokeWidth="1" />
+                        <line x1="27" y1="62" x2="20" y2="76" stroke={rankColor} strokeWidth="0.6" strokeOpacity="0.45" />
+                        <line x1="53" y1="62" x2="60" y2="76" stroke={rankColor} strokeWidth="0.6" strokeOpacity="0.45" />
+                      </svg>
+                    )}
+                  </div>
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[9px] font-mono text-white text-center leading-tight px-1">{t.identity.clickAvatar}</span>
                   </div>
                   {/* Rank badge */}
                   <div
@@ -1673,7 +1737,9 @@ const App: React.FC = () => {
                 <div className="flex justify-between text-[10px] font-mono mb-1.5">
                   <span className="text-slate-500 tracking-widest uppercase">{t.identity.xpProgress}</span>
                   <span style={{ color: rankColor }}>
-                    {profile.currentXp} / {RANK_THRESHOLDS[getNextRank(profile.currentXp + 100)]} XP
+                    {getNextRankXp(profile.rank) !== null
+                      ? `${profile.currentXp} / ${getNextRankXp(profile.rank)} XP`
+                      : t.identity.xpMax}
                   </span>
                 </div>
                 <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden relative">
@@ -1750,8 +1816,31 @@ const App: React.FC = () => {
                     transition={{ duration: 0.2 }}
                     className="space-y-4"
                   >
+                    {/* Stat points banner */}
+                    {(profile.availableStatPoints ?? 0) > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl border"
+                        style={{
+                          background: 'linear-gradient(90deg, #7c3aed18, #3b82f618)',
+                          borderColor: '#7c3aed40',
+                          boxShadow: '0 0 12px #7c3aed20',
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">⚡</span>
+                          <span className="text-xs font-mono font-bold text-purple-300">
+                            {t.identity.availablePoints(profile.availableStatPoints ?? 0)}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-500 italic">clique em + para distribuir</span>
+                      </motion.div>
+                    )}
+
                     {profile.customStats.map((stat, i) => {
                       const pct = maxStatVal > 0 ? Math.min(100, Math.round((stat.value / maxStatVal) * 100)) : 0;
+                      const hasPoints = (profile.availableStatPoints ?? 0) > 0;
                       return (
                         <motion.div
                           key={stat.id}
@@ -1764,9 +1853,23 @@ const App: React.FC = () => {
                               <span className="text-sm">{stat.emoji}</span>
                               <span className="tracking-wide">{stat.name.toUpperCase()}</span>
                             </span>
-                            <span className="text-xs font-mono font-bold" style={{ color: stat.color }}>
-                              {stat.value} <span className="text-slate-600 font-normal">{t.identity.pts}</span>
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono font-bold" style={{ color: stat.color }}>
+                                {stat.value} <span className="text-slate-600 font-normal">{t.identity.pts}</span>
+                              </span>
+                              {hasPoints && (
+                                <button
+                                  onClick={() => distributeStat(stat.id)}
+                                  className="w-5 h-5 rounded-full flex items-center justify-center text-black text-xs font-bold transition-all active:scale-90"
+                                  style={{
+                                    background: stat.color,
+                                    boxShadow: `0 0 8px ${stat.color}80`,
+                                  }}
+                                >
+                                  +
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
                             <motion.div

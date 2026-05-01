@@ -126,6 +126,13 @@ export const getNextRank = (xp: number): HunterRank => {
   return HunterRank.E;
 };
 
+export const getNextRankXp = (rank: HunterRank): number | null => {
+  const ranks = Object.values(HunterRank);
+  const idx = ranks.indexOf(rank);
+  if (idx >= ranks.length - 1) return null;
+  return RANK_THRESHOLDS[ranks[idx + 1]];
+};
+
 export const getXpProgress = (currentXp: number, rank: HunterRank): number => {
   const currentThreshold = RANK_THRESHOLDS[rank];
   const ranks = Object.values(HunterRank);
