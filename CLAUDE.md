@@ -1,4 +1,4 @@
-# CLAUDE.md — ARISE SYSTEM
+# CLAUDE.md — ARISE SYSTEM v1.1
 
 ## Stack
 React 19 + TypeScript + Vite + TailwindCSS + Recharts + Lucide React + Google Gemini Live API + Supabase
@@ -12,7 +12,7 @@ Requer `GEMINI_API_KEY` no arquivo `.env.local`.
 
 ## Estrutura de arquivos
 ```
-App.tsx               ← componente único principal (~2300 linhas)
+App.tsx               ← componente único principal (~2200 linhas)
 types.ts              ← todas as interfaces TypeScript (incl. GameState)
 constants.ts          ← dados iniciais (hábitos, quests, capítulos, recompensas)
 lib/
@@ -24,12 +24,13 @@ components/
   AuthScreen.tsx       ← tela de login/registro (estilo ARISE)
   StatRadar.tsx        ← gráfico radar (Recharts) — recebe customStats[]
   SystemNotification.tsx ← overlay de notificação animada
+  DevPanel.tsx         ← painel God Mode (admin only: dany_ops@hotmail.com)
 ```
 
 ## Supabase
 - Tabela: `profiles` — colunas `id` (uuid = auth user id) e `profile_data` (jsonb)
 - `GameState` (types.ts) é o shape salvo em `profile_data`
-- Auto-save: debounce 2s em qualquer mudança de estado (profile, habits, quests, chapters, procrastinationItems, bossFights)
+- Auto-save: debounce 2s em qualquer mudança de estado (profile, habits, quests, chapters, bossFights)
 - Credenciais em `.env.local` (não commitado): `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
 - Tsconfig inclui `"vite/client"` para `import.meta.env`
 
@@ -59,10 +60,16 @@ components/
 
 ### Perfil e progressão
 - `profile.currentXp` → rank calculado por `getNextRank(xp)` em `constants.ts`
-- Ranks: E(0) D(500) C(1500) B(3500) A(7000) S(15000)
+- Ranks: E(0) D(750) C(2250) B(5250) A(7000) S(15000) SS(30000) SSS(60000) NACIONAL(120000) MONARCA(250000)
 - `addXp(amount, statId?)` — incrementa XP e opcionalmente +1 no stat vinculado
 - `addGold(amount)` — incrementa Gold
 - **Total Power** = `profile.customStats.reduce((s,c) => s + c.value, 0)` — protege streak
+
+### Ranks
+- 10 ranks: E, D, C, B, A, S, SS, SSS, NACIONAL, MONARCA
+- Cores: E=#9ca3af D=#10b981 C=#3b82f6 B=#8b5cf6 A=#ec4899 S=#facc15 SS=#f97316 SSS=#ef4444 NACIONAL=#c084fc MONARCA=#e2e8f0
+- CSS custom property `--rank-color` em `:root`, atualizado via `useEffect` quando `profile.rank` muda
+- `@property --rank-color` em `index.html` para suporte a CSS transition suave
 
 ### Stats customizáveis
 - `profile.customStats: CustomStat[]` — criados/deletados pelo usuário em Settings
@@ -76,20 +83,24 @@ components/
 - `isTodayActive(habit)` — verifica se o hábito é para hoje
 - Completar: +30 XP, +20 Gold, streak++
 
-### Missões Especiais (ProcrastinationItem)
-- `status: 'open' | 'active' | 'completed'`
-- Status 'active' = Boss Fight ativado (glow roxo no card)
-- Ordenação: prioridade (high→low) depois dueDate (mais próximo primeiro)
-
-### Boss Fight
-- Criado em `confirmActivateBoss(item)` a partir de uma ProcrastinationItem
-- `xpReward` = random 150–300, `goldReward` = random 60–100 (gerado na ativação, não editável)
+### Chefões (BossFight) — v1.1
+- Criados diretamente na aba MISSÕES (sem camada de ProcrastinationItem)
+- Formulário: título + descrição + prazo + sub-tarefas opcionais
+- `xpReward` = random 150–300, `goldReward` = random 60–100 (gerado na criação)
 - `progress` = % automático de subTasks.completed — nunca manual
+- `allDone = boss.subTasks.length === 0 || boss.subTasks.every(s => s.completed)` — boss sem sub-tarefas pode ser completado
+- Chefões completados (`status: 'completed'`) ficam no estado e aparecem no Activity Log
 - `history: BossHistoryEntry[]` — inicia com `action:'started'` na criação
 - `toggleBossSubTask` adiciona entrada no histórico com timestamp
 - Edit inline de sub-tarefa: `editingSubTaskId` formato `"bossId::subTaskId"`
 - Drag & drop nativo HTML5: `dragState: {bossId, subTaskId} | null`
 - Penalidade por expiração: -7 dias de streak
+
+### Passiva Undying Will — v1.1
+- `protection = Math.min(50, totalPower)` — máximo de 50% de retenção
+- `retainedDays = Math.floor(currentStreak * (protection / 100))`
+- Com 50+ Total Power → retém 50% do streak. Menos que isso → retenção proporcional.
+- Aplicada em `applyDailyReset` (login) e `simulateStreakBreak` (botão streak no header)
 
 ### Quests do sistema (inline, opcionais)
 - dq-1: "Complete 1 Dungeon Run" (+100 XP, vinculada ao stat '1')
@@ -97,15 +108,19 @@ components/
 - Aparecem no final da aba MISSIONS com badge OPCIONAL (âmbar)
 - NÃO penalizam streak
 
-## Tema dinâmico por Rank
-- CSS custom property `--rank-color` em `:root`, atualizado via `useEffect` quando `profile.rank` muda
-- Cores: E=#9ca3af, D=#10b981, C=#3b82f6, B=#8b5cf6, A=#ec4899, S=#facc15
-- `@property --rank-color` em `index.html` para suporte a CSS transition suave
-- Constante `RANK_COLORS` no topo de `App.tsx`
+### Activity Log — v1.1
+- Seção no final da aba MISSÕES
+- Mostra: hábitos com `isCompleted: true` + `bossFights.filter(b => b.status === 'completed')`
+
+## Aba STATUS (Dashboard)
+Contém: Daily Quote, Profile Card (XP bar, nome, gold), Initialize Plan button, Stats Grid (radar + valores), Total Power.
+**Removidos na v1.1**: World Ranking card, Analytics/View Report button, Gym Tracker, Daily Quests.
 
 ## O que NÃO fazer
 - Não adicionar campo `type: 'good' | 'bad'` em Habit — foi removido intencionalmente
-- Não criar seção separada "Missões do Sistema" — quests ficam inline no final
+- Não criar sistema de ProcrastinationItem — foi substituído por criação direta de Chefões
+- Não recriar as seções removidas do Dashboard (World Ranking, Gym Tracker, Daily Quests)
 - Não tornar XP/Gold de Boss Fight editável pelo usuário
 - Não usar `setNewTaskType` — estado removido
 - Não commitar `node_modules`, `.env.local` ou arquivos de build
+- Não tornar a retenção do Undying Will superior a 50% (cap intencional de balanceamento)
