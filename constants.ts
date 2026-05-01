@@ -7,6 +7,10 @@ export const RANK_COLORS: Record<HunterRank, string> = {
   [HunterRank.B]: '#8b5cf6',
   [HunterRank.A]: '#ec4899',
   [HunterRank.S]: '#facc15',
+  [HunterRank.SS]: '#f97316',
+  [HunterRank.SSS]: '#ef4444',
+  [HunterRank.NACIONAL]: '#c084fc',
+  [HunterRank.MONARCA]: '#e2e8f0',
 };
 
 export const STAT_COLOR_PALETTE = [
@@ -16,11 +20,15 @@ export const STAT_COLOR_PALETTE = [
 
 export const RANK_THRESHOLDS = {
   [HunterRank.E]: 0,
-  [HunterRank.D]: 500,
-  [HunterRank.C]: 1500,
-  [HunterRank.B]: 3500,
+  [HunterRank.D]: 750,
+  [HunterRank.C]: 2250,
+  [HunterRank.B]: 5250,
   [HunterRank.A]: 7000,
-  [HunterRank.S]: 15000
+  [HunterRank.S]: 15000,
+  [HunterRank.SS]: 30000,
+  [HunterRank.SSS]: 60000,
+  [HunterRank.NACIONAL]: 120000,
+  [HunterRank.MONARCA]: 250000,
 };
 
 export const GYM_TARGET_DAYS = [0, 1, 2, 4, 5];
@@ -106,6 +114,10 @@ export const DAILY_QUESTS: Quest[] = [
 ];
 
 export const getNextRank = (xp: number): HunterRank => {
+  if (xp >= RANK_THRESHOLDS[HunterRank.MONARCA]) return HunterRank.MONARCA;
+  if (xp >= RANK_THRESHOLDS[HunterRank.NACIONAL]) return HunterRank.NACIONAL;
+  if (xp >= RANK_THRESHOLDS[HunterRank.SSS]) return HunterRank.SSS;
+  if (xp >= RANK_THRESHOLDS[HunterRank.SS]) return HunterRank.SS;
   if (xp >= RANK_THRESHOLDS[HunterRank.S]) return HunterRank.S;
   if (xp >= RANK_THRESHOLDS[HunterRank.A]) return HunterRank.A;
   if (xp >= RANK_THRESHOLDS[HunterRank.B]) return HunterRank.B;
@@ -116,12 +128,10 @@ export const getNextRank = (xp: number): HunterRank => {
 
 export const getXpProgress = (currentXp: number, rank: HunterRank): number => {
   const currentThreshold = RANK_THRESHOLDS[rank];
-  let nextThreshold = RANK_THRESHOLDS[HunterRank.S] * 1.5;
   const ranks = Object.values(HunterRank);
   const currentIndex = ranks.indexOf(rank);
-  if (currentIndex < ranks.length - 1) {
-    nextThreshold = RANK_THRESHOLDS[ranks[currentIndex + 1]];
-  }
+  if (currentIndex >= ranks.length - 1) return 100;
+  const nextThreshold = RANK_THRESHOLDS[ranks[currentIndex + 1]];
   const denominator = nextThreshold - currentThreshold;
   if (denominator <= 0) return 100;
   return Math.min(100, Math.max(0, ((currentXp - currentThreshold) / denominator) * 100));

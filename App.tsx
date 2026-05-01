@@ -13,8 +13,7 @@ import {
 } from 'lucide-react';
 import {
   HunterProfile, Chapter, Quest, ViewState, HunterRank, DungeonPart,
-  CustomStat, RewardItem, Habit, SystemQuote,
-  ProcrastinationItem, Priority, ObjectiveStatus, RepeatType,
+  CustomStat, RewardItem, Habit, SystemQuote, RepeatType,
   BossFight, BossSubTask, BossHistoryEntry, GameState
 } from './types';
 import {
@@ -84,7 +83,8 @@ function applyDailyReset(gs: GameState): { state: GameState; hadStreakBreak: boo
   let hadStreakBreak = false;
   if (daysDiff > 1 && newStreakDays > 0) {
     const totalPower = gs.profile.customStats.reduce((s, c) => s + c.value, 0);
-    newStreakDays = Math.floor(newStreakDays * Math.min(100, totalPower) / 100);
+    const protection = Math.min(50, totalPower);
+    newStreakDays = Math.floor(newStreakDays * (protection / 100));
     hadStreakBreak = true;
   }
 
@@ -229,21 +229,14 @@ const App: React.FC = () => {
   const [newStatEmoji, setNewStatEmoji] = useState('');
   const [confirmDeleteStatId, setConfirmDeleteStatId] = useState<string | null>(null);
 
-  // Procrastination Vault state
-  const [procrastinationItems, setProcrastinationItems] = useState<ProcrastinationItem[]>([]);
-  const [showAddObjectiveForm, setShowAddObjectiveForm] = useState(false);
-  const [newObjTitle, setNewObjTitle] = useState('');
-  const [newObjDesc, setNewObjDesc] = useState('');
-  const [newObjPriority, setNewObjPriority] = useState<Priority>('medium');
-  const [newObjDueDate, setNewObjDueDate] = useState('');
-  const [confirmDeleteObjId, setConfirmDeleteObjId] = useState<string | null>(null);
-
   // Boss Fight state
   const [bossFights, setBossFights] = useState<BossFight[]>([]);
-  const [activatingBossId, setActivatingBossId] = useState<string | null>(null);
-  const [bossFormDueDate, setBossFormDueDate] = useState('');
-  const [bossFormSubTasks, setBossFormSubTasks] = useState<BossSubTask[]>([]);
-  const [bossFormSubInput, setBossFormSubInput] = useState('');
+  const [showAddBossForm, setShowAddBossForm] = useState(false);
+  const [newBossTitle, setNewBossTitle] = useState('');
+  const [newBossDesc, setNewBossDesc] = useState('');
+  const [newBossDueDate, setNewBossDueDate] = useState('');
+  const [newBossSubTasks, setNewBossSubTasks] = useState<BossSubTask[]>([]);
+  const [newBossSubInput, setNewBossSubInput] = useState('');
   const [confirmCancelBossId, setConfirmCancelBossId] = useState<string | null>(null);
   const [bossNewSubInputs, setBossNewSubInputs] = useState<Record<string, string>>({});
   const [editingSubTaskId, setEditingSubTaskId] = useState<string | null>(null);
@@ -315,7 +308,6 @@ const App: React.FC = () => {
         setChapters(gs.chapters);
         setQuests(gs.quests);
         setHabits(gs.habits);
-        setProcrastinationItems(gs.procrastinationItems ?? []);
         setBossFights(gs.bossFights ?? []);
         if (hadStreakBreak) {
           const totalPower = gs.profile.customStats.reduce((s, c) => s + c.value, 0);
@@ -334,7 +326,6 @@ const App: React.FC = () => {
           chapters,
           quests,
           habits,
-          procrastinationItems,
           bossFights,
         };
         setProfile(prev => ({ ...prev, name: hunterName }));
@@ -355,11 +346,11 @@ const App: React.FC = () => {
     if (!session || !isDataLoadedRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
-      const gameState: GameState = { profile, habits, quests, chapters, procrastinationItems, bossFights };
+      const gameState: GameState = { profile, habits, quests, chapters, bossFights };
       await supabase.from('profiles').upsert({ id: session.user.id, profile_data: gameState });
     }, 2000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [profile, habits, quests, chapters, procrastinationItems, bossFights]);
+  }, [profile, habits, quests, chapters, bossFights]);
 
   // Dynamic rank color CSS variable
   useEffect(() => {
@@ -630,13 +621,13 @@ const App: React.FC = () => {
 
   const simulateStreakBreak = () => {
     const totalPower = profile.customStats.reduce((sum, s) => sum + s.value, 0);
-    const retentionRate = Math.min(100, totalPower) / 100;
+    const protection = Math.min(50, totalPower);
     const currentStreak = profile.streakDays;
     if (currentStreak === 0) {
       showNotification(t.notifications.noStreak, t.notifications.noStreakSub, 'info');
       return;
     }
-    const retainedDays = Math.floor(currentStreak * retentionRate);
+    const retainedDays = Math.floor(currentStreak * (protection / 100));
     setProfile(prev => ({ ...prev, streakDays: retainedDays }));
     if (retainedDays > 0) {
       showNotification(t.notifications.passiveActivated, t.notifications.passiveSub(totalPower, retainedDays), 'shield');
@@ -739,89 +730,41 @@ const App: React.FC = () => {
     setConfirmDeleteHabitId(null);
   };
 
-  // --- Procrastination Vault ---
-  const getDaysAgo = (dateString: string): number => {
-    return Math.floor((Date.now() - new Date(dateString).getTime()) / 86400000);
-  };
-
   const getDaysUntil = (dateString: string): number => {
     return Math.floor((new Date(dateString).getTime() - Date.now()) / 86400000);
   };
 
-  const getSortedObjectives = (): ProcrastinationItem[] => {
-    const order = { high: 0, medium: 1, low: 2 };
-    return [...procrastinationItems].sort((a, b) => {
-      const pDiff = order[a.priority] - order[b.priority];
-      if (pDiff !== 0) return pDiff;
-      if (a.dueDate && b.dueDate) return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-      if (a.dueDate) return -1;
-      if (b.dueDate) return 1;
-      return 0;
-    });
+  const addNewBossSubTask = () => {
+    if (!newBossSubInput.trim()) return;
+    setNewBossSubTasks(prev => [...prev, { id: `bst-${Date.now()}`, title: newBossSubInput.trim(), completed: false }]);
+    setNewBossSubInput('');
   };
 
-  const addObjective = () => {
-    if (!newObjTitle.trim()) return;
-    const item: ProcrastinationItem = {
-      id: `obj-${Date.now()}`,
-      title: newObjTitle.trim(),
-      description: newObjDesc.trim(),
-      priority: newObjPriority,
-      dueDate: newObjDueDate || undefined,
-      dateAdded: new Date().toISOString().split('T')[0],
-      status: 'open',
-    };
-    setProcrastinationItems(prev => [...prev, item]);
-    setNewObjTitle('');
-    setNewObjDesc('');
-    setNewObjPriority('medium');
-    setNewObjDueDate('');
-    setShowAddObjectiveForm(false);
-  };
-
-  const handleDeleteObjectiveRequest = (id: string) => setConfirmDeleteObjId(id);
-
-  const deleteObjective = (id: string) => {
-    setProcrastinationItems(prev => prev.filter(item => item.id !== id));
-    setConfirmDeleteObjId(null);
-  };
-
-  const startActivateBoss = (item: ProcrastinationItem) => {
-    setActivatingBossId(item.id);
-    setBossFormDueDate(item.dueDate || '');
-    setBossFormSubTasks([]);
-    setBossFormSubInput('');
-  };
-
-  const addBossFormSubTask = () => {
-    if (!bossFormSubInput.trim()) return;
-    setBossFormSubTasks(prev => [...prev, { id: `bst-${Date.now()}`, title: bossFormSubInput.trim(), completed: false }]);
-    setBossFormSubInput('');
-  };
-
-  const confirmActivateBoss = (item: ProcrastinationItem) => {
-    const xpReward = Math.floor(Math.random() * 151) + 150;  // 150–300
-    const goldReward = Math.floor(Math.random() * 41) + 60;  // 60–100
+  const createBoss = () => {
+    if (!newBossTitle.trim()) return;
+    const xpReward = Math.floor(Math.random() * 151) + 150;
+    const goldReward = Math.floor(Math.random() * 41) + 60;
     const boss: BossFight = {
       id: `boss-${Date.now()}`,
-      specialMissionId: item.id,
-      title: item.title,
-      description: item.description,
+      title: newBossTitle.trim(),
+      description: newBossDesc.trim(),
       xpReward,
       goldReward,
       startDate: new Date().toISOString().split('T')[0],
-      dueDate: bossFormDueDate,
+      dueDate: newBossDueDate,
       progress: 0,
-      subTasks: [...bossFormSubTasks],
+      subTasks: [...newBossSubTasks],
       history: [{ id: `h-${Date.now()}`, timestamp: new Date().toISOString(), action: 'started' }],
       status: 'active',
       failPenalty: 'loseStreak',
     };
     setBossFights(prev => [...prev, boss]);
-    setProcrastinationItems(prev => prev.map(p =>
-      p.id === item.id ? { ...p, status: 'active' as ObjectiveStatus } : p
-    ));
-    setActivatingBossId(null);
+    setNewBossTitle('');
+    setNewBossDesc('');
+    setNewBossDueDate('');
+    setNewBossSubTasks([]);
+    setNewBossSubInput('');
+    setShowAddBossForm(false);
     showNotification(t.notifications.bossActivated, t.notifications.bossActivatedSub, 'warning');
   };
 
@@ -923,31 +866,17 @@ const App: React.FC = () => {
       x: [0, -12, 12, -9, 9, -5, 5, -2, 2, 0],
       transition: { duration: 0.55, ease: 'easeOut' },
     });
-    setProcrastinationItems(prev => prev.map(p =>
-      p.id === boss.specialMissionId ? { ...p, status: 'completed' as ObjectiveStatus } : p
-    ));
-    setTimeout(() => setBossFights(prev => prev.filter(b => b.id !== bossId)), 2000);
   };
 
   const cancelBossFight = (bossId: string) => {
-    const boss = bossFights.find(b => b.id === bossId);
-    if (!boss) return;
     setBossFights(prev => prev.filter(b => b.id !== bossId));
-    setProcrastinationItems(prev => prev.map(p =>
-      p.id === boss.specialMissionId ? { ...p, status: 'open' as ObjectiveStatus } : p
-    ));
     setConfirmCancelBossId(null);
     showNotification(t.notifications.bossCancelled, t.notifications.bossCancelledSub, 'info');
   };
 
   const applyBossPenalty = (bossId: string) => {
-    const boss = bossFights.find(b => b.id === bossId);
-    if (!boss) return;
     setProfile(prev => ({ ...prev, streakDays: Math.max(0, prev.streakDays - 7) }));
     setBossFights(prev => prev.map(b => b.id === bossId ? { ...b, status: 'failed' } : b));
-    setProcrastinationItems(prev => prev.map(p =>
-      p.id === boss.specialMissionId ? { ...p, status: 'open' as ObjectiveStatus } : p
-    ));
     showNotification(t.notifications.bossFailed, t.notifications.bossFailedSub, 'warning');
     setTimeout(() => setBossFights(prev => prev.filter(b => b.id !== bossId)), 1500);
   };
@@ -1194,31 +1123,6 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* World Standing & Analytics */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-system-panel border border-slate-700 p-4 rounded-lg flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-400 text-xs font-mono mb-2">
-            <Globe size={14} /> {t.dashboard.worldRanking}
-          </div>
-          <div>
-            <div className="text-xl font-bold text-white">{getGlobalStanding(profile.rank).percentile}</div>
-            <div className="text-[10px] text-slate-500 mt-1">{getGlobalStanding(profile.rank).msg}</div>
-          </div>
-        </div>
-        <button
-          onClick={() => setShowReportModal(true)}
-          className="bg-system-panel border border-slate-700 hover:border-system-blue hover:bg-system-blue/10 p-4 rounded-lg flex flex-col justify-between transition-all group text-left"
-        >
-          <div className="flex items-center gap-2 text-slate-400 text-xs font-mono mb-2 group-hover:text-system-blue">
-            <BarChart2 size={14} /> {t.dashboard.analytics}
-          </div>
-          <div>
-            <div className="text-sm font-bold text-white group-hover:text-system-blue">{t.dashboard.viewReport}</div>
-            <div className="text-[10px] text-slate-500 mt-1">{t.dashboard.reportDesc}</div>
-          </div>
-        </button>
-      </div>
-
       {/* Initialize Plan */}
       <button
         onClick={() => setShowUploadModal(true)}
@@ -1259,69 +1163,6 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Gym Tracker */}
-      <div className="bg-system-panel border border-system-border p-4 rounded-lg">
-        <h3 className="text-orange-500 font-mono text-sm mb-4 border-b border-orange-900/30 pb-2 flex items-center gap-2">
-          <Dumbbell size={16} /> {t.dashboard.physicalTraining}
-        </h3>
-        <p className="text-xs text-slate-400 mb-3">{t.dashboard.gymGoal}</p>
-        <div className="flex justify-between items-center">
-          {t.dashboard.gymDays.map((day, idx) => {
-            const isTarget = GYM_TARGET_DAYS.includes(idx);
-            const isDone = profile.weeklyGymProgress[idx];
-            return (
-              <div key={idx} className="flex flex-col items-center gap-1">
-                <span className={`text-[10px] font-mono font-bold ${isTarget ? 'text-orange-400' : 'text-slate-600'}`}>{day}</span>
-                <button
-                  onClick={() => toggleGymDay(idx)}
-                  disabled={isDone}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all duration-300
-                    ${isDone
-                      ? 'bg-orange-500 border-orange-400 text-black shadow-[0_0_10px_#f97316]'
-                      : isTarget
-                        ? 'bg-slate-900 border-orange-900/50 hover:border-orange-500 cursor-pointer'
-                        : 'bg-slate-950 border-slate-800 opacity-30'}
-                  `}
-                >
-                  {isDone && <Check size={14} strokeWidth={4} />}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Daily Quests */}
-      <div className="bg-system-panel border border-system-border p-4 rounded-lg">
-        <h3 className="text-red-500 font-mono text-sm mb-4 border-b border-red-900/30 pb-2 flex items-center gap-2 animate-pulse">
-          <Trophy size={16} /> {t.dashboard.dailyQuests}
-        </h3>
-        <div className="space-y-3">
-          {quests.map(q => {
-            const linkedStat = profile.customStats.find(s => s.id === q.rewardStat);
-            return (
-              <div key={q.id} className={`p-3 border rounded flex justify-between items-center transition-colors duration-300 ${q.isCompleted ? 'bg-green-900/20 border-green-800' : 'bg-slate-900 border-slate-800 hover:bg-slate-800'}`}>
-                <div>
-                  <p className="font-bold text-sm">{q.description}</p>
-                  <div className="text-xs text-slate-500 font-mono mt-1">
-                    {t.dashboard.rewards} {q.rewardXp} XP
-                    {linkedStat && (
-                      <span style={{ color: linkedStat.color }}> +1 {linkedStat.emoji} {linkedStat.name}</span>
-                    )}
-                    {!linkedStat && <span className="text-slate-600"> — {t.dashboard.noStatLinked}</span>}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className={`text-sm font-mono ${q.isCompleted ? 'text-green-500' : 'text-slate-400'}`}>
-                    {q.current}/{q.target}
-                  </span>
-                  {q.isCompleted && <CheckMark />}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 
@@ -1624,13 +1465,9 @@ const App: React.FC = () => {
   );
 
   const renderMissions = () => {
-    const sorted = getSortedObjectives();
-
-    const priorityCfg = {
-      high:   { label: t.missions.priorityHigh,   textCls: 'text-red-400',    borderCls: 'border-red-500/40',    badge: 'bg-red-500/15 text-red-400 border border-red-500/50' },
-      medium: { label: t.missions.priorityMedium, textCls: 'text-yellow-400', borderCls: 'border-yellow-500/40', badge: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/50' },
-      low:    { label: t.missions.priorityLow,    textCls: 'text-blue-400',   borderCls: 'border-blue-400/40',   badge: 'bg-blue-400/15 text-blue-400 border border-blue-400/50' },
-    };
+    const activeBosses = bossFights.filter(b => b.status === 'active');
+    const completedBosses = bossFights.filter(b => b.status === 'completed');
+    const completedHabits = habits.filter(h => h.isCompleted);
 
     return (
       <div className="space-y-8 animate-slide-up">
@@ -1639,17 +1476,105 @@ const App: React.FC = () => {
           <h2 className="text-2xl font-bold font-mono text-white tracking-widest">{t.missions.title}</h2>
         </div>
 
-        {/* ── BOSS FIGHTS ── */}
-        {bossFights.some(b => b.status === 'active') && (
-          <section className="space-y-4">
-            <h3 className="text-purple-400 font-mono text-sm font-bold flex items-center gap-2 border-b border-purple-900/50 pb-2">
-              ⚔️ {t.missions.bossFightHeader}
+        {/* ── CHEFÕES ── */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between border-b border-purple-900/50 pb-2">
+            <h3 className="text-purple-400 font-mono text-sm font-bold flex items-center gap-2">
+              ⚔️ {t.missions.bossHeader}
             </h3>
-            <div className="space-y-4">
-              {bossFights.filter(b => b.status === 'active').map(boss => {
+            <button
+              onClick={() => setShowAddBossForm(v => !v)}
+              className="flex items-center gap-1 text-xs font-mono text-purple-400 hover:text-white border border-purple-500/50 hover:border-purple-400 px-2 py-1 rounded transition-all"
+            >
+              <Plus size={12} /> {t.missions.newBoss}
+            </button>
+          </div>
+
+          {/* New boss form */}
+          {showAddBossForm && (
+            <div className="bg-slate-900/80 border border-purple-500/30 rounded-lg p-4 space-y-3 animate-fade-in">
+              <p className="text-[10px] font-mono text-purple-400 font-bold tracking-widest">⚔️ {t.missions.bossFormTitle}</p>
+              <input
+                type="text"
+                value={newBossTitle}
+                onChange={e => setNewBossTitle(e.target.value)}
+                placeholder={t.missions.bossFormTitlePlaceholder}
+                className="w-full bg-slate-800 border border-slate-700 p-2 rounded text-white font-mono text-sm outline-none focus:border-purple-500"
+                autoFocus
+                onKeyDown={e => e.key === 'Enter' && addNewBossSubTask()}
+              />
+              <input
+                type="text"
+                value={newBossDesc}
+                onChange={e => setNewBossDesc(e.target.value)}
+                placeholder={t.missions.bossFormDescPlaceholder}
+                className="w-full bg-slate-800 border border-slate-700 p-2 rounded text-white font-mono text-sm outline-none focus:border-purple-500"
+              />
+              <div>
+                <label className="text-[10px] font-mono text-slate-400 block mb-1">{t.missions.bossFormDueDateLabel}</label>
+                <input
+                  type="date"
+                  value={newBossDueDate}
+                  onChange={e => setNewBossDueDate(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 p-1.5 rounded text-white font-mono text-xs outline-none focus:border-purple-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-mono text-slate-500">{t.missions.bossFormSubTaskHint}</p>
+                {newBossSubTasks.map(st => (
+                  <div key={st.id} className="flex items-center gap-2">
+                    <span className="text-purple-400 text-xs shrink-0">◆</span>
+                    <span className="flex-1 text-xs text-slate-300">{st.title}</span>
+                    <button onClick={() => setNewBossSubTasks(prev => prev.filter(s => s.id !== st.id))} className="text-slate-600 hover:text-red-500 transition-colors">
+                      <Trash2 size={10} />
+                    </button>
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newBossSubInput}
+                    onChange={e => setNewBossSubInput(e.target.value)}
+                    placeholder={t.missions.bossAddSubTask}
+                    className="flex-1 bg-slate-800 border border-slate-700 p-1.5 rounded text-white font-mono text-xs outline-none focus:border-purple-500"
+                    onKeyDown={e => e.key === 'Enter' && addNewBossSubTask()}
+                  />
+                  <button onClick={addNewBossSubTask} className="px-2 bg-purple-600/20 border border-purple-500/50 text-purple-400 hover:bg-purple-600/40 rounded transition-all">
+                    <Plus size={12} />
+                  </button>
+                </div>
+              </div>
+              <p className="text-[10px] font-mono text-slate-500">⚡ Recompensas: 150–300 XP · 60–100 Gold (automático)</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setShowAddBossForm(false); setNewBossTitle(''); setNewBossDesc(''); setNewBossDueDate(''); setNewBossSubTasks([]); setNewBossSubInput(''); }}
+                  className="flex-1 py-2 border border-slate-700 text-slate-400 hover:text-white rounded font-mono text-xs transition-colors"
+                >
+                  {t.upload.cancel}
+                </button>
+                <button
+                  onClick={createBoss}
+                  disabled={!newBossTitle.trim()}
+                  className="flex-1 py-2 bg-purple-600/30 border border-purple-500 text-purple-300 hover:bg-purple-600/50 rounded font-mono text-xs font-bold transition-all disabled:opacity-40"
+                >
+                  ⚔️ {t.missions.bossFormCreate}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeBosses.length === 0 && !showAddBossForm && (
+            <div className="text-center py-10 text-slate-600 border border-dashed border-slate-800 rounded-lg">
+              <p className="font-mono text-sm">{t.missions.bossEmpty}</p>
+              <p className="text-xs mt-1">{t.missions.bossEmptyHint}</p>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {activeBosses.map(boss => {
                 const isExpired = !!boss.dueDate && new Date(boss.dueDate) < new Date(new Date().toDateString());
                 const daysLeft = boss.dueDate ? getDaysUntil(boss.dueDate) : null;
-                const allDone = boss.subTasks.length > 0 && boss.subTasks.every(s => s.completed);
+                const allDone = boss.subTasks.length === 0 || boss.subTasks.every(s => s.completed);
                 return (
                   <div key={boss.id} className="relative border-2 border-purple-500/60 rounded-lg bg-purple-950/20 shadow-[0_0_24px_rgba(168,85,247,0.18)] overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-purple-500 to-transparent" />
@@ -1869,226 +1794,7 @@ const App: React.FC = () => {
                   </div>
                 );
               })}
-            </div>
-          </section>
-        )}
-
-        {/* ── OPEN OBJECTIVES ── */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between border-b border-purple-900/50 pb-2">
-            <h3 className="text-purple-400 font-mono text-sm font-bold flex items-center gap-2">
-              <Target size={15} /> {t.missions.objectivesHeader}
-            </h3>
-            <button
-              onClick={() => setShowAddObjectiveForm(v => !v)}
-              className="flex items-center gap-1 text-xs font-mono text-purple-400 hover:text-white border border-purple-500/50 hover:border-purple-400 px-2 py-1 rounded transition-all"
-            >
-              <Plus size={12} /> {t.missions.addObjective}
-            </button>
           </div>
-
-          {/* Add form */}
-          {showAddObjectiveForm && (
-            <div className="bg-slate-900/80 border border-purple-500/30 rounded-lg p-4 space-y-3 animate-fade-in">
-              <input
-                type="text"
-                value={newObjTitle}
-                onChange={e => setNewObjTitle(e.target.value)}
-                placeholder={t.missions.titlePlaceholder}
-                className="w-full bg-slate-800 border border-slate-700 p-2 rounded text-white font-mono text-sm outline-none focus:border-purple-500"
-                autoFocus
-                onKeyDown={e => e.key === 'Enter' && addObjective()}
-              />
-              <input
-                type="text"
-                value={newObjDesc}
-                onChange={e => setNewObjDesc(e.target.value)}
-                placeholder={t.missions.descPlaceholder}
-                className="w-full bg-slate-800 border border-slate-700 p-2 rounded text-white font-mono text-sm outline-none focus:border-purple-500"
-              />
-              <div className="flex gap-2 flex-wrap">
-                {(['high', 'medium', 'low'] as Priority[]).map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setNewObjPriority(p)}
-                    className={`px-3 py-1 rounded text-xs font-mono font-bold border transition-all ${
-                      newObjPriority === p ? priorityCfg[p].badge : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'
-                    }`}
-                  >
-                    {priorityCfg[p].label}
-                  </button>
-                ))}
-                <input
-                  type="date"
-                  value={newObjDueDate}
-                  onChange={e => setNewObjDueDate(e.target.value)}
-                  className="flex-1 min-w-[120px] bg-slate-800 border border-slate-700 p-1 rounded text-white font-mono text-xs outline-none focus:border-purple-500"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => { setShowAddObjectiveForm(false); setNewObjTitle(''); setNewObjDesc(''); }}
-                  className="flex-1 py-2 border border-slate-700 text-slate-400 hover:text-white rounded font-mono text-xs transition-colors"
-                >
-                  {t.upload.cancel}
-                </button>
-                <button
-                  onClick={addObjective}
-                  disabled={!newObjTitle.trim()}
-                  className="flex-1 py-2 bg-purple-600/20 border border-purple-500 text-purple-400 hover:bg-purple-600/40 rounded font-mono text-xs font-bold transition-all disabled:opacity-40"
-                >
-                  {t.missions.addObjective}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Objectives list */}
-          {sorted.length === 0 ? (
-            <div className="text-center py-10 text-slate-600 border border-dashed border-slate-800 rounded-lg">
-              <Target size={36} className="mx-auto mb-3 opacity-20" />
-              <p className="font-mono text-sm">{t.missions.empty}</p>
-              <p className="text-xs mt-1">{t.missions.emptyHint}</p>
-            </div>
-          ) : sorted.map(item => {
-            const cfg = priorityCfg[item.priority];
-            const daysAgo = getDaysAgo(item.dateAdded);
-            const daysUntil = item.dueDate ? getDaysUntil(item.dueDate) : null;
-            const isActive = item.status === 'active';
-
-            return (
-              <div
-                key={item.id}
-                className={`bg-slate-900 rounded-lg p-4 border transition-all duration-300 relative overflow-hidden
-                  ${isActive
-                    ? 'border-purple-500/70 shadow-[0_0_20px_rgba(139,92,246,0.25)]'
-                    : cfg.borderCls}
-                `}
-              >
-                {isActive && (
-                  <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-purple-500 to-transparent" />
-                )}
-
-                {/* Top row: badges + delete */}
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${cfg.badge}`}>
-                      {cfg.label}
-                    </span>
-                    {isActive && (
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/50 animate-pulse">
-                        {t.missions.statusActive}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {confirmDeleteObjId === item.id ? (
-                      <>
-                        <button
-                          onClick={() => deleteObjective(item.id)}
-                          className="text-[10px] px-2 py-1 bg-red-500/20 border border-red-500 text-red-400 rounded font-mono hover:bg-red-500/40 transition-colors"
-                        >
-                          {t.missions.confirm}
-                        </button>
-                        <button
-                          onClick={() => setConfirmDeleteObjId(null)}
-                          className="text-[10px] px-2 py-1 bg-slate-800 border border-slate-600 text-slate-400 rounded font-mono hover:text-white transition-colors"
-                        >
-                          ✕
-                        </button>
-                      </>
-                    ) : (
-                      <button onClick={() => handleDeleteObjectiveRequest(item.id)} className="text-slate-600 hover:text-red-500 transition-colors p-1">
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Content */}
-                <h4 className="font-bold text-white mb-1 leading-snug">{item.title}</h4>
-                {item.description && (
-                  <p className="text-slate-400 text-xs mb-2 leading-relaxed">{item.description}</p>
-                )}
-
-                {/* Footer row */}
-                <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-800/60">
-                  <div className="flex items-center gap-3 text-[10px] text-slate-500 font-mono">
-                    <span>{t.missions.addedDaysAgo(daysAgo)}</span>
-                    {daysUntil !== null && (
-                      <span className={`flex items-center gap-1 ${daysUntil < 0 ? 'text-red-400' : daysUntil <= 3 ? 'text-yellow-400' : 'text-slate-400'}`}>
-                        <Calendar size={10} />
-                        {daysUntil < 0 ? t.missions.overdue(-daysUntil) : t.missions.dueIn(daysUntil)}
-                      </span>
-                    )}
-                  </div>
-                  {!isActive && (
-                    <button
-                      onClick={() => startActivateBoss(item)}
-                      className="flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-1 rounded border border-purple-500/50 text-purple-400 hover:bg-purple-500/20 hover:border-purple-400 transition-all active:scale-95"
-                    >
-                      <Sword size={10} /> {t.missions.activateBoss}
-                    </button>
-                  )}
-                </div>
-
-                {/* Boss activation form */}
-                {activatingBossId === item.id && (
-                  <div className="mt-3 pt-3 border-t border-purple-500/30 space-y-3">
-                    <p className="text-[10px] font-mono text-purple-400 font-bold">⚔️ {t.missions.bossSetup}</p>
-
-                    <div>
-                      <label className="text-[10px] font-mono text-slate-400 block mb-1">{t.missions.bossDueDateLabel}</label>
-                      <input
-                        type="date"
-                        value={bossFormDueDate}
-                        onChange={e => setBossFormDueDate(e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 p-1.5 rounded text-white font-mono text-xs outline-none focus:border-purple-500"
-                      />
-                    </div>
-
-                    <p className="text-[10px] font-mono text-slate-500">⚡ Recompensas geradas automaticamente: 150–300 XP · 60–100 Gold</p>
-
-                    <div className="space-y-1.5">
-                      {bossFormSubTasks.map(st => (
-                        <div key={st.id} className="flex items-center gap-2">
-                          <span className="text-purple-400 text-xs shrink-0">◆</span>
-                          <span className="flex-1 text-xs text-slate-300">{st.title}</span>
-                          <button onClick={() => setBossFormSubTasks(prev => prev.filter(s => s.id !== st.id))} className="text-slate-600 hover:text-red-500 transition-colors">
-                            <Trash2 size={10} />
-                          </button>
-                        </div>
-                      ))}
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={bossFormSubInput}
-                          onChange={e => setBossFormSubInput(e.target.value)}
-                          placeholder={t.missions.bossAddSubTask}
-                          className="flex-1 bg-slate-800 border border-slate-700 p-1.5 rounded text-white font-mono text-xs outline-none focus:border-purple-500"
-                          onKeyDown={e => e.key === 'Enter' && addBossFormSubTask()}
-                        />
-                        <button onClick={addBossFormSubTask} className="px-2 bg-purple-600/20 border border-purple-500/50 text-purple-400 hover:bg-purple-600/40 rounded transition-all">
-                          <Plus size={12} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button onClick={() => setActivatingBossId(null)}
-                        className="flex-1 py-1.5 border border-slate-700 text-slate-400 hover:text-white rounded font-mono text-xs transition-colors">
-                        {t.upload.cancel}
-                      </button>
-                      <button onClick={() => confirmActivateBoss(item)}
-                        className="flex-1 py-1.5 bg-purple-600/30 border border-purple-500 text-purple-300 hover:bg-purple-600/50 rounded font-mono text-xs font-bold transition-all">
-                        ⚔️ {t.missions.bossActivate}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
         </section>
 
         {/* ── TAREFAS ── */}
@@ -2306,6 +2012,45 @@ const App: React.FC = () => {
               );
             })}
           </div>
+
+        {/* ── ACTIVITY LOG ── */}
+        {(completedHabits.length > 0 || completedBosses.length > 0) && (
+          <section className="space-y-3">
+            <h3 className="text-slate-500 font-mono text-sm font-bold flex items-center gap-2 border-b border-slate-800 pb-2">
+              📋 {t.missions.activityHeader}
+            </h3>
+
+            {completedHabits.length > 0 && (
+              <div>
+                <p className="text-[10px] font-mono text-slate-600 mb-2 tracking-wider">{t.missions.activityHabitsTitle}</p>
+                <div className="space-y-1.5">
+                  {completedHabits.map(h => (
+                    <div key={h.id} className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-slate-900/50 rounded px-3 py-1.5 border border-slate-800">
+                      <Check size={11} className="text-system-blue shrink-0" />
+                      <span className="line-through flex-1">{h.title}</span>
+                      <span className="text-yellow-600/70 flex items-center gap-0.5 shrink-0"><Zap size={9} fill="currentColor" />{h.streak}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {completedBosses.length > 0 && (
+              <div>
+                <p className="text-[10px] font-mono text-slate-600 mb-2 tracking-wider">{t.missions.activityBossTitle}</p>
+                <div className="space-y-1.5">
+                  {completedBosses.map(b => (
+                    <div key={b.id} className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-purple-950/20 rounded px-3 py-1.5 border border-purple-900/40">
+                      <span className="text-purple-400 shrink-0">⚔️</span>
+                      <span className="flex-1 line-through">{b.title}</span>
+                      <span className="text-yellow-500/70 shrink-0">+{b.xpReward} XP</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
       </div>
     );
   };

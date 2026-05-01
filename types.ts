@@ -4,7 +4,11 @@ export enum HunterRank {
   C = 'C',
   B = 'B',
   A = 'A',
-  S = 'S'
+  S = 'S',
+  SS = 'SS',
+  SSS = 'SSS',
+  NACIONAL = 'NACIONAL',
+  MONARCA = 'MONARCA',
 }
 
 export enum DungeonPart {
@@ -72,7 +76,6 @@ export interface BossHistoryEntry {
 
 export interface BossFight {
   id: string;
-  specialMissionId: string;
   title: string;
   description: string;
   xpReward: number;
@@ -84,19 +87,6 @@ export interface BossFight {
   history: BossHistoryEntry[];
   status: 'active' | 'completed' | 'failed';
   failPenalty: 'loseStreak';
-}
-
-export type Priority = 'high' | 'medium' | 'low';
-export type ObjectiveStatus = 'open' | 'active' | 'completed';
-
-export interface ProcrastinationItem {
-  id: string;
-  title: string;
-  description: string;
-  priority: Priority;
-  dueDate?: string;
-  dateAdded: string;
-  status: ObjectiveStatus;
 }
 
 export interface RewardItem {
@@ -136,6 +126,5 @@ export interface GameState {
   chapters: Chapter[];
   quests: Quest[];
   habits: Habit[];
-  procrastinationItems: ProcrastinationItem[];
   bossFights: BossFight[];
 }

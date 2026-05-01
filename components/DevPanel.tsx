@@ -123,7 +123,7 @@ const DevPanel: React.FC<DevPanelProps> = ({
               })}
             </div>
             <p className="text-[10px] text-slate-600 font-mono mt-2">
-              XP thresholds: E=0 D=500 C=1500 B=3500 A=7000 S=15000
+              E=0 D=750 C=2250 B=5250 A=7000 S=15k SS=30k SSS=60k NAC=120k MON=250k
             </p>
           </section>
 
