@@ -190,16 +190,21 @@ export function extractShadow(): Shadow {
 // ── Shadow Missions ───────────────────────────────────────────────────────────
 
 const SHADOW_MISSION_POOL: Omit<ShadowMission, 'id'>[] = [
-  { title: 'Patrol the Dark Gate',        requiredPower: 15,  recommendedRole: 'Tank',      durationHours: 1,   rewardGold: 40,  rewardXP: 25  },
-  { title: 'Ambush Demon Scouts',          requiredPower: 30,  recommendedRole: 'Assassino', durationHours: 2,   rewardGold: 70,  rewardXP: 50  },
-  { title: 'Defend the Shadow Realm',      requiredPower: 50,  recommendedRole: 'Tank',      durationHours: 3,   rewardGold: 100, rewardXP: 75  },
-  { title: 'Hunt the Rogue Mage',          requiredPower: 40,  recommendedRole: 'Mago',      durationHours: 2,   rewardGold: 80,  rewardXP: 60  },
-  { title: 'Escort Shadow Convoy',         requiredPower: 20,  recommendedRole: 'Guerreiro', durationHours: 1.5, rewardGold: 55,  rewardXP: 35  },
-  { title: 'Infiltrate the Lich Tower',    requiredPower: 60,  recommendedRole: 'Assassino', durationHours: 4,   rewardGold: 130, rewardXP: 100 },
-  { title: 'Collect Mana Crystals',        requiredPower: 12,  recommendedRole: 'Mago',      durationHours: 1,   rewardGold: 35,  rewardXP: 20  },
-  { title: 'Suppress the Undead Riot',     requiredPower: 45,  recommendedRole: 'Guerreiro', durationHours: 3,   rewardGold: 90,  rewardXP: 65  },
-  { title: 'Clear the Cursed Catacombs',   requiredPower: 35,  recommendedRole: 'Tank',      durationHours: 2.5, rewardGold: 75,  rewardXP: 55  },
-  { title: 'Track the Phantom Assassin',   requiredPower: 55,  recommendedRole: 'Assassino', durationHours: 3.5, rewardGold: 115, rewardXP: 85  },
+  { title: 'Patrulhar o Portão Sombrio',         requiredPower: 15,  recommendedRole: 'Tank',      durationHours: 1,   rewardGold: 40,  rewardXP: 25  },
+  { title: 'Emboscar Batedores Demoníacos',      requiredPower: 30,  recommendedRole: 'Assassino', durationHours: 2,   rewardGold: 70,  rewardXP: 50  },
+  { title: 'Defender o Reino das Sombras',       requiredPower: 50,  recommendedRole: 'Tank',      durationHours: 3,   rewardGold: 100, rewardXP: 75  },
+  { title: 'Caçar o Mago Renegado',              requiredPower: 40,  recommendedRole: 'Mago',      durationHours: 2,   rewardGold: 80,  rewardXP: 60  },
+  { title: 'Escolta do Comboio das Sombras',     requiredPower: 20,  recommendedRole: 'Guerreiro', durationHours: 1.5, rewardGold: 55,  rewardXP: 35  },
+  { title: 'Infiltrar a Torre do Lich',          requiredPower: 60,  recommendedRole: 'Assassino', durationHours: 4,   rewardGold: 130, rewardXP: 100 },
+  { title: 'Coletar Cristais de Mana',           requiredPower: 12,  recommendedRole: 'Mago',      durationHours: 1,   rewardGold: 35,  rewardXP: 20  },
+  { title: 'Suprimir a Rebelião dos Mortos-Vivos', requiredPower: 45, recommendedRole: 'Guerreiro', durationHours: 3,  rewardGold: 90,  rewardXP: 65  },
+  { title: 'Limpar as Catacumbas Amaldiçoadas',  requiredPower: 35,  recommendedRole: 'Tank',      durationHours: 2.5, rewardGold: 75,  rewardXP: 55  },
+  { title: 'Rastrear o Assassino Fantasma',      requiredPower: 55,  recommendedRole: 'Assassino', durationHours: 3.5, rewardGold: 115, rewardXP: 85  },
+  { title: 'Invasão ao Acampamento Orc',         requiredPower: 25,  recommendedRole: 'Guerreiro', durationHours: 1.5, rewardGold: 60,  rewardXP: 40  },
+  { title: 'Exploração da Masmorra de Classe C', requiredPower: 38,  recommendedRole: 'Mago',      durationHours: 2.5, rewardGold: 85,  rewardXP: 58  },
+  { title: 'Eliminar o Espectro Corrompido',     requiredPower: 22,  recommendedRole: 'Assassino', durationHours: 1.5, rewardGold: 55,  rewardXP: 38  },
+  { title: 'Recuperar Artefato Perdido',         requiredPower: 18,  recommendedRole: 'Mago',      durationHours: 1,   rewardGold: 45,  rewardXP: 30  },
+  { title: 'Conter Avanço dos Servos das Trevas', requiredPower: 65, recommendedRole: 'Tank',      durationHours: 4,   rewardGold: 140, rewardXP: 105 },
 ];
 
 export function generateDailyMissions(): ShadowMission[] {

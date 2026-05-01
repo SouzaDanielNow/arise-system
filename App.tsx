@@ -260,10 +260,10 @@ function formatCountdown(ms: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-const ShadowCard: React.FC<{ shadow: Shadow; onTrain?: () => void }> = ({ shadow, onTrain }) => {
+// ── Compact Shadow Card (inventory grid) ─────────────────────────────────────
+const ShadowCard: React.FC<{ shadow: Shadow; onClick: () => void }> = ({ shadow, onClick }) => {
   const color = SHADOW_RANK_COLORS[shadow.rank];
-  const xpForNextLevel = shadow.level * 100;
-  const xpPct = Math.min(100, Math.round((shadow.xp / xpForNextLevel) * 100));
+  const isBusy = shadow.status !== 'Pronta';
   const [countdown, setCountdown] = useState('');
 
   useEffect(() => {
@@ -274,75 +274,180 @@ const ShadowCard: React.FC<{ shadow: Shadow; onTrain?: () => void }> = ({ shadow
     return () => clearInterval(id);
   }, [shadow.returnTime]);
 
-  const isBusy = shadow.status !== 'Pronta';
-
   return (
     <div
-      className="bg-slate-900 rounded-lg p-4 border relative overflow-hidden transition-all duration-200 hover:scale-[1.01]"
-      style={{ borderColor: isBusy ? `${color}20` : `${color}35`, boxShadow: `0 0 12px ${color}10`, opacity: isBusy ? 0.75 : 1 }}
+      onClick={onClick}
+      className="bg-slate-900 rounded-lg p-3 border relative overflow-hidden cursor-pointer transition-all duration-200 hover:scale-105 hover:z-10 active:scale-100 select-none"
+      style={{
+        borderColor: isBusy ? `${color}18` : `${color}40`,
+        boxShadow: isBusy ? 'none' : `0 0 14px ${color}18`,
+        opacity: isBusy ? 0.7 : 1,
+      }}
     >
-      <div className="absolute top-0 left-0 w-full h-0.5" style={{ background: `linear-gradient(90deg, transparent, ${color}88, transparent)` }} />
+      <div className="absolute top-0 left-0 w-full h-0.5" style={{ background: `linear-gradient(90deg, transparent, ${color}70, transparent)` }} />
 
-      {/* Top row */}
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xl leading-none">{ROLE_ICONS[shadow.role]}</span>
-          <div>
-            <p className="font-mono font-bold text-sm text-white leading-tight">{shadow.name}</p>
-            <p className="text-[10px] font-mono text-slate-500">{shadow.role}</p>
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <span
-            className="text-[9px] font-mono font-bold px-2 py-0.5 rounded border"
-            style={{ color, borderColor: `${color}55`, background: `${color}18` }}
-          >
-            {shadow.rank}
-          </span>
-          <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border ${STATUS_STYLE[shadow.status]}`}>
-            {shadow.status}
-          </span>
-        </div>
-      </div>
-
-      {/* Countdown if busy */}
-      {isBusy && countdown && (
-        <div className="mb-2 bg-slate-800/60 rounded px-3 py-1.5 flex items-center justify-between text-xs font-mono">
-          <span className="text-slate-500">⏳</span>
-          <span className="text-slate-300 tabular-nums">{countdown}</span>
-        </div>
-      )}
-
-      {/* Power + Level */}
-      <div className="flex items-center justify-between text-xs font-mono mb-2">
-        <span className="text-slate-500">⚡ <span className="font-bold" style={{ color }}>{shadow.basePower}</span></span>
-        <span className="text-slate-500">Nv. <span className="text-white font-bold">{shadow.level}</span></span>
-      </div>
-
-      {/* XP bar */}
-      <div>
-        <div className="flex justify-between text-[9px] font-mono text-slate-600 mb-1">
-          <span>XP</span>
-          <span>{shadow.xp} / {xpForNextLevel}</span>
-        </div>
-        <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${xpPct}%`, background: `linear-gradient(90deg, ${color}88, ${color})` }}
-          />
-        </div>
-      </div>
-
-      {/* Train button (only when Pronta) */}
-      {!isBusy && onTrain && (
-        <button
-          onClick={onTrain}
-          className="mt-3 w-full text-[10px] font-mono font-bold py-1.5 rounded border border-blue-500/40 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 transition-colors"
+      {/* Role icon + rank badge */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-2xl leading-none">{ROLE_ICONS[shadow.role]}</span>
+        <span
+          className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded border"
+          style={{ color, borderColor: `${color}55`, background: `${color}18` }}
         >
-          💪 TREINAR (200 Ouro)
-        </button>
+          {shadow.rank}
+        </span>
+      </div>
+
+      {/* Name */}
+      <p className="font-mono font-bold text-xs text-white leading-tight truncate mb-1">{shadow.name}</p>
+
+      {/* Level + Power */}
+      <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 mb-2">
+        <span>Nv.<span className="text-white font-bold ml-0.5">{shadow.level}</span></span>
+        <span>⚡<span className="font-bold ml-0.5" style={{ color }}>{shadow.basePower}</span></span>
+      </div>
+
+      {/* Status / countdown */}
+      {isBusy ? (
+        <div className="text-[9px] font-mono text-center tabular-nums bg-slate-800/70 rounded px-1 py-0.5 text-slate-400">
+          {countdown || shadow.status}
+        </div>
+      ) : (
+        <div className={`text-[9px] font-mono text-center px-1 py-0.5 rounded border ${STATUS_STYLE[shadow.status]}`}>
+          {shadow.status}
+        </div>
       )}
     </div>
+  );
+};
+
+// ── Shadow Detail Modal ───────────────────────────────────────────────────────
+const ShadowDetailModal: React.FC<{
+  shadow: Shadow;
+  onClose: () => void;
+  onTrain: () => void;
+}> = ({ shadow, onClose, onTrain }) => {
+  const color = SHADOW_RANK_COLORS[shadow.rank];
+  const xpForNextLevel = shadow.level * 100;
+  const xpPct = Math.min(100, Math.round((shadow.xp / xpForNextLevel) * 100));
+  const isBusy = shadow.status !== 'Pronta';
+  const [countdown, setCountdown] = useState('');
+
+  useEffect(() => {
+    if (!shadow.returnTime) { setCountdown(''); return; }
+    const tick = () => setCountdown(formatCountdown(shadow.returnTime! - Date.now()));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [shadow.returnTime]);
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-[85] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        className="w-full max-w-xs bg-slate-950 border rounded-2xl p-6 shadow-2xl relative"
+        style={{ borderColor: `${color}40`, boxShadow: `0 0 40px ${color}20` }}
+        initial={{ scale: 0.85, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.85, opacity: 0, y: 20 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Close */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 text-slate-500 hover:text-white transition-colors text-lg leading-none"
+        >
+          ✕
+        </button>
+
+        {/* Top shine */}
+        <div className="absolute top-0 left-0 w-full h-0.5 rounded-t-2xl" style={{ background: `linear-gradient(90deg, transparent, ${color}99, transparent)` }} />
+
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-5">
+          <div
+            className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl shrink-0"
+            style={{ background: `${color}15`, border: `1px solid ${color}30` }}
+          >
+            {ROLE_ICONS[shadow.role]}
+          </div>
+          <div>
+            <p className="font-mono font-black text-white text-base leading-tight">{shadow.name}</p>
+            <p className="text-[10px] font-mono text-slate-500 mt-0.5">{shadow.role}</p>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span
+                className="text-[9px] font-mono font-bold px-2 py-0.5 rounded border"
+                style={{ color, borderColor: `${color}55`, background: `${color}18` }}
+              >
+                {shadow.rank}
+              </span>
+              <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border ${STATUS_STYLE[shadow.status]}`}>
+                {shadow.status}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <div className="bg-slate-900 rounded-lg p-3 text-center">
+            <p className="text-[9px] font-mono text-slate-500 mb-1">NÍVEL</p>
+            <p className="font-mono font-black text-white text-2xl">{shadow.level}</p>
+          </div>
+          <div className="bg-slate-900 rounded-lg p-3 text-center">
+            <p className="text-[9px] font-mono text-slate-500 mb-1">PODER</p>
+            <p className="font-mono font-black text-2xl" style={{ color }}>⚡{shadow.basePower}</p>
+          </div>
+        </div>
+
+        {/* XP Bar */}
+        <div className="mb-5">
+          <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1.5">
+            <span>EXPERIÊNCIA</span>
+            <span className="text-slate-300">{shadow.xp} / {xpForNextLevel} XP</span>
+          </div>
+          <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${xpPct}%`, background: `linear-gradient(90deg, ${color}88, ${color})` }}
+            />
+          </div>
+          <p className="text-[9px] font-mono text-slate-600 mt-1 text-right">{xpPct}%</p>
+        </div>
+
+        {/* Countdown if busy */}
+        {isBusy && (
+          <div
+            className="mb-4 rounded-lg px-4 py-3 text-center border"
+            style={{ borderColor: `${color}30`, background: `${color}08` }}
+          >
+            <p className="text-[9px] font-mono text-slate-500 mb-1">⏳ RETORNA EM</p>
+            <p className="font-mono font-bold text-xl tabular-nums" style={{ color }}>
+              {countdown || '—'}
+            </p>
+          </div>
+        )}
+
+        {/* Train button */}
+        <button
+          disabled={isBusy}
+          onClick={() => { onTrain(); onClose(); }}
+          className="w-full py-3 rounded-xl border-2 font-mono font-bold text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          style={isBusy ? {} : {
+            borderColor: `${color}80`,
+            color,
+            background: `${color}15`,
+          }}
+        >
+          {isBusy ? shadow.status : '💪 TREINAR (200 Ouro)'}
+        </button>
+      </motion.div>
+    </motion.div>
   );
 };
 
@@ -429,9 +534,10 @@ const App: React.FC = () => {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const profileRef = useRef<HunterProfile | null>(null);
 
-  // Shadow missions state
+  // Shadow missions + inspection state
   const [shadowMissions] = useState<ShadowMission[]>(() => generateDailyMissions());
   const [missionModal, setMissionModal] = useState<{ mission: ShadowMission; selectedIds: string[] } | null>(null);
+  const [inspectedShadow, setInspectedShadow] = useState<Shadow | null>(null);
 
   // Visual effects state
   const [levelUpRank, setLevelUpRank] = useState<HunterRank | null>(null);
@@ -1604,9 +1710,7 @@ const App: React.FC = () => {
   const renderShadowArmy = () => {
     const soldiers = profile.shadows ?? [];
     const readySoldiers = soldiers.filter(s => s.status === 'Pronta');
-    const clearedChapters = chapters.filter(c => c.isCleared && c.part !== DungeonPart.BOSS);
 
-    // Mission modal helpers
     const selectedMission = missionModal?.mission ?? null;
     const selectedIds = missionModal?.selectedIds ?? [];
     const modalShadows = soldiers.filter(s => s.status === 'Pronta');
@@ -1641,7 +1745,7 @@ const App: React.FC = () => {
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
                     <p className="font-mono font-bold text-sm text-white">{mission.title}</p>
-                    <div className="flex gap-3 mt-1 text-[10px] font-mono text-slate-500">
+                    <div className="flex flex-wrap gap-3 mt-1 text-[10px] font-mono text-slate-500">
                       <span>⚡ {t.shadows.missionRequiredPower}: <span className="text-yellow-400">{mission.requiredPower}</span></span>
                       <span>🎭 {mission.recommendedRole}</span>
                       <span>⏱ {mission.durationHours}h</span>
@@ -1664,7 +1768,7 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        {/* ── Shadow Soldiers ── */}
+        {/* ── Shadow Soldiers (compact grid) ── */}
         <section>
           <h3 className="text-xs font-mono tracking-[0.35em] text-slate-500 mb-4 flex items-center gap-2">
             <Ghost size={12} className="text-shadow-purple" />
@@ -1678,60 +1782,16 @@ const App: React.FC = () => {
               <p className="text-xs mt-1 text-slate-700">{t.shadows.soldiersEmptyHint}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {soldiers.map(s => (
                 <ShadowCard
                   key={s.id}
                   shadow={s}
-                  onTrain={s.status === 'Pronta' ? () => trainShadow(s.id) : undefined}
+                  onClick={() => setInspectedShadow(s)}
                 />
               ))}
             </div>
           )}
-        </section>
-
-        {/* ── Knowledge Library ── */}
-        <section>
-          <h3 className="text-xs font-mono tracking-[0.35em] text-slate-500 mb-4 flex items-center gap-2">
-            <Ghost size={12} className="text-shadow-purple" />
-            {t.shadows.knowledgeTitle}
-          </h3>
-          <div className="grid grid-cols-1 gap-4">
-            {clearedChapters.length === 0 ? (
-              <div className="text-center py-14 text-slate-600 border border-dashed border-slate-800 rounded-lg">
-                <Ghost size={40} className="mx-auto mb-3 opacity-20" />
-                <p className="text-sm">{t.shadows.empty}</p>
-                <p className="text-xs mt-1 text-slate-700">{t.shadows.emptyHint}</p>
-              </div>
-            ) : (
-              clearedChapters.map(chapter => (
-                <div
-                  key={chapter.id}
-                  className="bg-slate-900 border border-shadow-purple/30 p-4 rounded-lg flex items-center gap-4 hover:bg-shadow-purple/10 hover:border-shadow-purple/60 transition-all duration-300 cursor-pointer active:scale-[0.99] group"
-                  onClick={() => summonShadow(chapter.id)}
-                >
-                  <div className="bg-shadow-purple/20 p-2 rounded-full group-hover:bg-shadow-purple/40 transition-colors shrink-0">
-                    <Ghost size={20} className="text-shadow-purple" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-center mb-1">
-                      <h4 className="font-bold text-slate-200 group-hover:text-white truncate text-sm">{chapter.title}</h4>
-                      <span className="text-[10px] text-shadow-purple font-mono font-bold">{chapter.masteryLevel}%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-shadow-purple to-cyan-400 shadow-[0_0_8px_rgba(139,92,246,0.4)] transition-all duration-500"
-                        style={{ width: `${chapter.masteryLevel}%` }}
-                      />
-                    </div>
-                  </div>
-                  <button className="shrink-0 text-xs bg-slate-800 px-3 py-1 rounded border border-slate-700 hover:border-shadow-purple hover:text-shadow-purple hover:bg-shadow-purple/20 font-mono transition-all">
-                    {t.shadows.summon}
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
         </section>
 
         {/* ── Mission Dispatch Modal ── */}
@@ -1804,7 +1864,7 @@ const App: React.FC = () => {
                     onClick={() => setMissionModal(null)}
                     className="flex-1 py-2.5 rounded border border-slate-700 text-slate-400 text-xs font-mono hover:border-slate-500 transition-colors"
                   >
-                    {t.missions.bossCancel.split(' ')[0]}
+                    Cancelar
                   </button>
                   <button
                     disabled={selectedIds.length === 0}
@@ -2715,6 +2775,17 @@ const App: React.FC = () => {
       <AnimatePresence>
         {shadowExtracted && (
           <ShadowExtractionOverlay shadow={shadowExtracted} onDone={() => setShadowExtracted(null)} />
+        )}
+      </AnimatePresence>
+
+      {/* Shadow Detail modal */}
+      <AnimatePresence>
+        {inspectedShadow && (
+          <ShadowDetailModal
+            shadow={(profile.shadows ?? []).find(s => s.id === inspectedShadow.id) ?? inspectedShadow}
+            onClose={() => setInspectedShadow(null)}
+            onTrain={() => trainShadow(inspectedShadow.id)}
+          />
         )}
       </AnimatePresence>
 
