@@ -27,6 +27,7 @@ import SystemNotification, { NotificationType } from './components/SystemNotific
 import { useLanguage } from './i18n/LanguageContext';
 import { supabase } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
+import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 
 const RANK_COLORS: Record<HunterRank, string> = {
   [HunterRank.E]: '#9ca3af',
@@ -65,6 +66,132 @@ async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: 
   }
   return buffer;
 }
+
+// --- Daily Reset Logic (pure, runs on each login) ---
+function toDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function applyDailyReset(gs: GameState): { state: GameState; hadStreakBreak: boolean; retainedDays: number } {
+  const today = toDateStr(new Date());
+  const lastLogin = gs.profile.lastLoginDate
+    ? toDateStr(new Date(gs.profile.lastLoginDate))
+    : today;
+
+  if (today === lastLogin) return { state: gs, hadStreakBreak: false, retainedDays: gs.profile.streakDays };
+
+  const daysDiff = Math.round(
+    (new Date(today).getTime() - new Date(lastLogin).getTime()) / 86400000
+  );
+
+  let newStreakDays = gs.profile.streakDays;
+  let hadStreakBreak = false;
+  if (daysDiff > 1 && newStreakDays > 0) {
+    const totalPower = gs.profile.customStats.reduce((s, c) => s + c.value, 0);
+    newStreakDays = Math.floor(newStreakDays * Math.min(100, totalPower) / 100);
+    hadStreakBreak = true;
+  }
+
+  const dayOfWeek = new Date().getDay();
+  const resetHabits = gs.habits.map(h => {
+    if (!h.isCompleted) return h;
+    const active =
+      h.repeatType === 'daily' ? true :
+      h.repeatType === 'weekdays' ? dayOfWeek >= 1 && dayOfWeek <= 5 :
+      h.repeatType === 'custom' ? (h.repeatDays?.includes(dayOfWeek) ?? false) :
+      false;
+    return active ? { ...h, isCompleted: false } : h;
+  });
+
+  const resetQuests = gs.quests.map(q =>
+    (q.id === 'dq-1' || q.id === 'dq-2')
+      ? { ...q, isCompleted: false, current: 0 }
+      : q
+  );
+
+  return {
+    state: {
+      ...gs,
+      profile: { ...gs.profile, streakDays: newStreakDays, lastLoginDate: new Date().toISOString() },
+      habits: resetHabits,
+      quests: resetQuests,
+    },
+    hadStreakBreak,
+    retainedDays: newStreakDays,
+  };
+}
+
+// --- Level Up Overlay ---
+const PARTICLE_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
+
+const LevelUpOverlay: React.FC<{ rank: HunterRank; onDone: () => void }> = ({ rank, onDone }) => {
+  const color = RANK_COLORS[rank];
+
+  useEffect(() => {
+    const timer = setTimeout(onDone, 3500);
+    return () => clearTimeout(timer);
+  }, [onDone]);
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none overflow-hidden"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* Radial glow background */}
+      <motion.div
+        className="absolute inset-0"
+        style={{ background: `radial-gradient(ellipse at center, ${color}55 0%, transparent 70%)` }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0, 1, 0.7, 0] }}
+        transition={{ duration: 3.5, times: [0, 0.15, 0.6, 1] }}
+      />
+
+      {/* Particles */}
+      {PARTICLE_ANGLES.map((angle, i) => (
+        <motion.div
+          key={i}
+          className="absolute w-2 h-2 rounded-full"
+          style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}`, left: '50%', top: '50%', marginLeft: -4, marginTop: -4 }}
+          initial={{ x: 0, y: 0, opacity: 1, scale: 1.5 }}
+          animate={{
+            x: Math.cos((angle * Math.PI) / 180) * 260,
+            y: Math.sin((angle * Math.PI) / 180) * 260,
+            opacity: 0,
+            scale: 0,
+          }}
+          transition={{ duration: 1.8, delay: 0.15, ease: 'easeOut' }}
+        />
+      ))}
+
+      {/* Main text */}
+      <motion.div
+        className="text-center relative z-10 select-none"
+        initial={{ scale: 0.2, opacity: 0 }}
+        animate={{ scale: [0.2, 1.3, 1, 1, 1], opacity: [0, 1, 1, 1, 0] }}
+        transition={{ duration: 3.5, times: [0, 0.2, 0.35, 0.7, 1] }}
+      >
+        <div className="text-xs font-mono tracking-[0.5em] mb-3" style={{ color }}>
+          ⚔ RANK UP ⚔
+        </div>
+        <div
+          className="text-8xl font-black font-mono"
+          style={{ color, textShadow: `0 0 40px ${color}, 0 0 80px ${color}88` }}
+        >
+          {rank}
+        </div>
+        <div className="text-white font-mono text-sm tracking-[0.4em] mt-3 opacity-70">
+          RANK ACHIEVED
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
 
 const App: React.FC = () => {
   const { t, language, setLanguage } = useLanguage();
@@ -154,6 +281,11 @@ const App: React.FC = () => {
   const isDataLoadedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Visual effects state
+  const [levelUpRank, setLevelUpRank] = useState<HunterRank | null>(null);
+  const [showBossFlash, setShowBossFlash] = useState(false);
+  const shakeControls = useAnimation();
+
   useEffect(() => {
     const randomQuote = t.quotes[Math.floor(Math.random() * t.quotes.length)];
     setDailyQuote(randomQuote);
@@ -184,13 +316,24 @@ const App: React.FC = () => {
         .single();
       // profile_data?.profile distinguishes a real GameState from the trigger's empty {}
       if (data?.profile_data?.profile) {
-        const gs = data.profile_data as GameState;
+        const rawGs = data.profile_data as GameState;
+        const { state: gs, hadStreakBreak, retainedDays } = applyDailyReset(rawGs);
         setProfile(gs.profile);
         setChapters(gs.chapters);
         setQuests(gs.quests);
         setHabits(gs.habits);
         setProcrastinationItems(gs.procrastinationItems ?? []);
         setBossFights(gs.bossFights ?? []);
+        if (hadStreakBreak) {
+          const totalPower = gs.profile.customStats.reduce((s, c) => s + c.value, 0);
+          setTimeout(() => {
+            if (retainedDays > 0) {
+              showNotification(t.notifications.passiveActivated, t.notifications.passiveSub(totalPower, retainedDays), 'shield');
+            } else {
+              showNotification(t.notifications.streakBroken, t.notifications.streakBrokenSub, 'warning');
+            }
+          }, 1500);
+        }
       } else {
         const hunterName = session.user.user_metadata?.username || 'Jin-Woo';
         const defaultState: GameState = {
@@ -256,7 +399,10 @@ const App: React.FC = () => {
       );
 
       if (didLevelUp) {
-        setTimeout(() => showNotification(t.notifications.rankUp(newRank), t.notifications.rankUpSub, 'levelup'), 500);
+        setTimeout(() => {
+          showNotification(t.notifications.rankUp(newRank), t.notifications.rankUpSub, 'levelup');
+          setLevelUpRank(newRank);
+        }, 500);
       }
 
       return { ...prev, currentXp: newXp, rank: newRank, customStats: newCustomStats };
@@ -763,6 +909,12 @@ const App: React.FC = () => {
     addGold(boss.goldReward);
     showNotification(t.notifications.bossDefeated, t.notifications.bossDefeatedSub(boss.title, boss.xpReward, boss.goldReward), 'levelup');
     setBossFights(prev => prev.map(b => b.id === bossId ? { ...b, status: 'completed' } : b));
+    setShowBossFlash(true);
+    setTimeout(() => setShowBossFlash(false), 700);
+    shakeControls.start({
+      x: [0, -12, 12, -9, 9, -5, 5, -2, 2, 0],
+      transition: { duration: 0.55, ease: 'easeOut' },
+    });
     setProcrastinationItems(prev => prev.map(p =>
       p.id === boss.specialMissionId ? { ...p, status: 'completed' as ObjectiveStatus } : p
     ));
@@ -2284,7 +2436,29 @@ const App: React.FC = () => {
   if (!session) return <AuthScreen />;
 
   return (
-    <div className="min-h-screen bg-system-dark text-slate-200 pb-20 font-sans selection:bg-system-blue selection:text-black">
+    <motion.div animate={shakeControls} className="min-h-screen bg-system-dark text-slate-200 pb-20 font-sans selection:bg-system-blue selection:text-black">
+      {/* Boss Defeated flash */}
+      <AnimatePresence>
+        {showBossFlash && (
+          <motion.div
+            key="boss-flash"
+            className="fixed inset-0 z-[90] pointer-events-none"
+            style={{ backgroundColor: '#7c3aed' }}
+            initial={{ opacity: 0.55 }}
+            animate={{ opacity: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Level Up overlay */}
+      <AnimatePresence>
+        {levelUpRank && (
+          <LevelUpOverlay rank={levelUpRank} onDone={() => setLevelUpRank(null)} />
+        )}
+      </AnimatePresence>
+
       {notification && (
         <SystemNotification
           message={notification.msg}
@@ -2352,7 +2526,7 @@ const App: React.FC = () => {
           <NavButton active={view === 'SETTINGS'} onClick={() => setView('SETTINGS')} icon={<Settings size={18} />} label={t.nav.settings} />
         </div>
       </nav>
-    </div>
+    </motion.div>
   );
 };
 
