@@ -477,6 +477,7 @@ const App: React.FC = () => {
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(profile.name);
+  const [identityStatsView, setIdentityStatsView] = useState<'radar' | 'bars'>('radar');
   const [newHabitTitle, setNewHabitTitle] = useState('');
   const [dailyQuote, setDailyQuote] = useState<SystemQuote>(t.quotes[0]);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -1547,93 +1548,324 @@ const App: React.FC = () => {
     </div>
   );
 
-  const renderIdentity = () => (
-    <div className="space-y-6 animate-slide-up">
-      {/* Hunter Card */}
-      <div className="bg-system-panel border border-system-border p-6 rounded-lg relative overflow-hidden shadow-lg transform transition-all hover:scale-[1.01]">
-        <div className="absolute top-0 right-0 p-2 opacity-20">
-          <Shield size={100} />
-        </div>
-        <div className="flex items-center space-x-4 mb-4">
+  const renderIdentity = () => {
+    const rankColor = RANK_COLORS[profile.rank];
+    const totalPower = profile.customStats.reduce((sum, s) => sum + s.value, 0);
+    const protection = Math.min(50, totalPower);
+    const retainedDays = Math.floor(profile.streakDays * (protection / 100));
+    const maxStatVal = Math.max(50, ...profile.customStats.map(s => s.value));
+
+    return (
+      <div className="space-y-4">
+
+        {/* ── CARD 1: Hunter Profile ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
           <div
-            className="w-16 h-16 rounded-full flex items-center justify-center text-black font-bold text-3xl ring-4 shrink-0 animate-pulse-glow"
-            style={{ background: RANK_COLORS[profile.rank], '--tw-ring-color': `${RANK_COLORS[profile.rank]}50` } as React.CSSProperties}
+            className="relative rounded-2xl overflow-hidden border"
+            style={{ borderColor: `${rankColor}35`, boxShadow: `0 0 30px ${rankColor}12` }}
           >
-            {profile.rank}
-          </div>
-          <div className="flex-1 min-w-0">
-            {isEditingName ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={tempName}
-                  onChange={e => setTempName(e.target.value)}
-                  className="bg-slate-800 text-white font-mono font-bold text-lg px-2 py-1 rounded border border-system-blue outline-none w-full"
-                  autoFocus
-                  onBlur={saveName}
-                  onKeyDown={e => e.key === 'Enter' && saveName()}
-                />
-                <button onClick={saveName} className="text-green-500 shrink-0"><Check size={20} /></button>
-              </div>
-            ) : (
-              <div
-                className="flex items-center gap-2 group cursor-pointer"
-                onClick={() => { setTempName(profile.name); setIsEditingName(true); }}
-              >
-                <h2 className="text-xl font-bold font-mono tracking-wider truncate">{t.dashboard.hunter} {profile.name.toUpperCase()}</h2>
-                <Edit3 size={14} className="text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-              </div>
-            )}
-            <p className="text-sm text-slate-400">{t.dashboard.navigatorSystem}</p>
-          </div>
-        </div>
-
-        <div className="mt-2">
-          <div className="flex justify-between text-xs text-system-blue font-mono mb-1">
-            <span>{t.dashboard.xp}</span>
-            <span>{profile.currentXp} / {RANK_THRESHOLDS[getNextRank(profile.currentXp + 100)]}</span>
-          </div>
-          <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+            {/* Top rank accent line */}
             <div
-              className="h-full bg-system-blue shadow-[0_0_10px_#3b82f6] transition-all duration-1000 ease-out"
-              style={{ width: `${getXpProgress(profile.currentXp, profile.rank)}%` }}
-            ></div>
-          </div>
-        </div>
-      </div>
+              className="absolute top-0 left-0 right-0 h-0.5"
+              style={{ background: `linear-gradient(90deg, transparent, ${rankColor}, transparent)` }}
+            />
 
-      {/* Parameters / Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-system-panel border border-system-border p-4 rounded-lg hover:border-system-blue/30 transition-colors">
-          <h3 className="text-system-blue font-mono text-sm mb-4 border-b border-slate-800 pb-2 flex items-center gap-2">
-            <Activity size={16} /> {t.dashboard.parameters}
-          </h3>
-          <StatRadar customStats={profile.customStats} />
-        </div>
+            <div className="bg-slate-900/80 p-5">
+              {/* Avatar + name row */}
+              <div className="flex items-start gap-4 mb-5">
 
-        <div className="bg-system-panel border border-system-border p-4 rounded-lg flex flex-col justify-between">
-          <div className="space-y-2 flex-1">
-            {profile.customStats.map(stat => (
-              <div key={stat.id} className="flex items-center justify-between p-2 bg-slate-900/50 rounded border border-slate-800 hover:bg-slate-800 transition-colors">
-                <span className="flex items-center gap-2 font-mono text-sm" style={{ color: stat.color }}>
-                  {stat.emoji} {stat.name}
-                </span>
-                <span className="text-xl font-bold">{stat.value}</span>
+                {/* Avatar circle — cyberpunk silhouette */}
+                <div className="relative shrink-0">
+                  <div
+                    className="w-[76px] h-[76px] rounded-full overflow-hidden bg-slate-800 flex items-center justify-center"
+                    style={{
+                      border: `2px solid ${rankColor}`,
+                      boxShadow: `0 0 18px ${rankColor}45, inset 0 0 20px ${rankColor}10`,
+                    }}
+                  >
+                    <svg viewBox="0 0 80 80" className="w-full h-full" aria-hidden>
+                      <defs>
+                        <radialGradient id={`avatarG-${profile.rank}`} cx="50%" cy="35%" r="65%">
+                          <stop offset="0%" stopColor={rankColor} stopOpacity="0.18" />
+                          <stop offset="100%" stopColor="#0f172a" stopOpacity="1" />
+                        </radialGradient>
+                      </defs>
+                      <rect width="80" height="80" fill={`url(#avatarG-${profile.rank})`} />
+                      {/* Head */}
+                      <ellipse cx="40" cy="27" rx="12" ry="13" fill={`${rankColor}22`} stroke={`${rankColor}55`} strokeWidth="1" />
+                      {/* Body silhouette */}
+                      <path d="M16 78 Q19 54 40 49 Q61 54 64 78 Z" fill={`${rankColor}18`} stroke={`${rankColor}45`} strokeWidth="1" />
+                      {/* Circuit lines */}
+                      <line x1="27" y1="62" x2="20" y2="76" stroke={rankColor} strokeWidth="0.6" strokeOpacity="0.45" />
+                      <line x1="53" y1="62" x2="60" y2="76" stroke={rankColor} strokeWidth="0.6" strokeOpacity="0.45" />
+                      <line x1="34" y1="50" x2="30" y2="56" stroke={rankColor} strokeWidth="0.5" strokeOpacity="0.3" />
+                      <line x1="46" y1="50" x2="50" y2="56" stroke={rankColor} strokeWidth="0.5" strokeOpacity="0.3" />
+                    </svg>
+                  </div>
+                  {/* Rank badge */}
+                  <div
+                    className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold border-2 border-slate-900 leading-none"
+                    style={{ background: rankColor, color: '#000' }}
+                  >
+                    {profile.rank.length > 2 ? profile.rank.slice(0, 2) : profile.rank}
+                  </div>
+                </div>
+
+                {/* Name + rank */}
+                <div className="flex-1 min-w-0 pt-1">
+                  {isEditingName ? (
+                    <div className="flex items-center gap-2 mb-1">
+                      <input
+                        type="text"
+                        value={tempName}
+                        onChange={e => setTempName(e.target.value)}
+                        className="bg-slate-800 text-white font-mono font-bold text-base px-2 py-1 rounded border border-system-blue outline-none w-full"
+                        autoFocus
+                        onBlur={saveName}
+                        onKeyDown={e => e.key === 'Enter' && saveName()}
+                      />
+                      <button onClick={saveName} className="text-green-500 shrink-0"><Check size={18} /></button>
+                    </div>
+                  ) : (
+                    <div
+                      className="flex items-center gap-1.5 group cursor-pointer mb-0.5"
+                      onClick={() => { setTempName(profile.name); setIsEditingName(true); }}
+                    >
+                      <h2
+                        className="text-lg font-bold font-mono tracking-widest truncate"
+                        style={{ color: rankColor }}
+                      >
+                        {profile.name.toUpperCase()}
+                      </h2>
+                      <Edit3 size={12} className="text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                    </div>
+                  )}
+                  <p className="text-[10px] font-mono text-slate-500 tracking-widest uppercase mb-2">
+                    {t.identity.rankTitle(profile.rank)}
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span
+                      className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border"
+                      style={{ color: rankColor, borderColor: `${rankColor}40`, background: `${rankColor}18` }}
+                    >
+                      {profile.rank}-RANK
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {t.identity.level} {profile.level}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Gold panel */}
+                <div className="shrink-0 flex flex-col items-center gap-0.5 bg-yellow-900/20 border border-yellow-700/30 rounded-xl px-3 py-2.5">
+                  <Coins size={14} className="text-yellow-400" />
+                  <span className="text-yellow-300 font-mono text-sm font-bold">{profile.gold}</span>
+                  <span className="text-yellow-700 font-mono text-[9px] tracking-widest">GOLD</span>
+                </div>
               </div>
-            ))}
+
+              {/* XP bar */}
+              <div>
+                <div className="flex justify-between text-[10px] font-mono mb-1.5">
+                  <span className="text-slate-500 tracking-widest uppercase">{t.identity.xpProgress}</span>
+                  <span style={{ color: rankColor }}>
+                    {profile.currentXp} / {RANK_THRESHOLDS[getNextRank(profile.currentXp + 100)]} XP
+                  </span>
+                </div>
+                <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden relative">
+                  <div
+                    className="absolute inset-0 opacity-10"
+                    style={{
+                      backgroundImage:
+                        'repeating-linear-gradient(90deg, transparent, transparent 7px, rgba(255,255,255,0.06) 7px, rgba(255,255,255,0.06) 8px)',
+                    }}
+                  />
+                  <div
+                    className="h-full rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
+                    style={{
+                      width: `${getXpProgress(profile.currentXp, profile.rank)}%`,
+                      background: `linear-gradient(90deg, ${rankColor}70, ${rankColor})`,
+                      boxShadow: `0 0 10px ${rankColor}70`,
+                    }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
-            <span className="text-xs font-mono text-slate-400 flex items-center gap-1">
-              <Zap size={12} /> {t.dashboard.totalPower}
-            </span>
-            <span className="text-lg font-bold text-system-blue">
-              {profile.customStats.reduce((sum, s) => sum + s.value, 0)}
-            </span>
+        </motion.div>
+
+        {/* ── CARD 2: Attribute Analysis ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+        >
+          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden">
+            {/* Header + view toggle */}
+            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-800/60">
+              <h3 className="text-[10px] font-mono font-bold text-slate-400 tracking-widest uppercase flex items-center gap-2">
+                <Activity size={13} /> {t.identity.attributeAnalysis}
+              </h3>
+              <div className="flex gap-0.5 bg-slate-800/80 rounded-lg p-0.5">
+                {(['radar', 'bars'] as const).map(view => (
+                  <button
+                    key={view}
+                    onClick={() => setIdentityStatsView(view)}
+                    className={`px-3 py-1 rounded text-[10px] font-mono font-bold transition-all ${
+                      identityStatsView === view
+                        ? 'bg-system-blue text-black shadow'
+                        : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    {view === 'radar' ? t.identity.radarView : t.identity.barsView}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-5">
+              <AnimatePresence mode="wait">
+                {identityStatsView === 'radar' ? (
+                  <motion.div
+                    key="radar"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <StatRadar customStats={profile.customStats} />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="bars"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="space-y-4"
+                  >
+                    {profile.customStats.map((stat, i) => {
+                      const pct = maxStatVal > 0 ? Math.min(100, Math.round((stat.value / maxStatVal) * 100)) : 0;
+                      return (
+                        <motion.div
+                          key={stat.id}
+                          initial={{ opacity: 0, x: -12 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.07, duration: 0.3 }}
+                        >
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs font-mono font-bold flex items-center gap-1.5" style={{ color: stat.color }}>
+                              <span className="text-sm">{stat.emoji}</span>
+                              <span className="tracking-wide">{stat.name.toUpperCase()}</span>
+                            </span>
+                            <span className="text-xs font-mono font-bold" style={{ color: stat.color }}>
+                              {stat.value} <span className="text-slate-600 font-normal">{t.identity.pts}</span>
+                            </span>
+                          </div>
+                          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                            <motion.div
+                              className="h-full rounded-full"
+                              style={{
+                                background: `linear-gradient(90deg, ${stat.color}60, ${stat.color})`,
+                                boxShadow: `0 0 6px ${stat.color}55`,
+                              }}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${pct}%` }}
+                              transition={{ duration: 0.65, delay: i * 0.07, ease: 'easeOut' }}
+                            />
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+
+                    {/* Total Power footer */}
+                    <div className="mt-2 pt-3 border-t border-slate-800 flex items-center justify-between">
+                      <span className="text-[10px] font-mono text-slate-500 flex items-center gap-1">
+                        <Zap size={11} /> {t.dashboard.totalPower}
+                      </span>
+                      <span className="text-base font-bold text-system-blue font-mono">{totalPower}</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
-        </div>
+        </motion.div>
+
+        {/* ── CARD 3: Undying Will (Passive) ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.2 }}
+        >
+          <div
+            className="relative rounded-2xl overflow-hidden border bg-slate-900/50 p-5"
+            style={{ borderColor: '#7c3aed30', boxShadow: '0 0 20px #7c3aed08' }}
+          >
+            {/* Background ghost shield */}
+            <div className="absolute top-0 right-0 p-3 opacity-[0.04] pointer-events-none select-none">
+              <Shield size={110} />
+            </div>
+
+            {/* Header row */}
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <p className="text-[9px] font-mono text-purple-500/50 tracking-widest uppercase mb-0.5">
+                  {t.identity.passiveSkill}
+                </p>
+                <h3 className="text-sm font-mono font-bold text-purple-300 flex items-center gap-2">
+                  <Shield size={14} className="text-purple-400" />
+                  {t.identity.undyingWill}
+                </h3>
+              </div>
+
+              {/* Streak badge */}
+              <div className="flex flex-col items-center bg-purple-950/40 border border-purple-700/25 rounded-xl px-3 py-2 min-w-[56px]">
+                <Zap size={15} className="text-purple-400 mb-0.5" fill="currentColor" />
+                <span className="text-xl font-bold font-mono text-purple-200 leading-none">{profile.streakDays}</span>
+                <span className="text-[9px] font-mono text-purple-600 uppercase tracking-wider mt-0.5">STREAK</span>
+              </div>
+            </div>
+
+            {/* Protection bar */}
+            <div className="mb-3">
+              <div className="flex justify-between text-[10px] font-mono mb-1.5">
+                <span className="text-slate-500">{t.identity.streakProtection(protection)}</span>
+                <span className="text-purple-400 font-bold">{protection}% <span className="text-slate-600 font-normal">{t.identity.maxProtection}</span></span>
+              </div>
+              <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-1000"
+                  style={{
+                    width: `${(protection / 50) * 100}%`,
+                    background: 'linear-gradient(90deg, #7c3aed70, #a855f7)',
+                    boxShadow: '0 0 8px #a855f760',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Footer stats */}
+            <div className="flex items-center justify-between text-[10px] font-mono">
+              <span className="flex items-center gap-1.5 text-slate-500">
+                <Zap size={10} className="text-purple-500" />
+                {t.identity.basedOnPower}:
+                <span className="text-purple-400 font-bold">{totalPower}</span>
+              </span>
+              <span className="text-purple-600">{t.identity.daysRetained(retainedDays)}</span>
+            </div>
+          </div>
+        </motion.div>
+
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderDungeonMap = () => {
     const groupedChapters: { [key: string]: Chapter[] } = {};
