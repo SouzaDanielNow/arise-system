@@ -949,11 +949,16 @@ const App: React.FC = () => {
         applicationServerKey: urlBase64ToUint8Array(vapidKey),
       });
 
-      await supabase.from('push_subscriptions').upsert({
+      const { error: upsertErr } = await supabase.from('push_subscriptions').upsert({
         user_id: session.user.id,
         endpoint: sub.endpoint,
         subscription: sub.toJSON(),
       }, { onConflict: 'user_id,endpoint' });
+
+      if (upsertErr) {
+        showNotification(`Erro ao salvar subscription: ${upsertErr.message}`, undefined, 'warning');
+        return;
+      }
 
       setNotifPermission('granted');
       setIsPushSubscribed(true);
