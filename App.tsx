@@ -3249,33 +3249,25 @@ ${gameContext}`;
           const today = toDateStr(new Date());
           const todaysMissions = bonusMissions.filter(m => m.generatedDate === today);
           const alreadyGenerated = todaysMissions.length > 0;
-          const hour = new Date().getHours();
-          const pastTimeGate = hour >= 18;
           return (
             <section className="space-y-3">
               <div className="flex items-center justify-between border-b border-yellow-900/40 pb-2">
                 <h3 className="text-yellow-400 font-mono text-sm font-bold flex items-center gap-2">
                   {t.missions.bonusMissionsHeader}
                 </h3>
-                {!alreadyGenerated && !pastTimeGate && (
-                  <button
-                    onClick={generateBonusMissions}
-                    disabled={isGeneratingBonus}
-                    className="flex items-center gap-1 text-xs font-mono text-yellow-400 hover:text-white border border-yellow-600/50 hover:border-yellow-400 px-2 py-1 rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isGeneratingBonus ? <Loader size={10} className="animate-spin" /> : <Zap size={10} />}
-                    {isGeneratingBonus ? t.missions.bonusMissionsGenerating : t.missions.bonusMissionsGenerate}
-                  </button>
+                {isGeneratingBonus && (
+                  <span className="flex items-center gap-1 text-[10px] font-mono text-yellow-600/70">
+                    <Loader size={10} className="animate-spin" /> {t.missions.bonusMissionsGenerating}
+                  </span>
                 )}
-                {alreadyGenerated && (
+                {alreadyGenerated && !isGeneratingBonus && (
                   <span className="text-[10px] font-mono text-yellow-600/70">{t.missions.bonusMissionsAlreadyGenerated}</span>
-                )}
-                {!alreadyGenerated && pastTimeGate && (
-                  <span className="text-[10px] font-mono text-slate-600">{t.missions.bonusMissionsTimeGateExpired}</span>
                 )}
               </div>
               {todaysMissions.length === 0 ? (
-                <p className="text-[11px] font-mono text-slate-600 text-center py-3">{t.missions.bonusMissionsEmpty}</p>
+                <p className="text-[11px] font-mono text-slate-600 text-center py-3">
+                  {isGeneratingBonus ? t.missions.bonusMissionsGenerating : t.missions.bonusMissionsEmpty}
+                </p>
               ) : (
                 <div className="space-y-2">
                   {todaysMissions.map(m => (
