@@ -3500,19 +3500,24 @@ ${gameContext}`;
             <Bell size={16} /> {t.settings.notificationsSection}
           </h3>
           <p className="text-slate-400 text-xs mb-4">{t.settings.notificationsDesc}</p>
-          {notifPermission === 'granted' ? (
-            <div className="flex items-center gap-2 text-green-400 text-xs font-mono">
-              <Check size={13} /> {t.settings.notificationsActive}
-            </div>
-          ) : notifPermission === 'denied' ? (
+          {notifPermission === 'denied' ? (
             <p className="text-red-400/70 text-xs font-mono">{t.settings.notificationsBlocked}</p>
           ) : (
-            <button
-              onClick={enableNotifications}
-              className="flex items-center gap-2 px-4 py-2 rounded border border-system-blue/50 bg-system-blue/10 text-system-blue font-mono text-sm hover:bg-system-blue/20 transition-all"
-            >
-              <Bell size={14} /> {t.settings.notificationsEnable}
-            </button>
+            <div className="flex items-center justify-between">
+              {notifPermission === 'granted' ? (
+                <div className="flex items-center gap-2 text-green-400 text-xs font-mono">
+                  <Check size={13} /> {t.settings.notificationsActive}
+                </div>
+              ) : (
+                <span className="text-slate-500 text-xs font-mono">{t.settings.notificationsEnable}</span>
+              )}
+              <button
+                onClick={enableNotifications}
+                className="flex items-center gap-2 px-3 py-1.5 rounded border border-system-blue/50 bg-system-blue/10 text-system-blue font-mono text-xs hover:bg-system-blue/20 transition-all"
+              >
+                <Bell size={12} /> {notifPermission === 'granted' ? t.settings.notificationsReactivate : t.settings.notificationsEnable}
+              </button>
+            </div>
           )}
         </div>
       )}

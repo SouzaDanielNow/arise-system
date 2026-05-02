@@ -317,9 +317,10 @@ Responda SOMENTE com um array JSON com 1 item, sem markdown:
               }),
               vapidPriv, vapidPub, vapidSub,
             );
+            console.log(`Push sent OK for user ${p.id}`);
             notified++;
           } catch (pushErr) {
-            console.warn(`Push failed for user ${p.id}:`, pushErr);
+            console.warn(`Push FAILED for user ${p.id}:`, String(pushErr));
             if (String(pushErr).includes('410') || String(pushErr).includes('404')) {
               await supabase.from('push_subscriptions').delete().eq('user_id', p.id);
             }
