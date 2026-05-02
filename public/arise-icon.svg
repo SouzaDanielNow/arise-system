@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#020617"/>
+  <rect width="512" height="512" rx="80" fill="url(#g)" opacity="0.6"/>
+  <defs>
+    <radialGradient id="g" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#1e3a5f"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </radialGradient>
+  </defs>
+  <!-- Glowing A -->
+  <text x="256" y="340" font-family="JetBrains Mono, Courier New, monospace" font-size="280" font-weight="900" text-anchor="middle" fill="#3b82f6" opacity="0.15" filter="url(#blur)">A</text>
+  <text x="256" y="340" font-family="JetBrains Mono, Courier New, monospace" font-size="280" font-weight="900" text-anchor="middle" fill="#3b82f6">A</text>
+  <defs>
+    <filter id="blur"><feGaussianBlur stdDeviation="8"/></filter>
+  </defs>
+  <!-- Bottom accent line -->
+  <rect x="96" y="400" width="320" height="3" rx="1.5" fill="#3b82f6" opacity="0.7"/>
+  <!-- Corner dots -->
+  <circle cx="96" cy="400" r="5" fill="#60a5fa"/>
+  <circle cx="416" cy="400" r="5" fill="#60a5fa"/>
+</svg>
