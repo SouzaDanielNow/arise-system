@@ -155,6 +155,7 @@ export type ViewState = 'DASHBOARD' | 'DUNGEON_MAP' | 'ACTIVE_DUNGEON' | 'SHADOW
 export interface BonusMission {
   id: string;
   title: string;
+  description: string;
   rewardXp: number;
   rewardGold: number;
   isCompleted: boolean;

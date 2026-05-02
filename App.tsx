@@ -3657,81 +3657,145 @@ ${gameContext}`;
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/92"
+            className="fixed inset-0 z-[100] flex items-center justify-center"
+            style={{ background: 'rgba(0,3,15,0.96)' }}
           >
-            {/* Ambient glow behind card */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <motion.div
-                animate={{ scale: [1, 1.15, 1], opacity: [0.15, 0.3, 0.15] }}
-                transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
-                className="w-80 h-80 rounded-full bg-yellow-500/20 blur-3xl"
-              />
-            </div>
-
+            {/* Glitch card */}
             <motion.div
-              initial={{ scale: 0.65, opacity: 0, y: 60 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.85, opacity: 0, y: 20 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 24 }}
-              className="relative w-full max-w-sm mx-4 bg-slate-950 border-2 border-yellow-500/80 rounded-2xl overflow-hidden shadow-[0_0_80px_rgba(234,179,8,0.45)]"
+              initial={{ scale: 0.75, opacity: 0, y: 50 }}
+              animate={{ scale: 1, opacity: 1, y: 0,
+                x: [0, -1, 1, 0, 0, 0, -1, 2, 0],
+                filter: [
+                  'none',
+                  'drop-shadow(2px 0 rgba(0,200,255,0.35)) drop-shadow(-2px 0 rgba(255,0,80,0.2))',
+                  'none', 'none', 'none', 'none',
+                  'drop-shadow(1px 0 rgba(0,200,255,0.2))',
+                  'none',
+                ],
+              }}
+              exit={{ scale: 0.88, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 22,
+                x: { repeat: Infinity, duration: 5, ease: 'linear', delay: 1 },
+                filter: { repeat: Infinity, duration: 5, ease: 'linear', delay: 1 },
+              }}
+              className="relative w-72 font-mono overflow-hidden"
+              style={{
+                background: 'linear-gradient(170deg, rgba(6,12,40,0.98) 0%, rgba(4,8,28,0.98) 100%)',
+                border: '1px solid rgba(59,130,246,0.55)',
+                boxShadow: '0 0 0 1px rgba(59,130,246,0.1), 0 0 40px rgba(59,130,246,0.2), inset 0 0 30px rgba(59,130,246,0.04)',
+              }}
             >
-              {/* Scanline effect top strip */}
-              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-yellow-400/80 to-transparent" />
+              {/* Corner accents */}
+              {[['top-0 left-0 border-t border-l',''], ['top-0 right-0 border-t border-r',''], ['bottom-0 left-0 border-b border-l',''], ['bottom-0 right-0 border-b border-r','']].map(([cls], i) => (
+                <div key={i} className={`absolute w-3 h-3 border-blue-400/80 ${cls}`} />
+              ))}
 
-              {/* Header */}
-              <div className="bg-yellow-500/10 border-b border-yellow-500/30 px-6 py-5 text-center relative overflow-hidden">
-                <motion.div
-                  animate={{ opacity: [0.5, 1, 0.5] }}
-                  transition={{ repeat: Infinity, duration: 1.8 }}
-                  className="text-yellow-500/70 font-mono text-[10px] tracking-[0.35em] mb-2"
+              {/* Animated scan line */}
+              <motion.div
+                className="absolute left-0 right-0 h-px pointer-events-none"
+                style={{ background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.6), transparent)' }}
+                animate={{ top: ['0%', '100%', '0%'] }}
+                transition={{ repeat: Infinity, duration: 3.5, ease: 'linear' }}
+              />
+
+              {/* System label */}
+              <div className="px-5 pt-5 pb-3 text-center">
+                <motion.p
+                  animate={{ opacity: [0.4, 0.9, 0.4] }}
+                  transition={{ repeat: Infinity, duration: 2.5 }}
+                  className="text-[9px] tracking-[0.45em] uppercase"
+                  style={{ color: 'rgba(147,197,253,0.6)' }}
                 >
-                  ── ARCHITECT SYSTEM ──
-                </motion.div>
+                  {t.missions.bonusMissionsSystemLabel}
+                </motion.p>
+              </div>
+
+              {/* Divider */}
+              <div className="mx-5 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.5), transparent)' }} />
+
+              {/* Title block */}
+              <div className="py-5 text-center">
                 <motion.h2
-                  animate={{ textShadow: ['0 0 12px rgba(234,179,8,0)', '0 0 20px rgba(234,179,8,0.7)', '0 0 12px rgba(234,179,8,0)'] }}
-                  transition={{ repeat: Infinity, duration: 1.8 }}
-                  className="text-white font-mono text-2xl font-black tracking-widest"
+                  className="text-lg font-black tracking-[0.2em] uppercase"
+                  style={{ color: '#fff', textShadow: '0 0 16px rgba(147,197,253,0.9), 0 0 32px rgba(59,130,246,0.5)' }}
+                  animate={{ textShadow: [
+                    '0 0 16px rgba(147,197,253,0.9), 0 0 32px rgba(59,130,246,0.5)',
+                    '0 0 22px rgba(147,197,253,1), 0 0 44px rgba(59,130,246,0.8)',
+                    '0 0 16px rgba(147,197,253,0.9), 0 0 32px rgba(59,130,246,0.5)',
+                  ]}}
+                  transition={{ repeat: Infinity, duration: 2 }}
                 >
                   {t.missions.bonusMissionsArrivedTitle}
                 </motion.h2>
-                <p className="text-yellow-400 font-mono text-sm tracking-[0.25em] font-bold mt-0.5">
+                <motion.div
+                  className="mx-auto mt-2 h-px"
+                  style={{ background: 'rgba(147,197,253,0.7)' }}
+                  initial={{ width: 0 }}
+                  animate={{ width: '50%' }}
+                  transition={{ delay: 0.35, duration: 0.6 }}
+                />
+                <p
+                  className="text-[11px] tracking-[0.35em] mt-2 uppercase font-bold"
+                  style={{ color: 'rgba(147,197,253,0.8)', textShadow: '0 0 10px rgba(59,130,246,0.6)' }}
+                >
                   {t.missions.bonusMissionsArrivedSubtitle}
-                </p>
-                <p className="text-slate-400 font-mono text-[11px] mt-2">
-                  {t.missions.bonusMissionsArrivedDesc}
                 </p>
               </div>
 
-              {/* Mission list */}
-              <div className="px-4 py-4 space-y-2">
+              {/* Divider */}
+              <div className="mx-5 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.5), transparent)' }} />
+
+              {/* Mission content */}
+              <div className="px-5 py-5 space-y-4">
+                <p className="text-[9px] tracking-[0.4em] uppercase" style={{ color: 'rgba(147,197,253,0.45)' }}>
+                  {t.missions.bonusMissionsObjective}
+                </p>
                 {incomingBonusPopup.map((m, i) => (
                   <motion.div
                     key={m.id}
-                    initial={{ opacity: 0, x: -24 }}
+                    initial={{ opacity: 0, x: -18 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.25 + i * 0.15, type: 'spring', stiffness: 260, damping: 22 }}
-                    className="bg-yellow-500/10 border border-yellow-500/40 rounded-xl p-3"
+                    transition={{ delay: 0.4 + i * 0.15, type: 'spring', stiffness: 240, damping: 20 }}
                   >
-                    <p className="text-yellow-100 font-mono text-sm font-bold leading-snug">{m.title}</p>
-                    <p className="text-yellow-600/70 font-mono text-[10px] mt-0.5">+{m.rewardXp} XP · +{m.rewardGold} Gold</p>
+                    <p
+                      className="text-sm font-bold leading-snug"
+                      style={{ color: '#fff', textShadow: '0 0 10px rgba(255,255,255,0.35)' }}
+                    >
+                      {m.title}
+                    </p>
+                    {m.description && (
+                      <p className="text-[11px] mt-1 leading-relaxed" style={{ color: 'rgba(147,197,253,0.75)' }}>
+                        {m.description}
+                      </p>
+                    )}
+                    <div className="flex gap-4 mt-2">
+                      <span className="text-[10px] tracking-wider" style={{ color: 'rgba(96,165,250,0.8)' }}>XP: +{m.rewardXp}</span>
+                      <span className="text-[10px] tracking-wider" style={{ color: 'rgba(96,165,250,0.8)' }}>GOLD: +{m.rewardGold}</span>
+                    </div>
                   </motion.div>
                 ))}
               </div>
 
+              {/* Divider */}
+              <div className="mx-5 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.5), transparent)' }} />
+
               {/* Accept button */}
-              <div className="px-4 pb-5">
+              <div className="px-5 py-5">
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
+                  whileHover={{ scale: 1.02, boxShadow: '0 0 24px rgba(59,130,246,0.45)' }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => setIncomingBonusPopup(null)}
-                  className="w-full py-3 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/70 rounded-xl text-yellow-300 font-mono font-black text-sm tracking-[0.2em] transition-all shadow-[0_0_16px_rgba(234,179,8,0.2)] hover:shadow-[0_0_24px_rgba(234,179,8,0.4)]"
+                  className="w-full py-2.5 text-[11px] font-black tracking-[0.35em] uppercase transition-all"
+                  style={{
+                    border: '1px solid rgba(59,130,246,0.5)',
+                    background: 'rgba(59,130,246,0.07)',
+                    color: 'rgba(147,197,253,0.9)',
+                    textShadow: '0 0 10px rgba(147,197,253,0.5)',
+                  }}
                 >
-                  {t.missions.bonusMissionsAcceptChallenge}
+                  [ {t.missions.bonusMissionsAcceptChallenge} ]
                 </motion.button>
               </div>
-
-              {/* Scanline effect bottom strip */}
-              <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-yellow-400/80 to-transparent" />
             </motion.div>
           </motion.div>
         )}

@@ -265,24 +265,31 @@ Deno.serve(async (req) => {
         const resp = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
           contents: [{ role: 'user', parts: [{ text:
-`Você é "O Arquiteto" do sistema ARISE. Com base nos hábitos do hunter abaixo, gere 1 missão bônus espontânea e surpreendente para hoje. Deve ser criativa, variada e complementar os hábitos. XP entre 20-60, Gold entre 10-30.
+`Você é "O Arquiteto" do sistema ARISE. Com base nos hábitos do hunter abaixo, gere 1 missão bônus espontânea para hoje.
+
+Regras:
+- title: nome curto e impactante da missão (máx 5 palavras)
+- description: instrução direta em 1 frase curta dizendo EXATAMENTE o que o hunter deve fazer (ex: "Faça 20 flexões antes do café da manhã.", "Leia por 15 minutos sem interrupções.")
+- rewardXp: entre 20 e 60
+- rewardGold: entre 10 e 30
 
 HÁBITOS DO HUNTER:
 ${habitList}
 
 Responda SOMENTE com um array JSON com 1 item, sem markdown:
-[{"title":"...","rewardXp":...,"rewardGold":...}]`
+[{"title":"...","description":"...","rewardXp":...,"rewardGold":...}]`
           }]}],
         });
 
         const raw = resp.text?.trim() ?? '[]';
         const json = raw.startsWith('[') ? raw : raw.replace(/```json\n?|\n?```/g, '').trim();
-        const parsed: { title: string; rewardXp: number; rewardGold: number }[] = JSON.parse(json);
+        const parsed: { title: string; description: string; rewardXp: number; rewardGold: number }[] = JSON.parse(json);
         if (!parsed.length) continue;
 
         const newMission = {
           id: `bonus-${Date.now()}`,
           title: String(parsed[0].title),
+          description: String(parsed[0].description ?? ''),
           rewardXp: Math.max(10, Math.min(100, Number(parsed[0].rewardXp) || 30)),
           rewardGold: Math.max(5, Math.min(50, Number(parsed[0].rewardGold) || 15)),
           isCompleted: false,
