@@ -192,15 +192,21 @@ Deno.serve(async (req) => {
     const vapidPriv = Deno.env.get('VAPID_PRIVATE_KEY')!;
     const vapidSub  = Deno.env.get('VAPID_SUBJECT')!;
 
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const currentHour = now.getUTCHours();
 
-    // Fetch all profiles (generate for everyone, not just subscribed)
+    // ?force=true bypasses hour check (for testing only)
+    const url = new URL(req.url);
+    const forceRun = url.searchParams.get('force') === 'true';
+
+    // Fetch all profiles
     const { data: profiles, error: profErr } = await supabase
       .from('profiles')
       .select('id, profile_data');
     if (profErr) throw profErr;
 
-    // Fetch all push subscriptions (for notification delivery)
+    // Fetch all push subscriptions
     const { data: pushSubs } = await supabase
       .from('push_subscriptions')
       .select('user_id, subscription');
@@ -211,30 +217,60 @@ Deno.serve(async (req) => {
 
     for (const p of profiles ?? []) {
       try {
-        // Skip if already generated today
-        const { data: existing } = await supabase
+        // Per-user deterministic schedule for today
+        // Uses userId + date so each user gets different times
+        const userDayKey = `${p.id}-${today}`;
+        const h = Math.abs(userDayKey.split('').reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) | 0, 0));
+
+        // 1 or 2 missions today
+        const missionCount = (h % 2) === 0 ? 1 : 2;
+
+        // Two independent target hours (7–16 UTC), guaranteed different
+        const targetHour1 = 7 + (h % 10);
+        const raw2        = 7 + ((h * 7 + 13) % 10);
+        const targetHour2 = raw2 === targetHour1 ? 7 + ((raw2 - 7 + 5) % 10) : raw2;
+
+        // Check how many missions already delivered today
+        const { data: existingRow } = await supabase
           .from('daily_bonus_missions')
-          .select('id')
+          .select('missions')
           .eq('user_id', p.id)
           .eq('generated_date', today)
           .maybeSingle();
-        if (existing) continue;
 
+        // When force=true: clear today's missions so we can deliver fresh ones for testing
+        if (forceRun && existingRow) {
+          await supabase.from('daily_bonus_missions')
+            .delete()
+            .eq('user_id', p.id)
+            .eq('generated_date', today);
+        }
+
+        const deliveredMissions: any[] = forceRun ? [] : (existingRow?.missions ?? []);
+        const deliveredCount = deliveredMissions.length;
+
+        const isSlot1 = forceRun || (currentHour === targetHour1 && deliveredCount === 0);
+        const isSlot2 = !forceRun && (currentHour === targetHour2 && missionCount === 2 && deliveredCount === 1);
+
+        if (!isSlot1 && !isSlot2) continue; // not this user's delivery hour
+
+        // Build habits context
         const habits: any[] = p.profile_data?.habits ?? [];
         const recurring = habits.filter((h: any) => h.repeatType !== 'oneTime');
         const habitList = recurring.length > 0
           ? recurring.map((h: any) => `- ${h.title} [${h.repeatType}]`).join('\n')
           : '- (nenhum hábito recorrente cadastrado)';
 
+        // Generate exactly 1 mission from Gemini
         const resp = await ai.models.generateContent({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-2.5-flash',
           contents: [{ role: 'user', parts: [{ text:
-`Você é "O Arquiteto" do sistema ARISE. Com base nos hábitos do hunter abaixo, gere 3 missões bônus espontâneas para hoje. Devem complementar os hábitos com desafios criativos e variados. Varie XP (20-60) e Gold (10-30).
+`Você é "O Arquiteto" do sistema ARISE. Com base nos hábitos do hunter abaixo, gere 1 missão bônus espontânea e surpreendente para hoje. Deve ser criativa, variada e complementar os hábitos. XP entre 20-60, Gold entre 10-30.
 
 HÁBITOS DO HUNTER:
 ${habitList}
 
-Responda SOMENTE com um array JSON válido, sem markdown:
+Responda SOMENTE com um array JSON com 1 item, sem markdown:
 [{"title":"...","rewardXp":...,"rewardGold":...}]`
           }]}],
         });
@@ -242,32 +278,34 @@ Responda SOMENTE com um array JSON válido, sem markdown:
         const raw = resp.text?.trim() ?? '[]';
         const json = raw.startsWith('[') ? raw : raw.replace(/```json\n?|\n?```/g, '').trim();
         const parsed: { title: string; rewardXp: number; rewardGold: number }[] = JSON.parse(json);
+        if (!parsed.length) continue;
 
-        const missions = parsed.slice(0, 3).map((m, i) => ({
-          id: `bonus-${Date.now()}-${i}`,
-          title: String(m.title),
-          rewardXp: Math.max(10, Math.min(100, Number(m.rewardXp) || 30)),
-          rewardGold: Math.max(5, Math.min(50, Number(m.rewardGold) || 15)),
+        const newMission = {
+          id: `bonus-${Date.now()}`,
+          title: String(parsed[0].title),
+          rewardXp: Math.max(10, Math.min(100, Number(parsed[0].rewardXp) || 30)),
+          rewardGold: Math.max(5, Math.min(50, Number(parsed[0].rewardGold) || 15)),
           isCompleted: false,
           generatedDate: today,
-        }));
+        };
 
+        // Append to existing missions (upsert merges by unique key user_id+generated_date)
         await supabase.from('daily_bonus_missions').upsert({
           user_id: p.id,
-          missions,
+          missions: [...deliveredMissions, newMission],
           generated_date: today,
         });
         generated++;
 
-        // Send push if user has subscription
+        // Send push notification
         const pushSub = subMap.get(p.id);
         if (pushSub) {
           try {
             await sendPush(
               pushSub,
               JSON.stringify({
-                title: '⚡ ARISE — Missões Bônus',
-                body: `O Arquiteto preparou ${missions.length} desafios para você hoje.`,
+                title: '⚡ DAILY QUEST CHEGOU',
+                body: 'O Arquiteto enviou um desafio surpresa para você.',
                 url: '/',
               }),
               vapidPriv, vapidPub, vapidSub,
@@ -275,7 +313,6 @@ Responda SOMENTE com um array JSON válido, sem markdown:
             notified++;
           } catch (pushErr) {
             console.warn(`Push failed for user ${p.id}:`, pushErr);
-            // If subscription is expired/invalid, remove it
             if (String(pushErr).includes('410') || String(pushErr).includes('404')) {
               await supabase.from('push_subscriptions').delete().eq('user_id', p.id);
             }

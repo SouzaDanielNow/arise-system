@@ -555,6 +555,9 @@ const App: React.FC = () => {
 
   // Bonus missions — loaded from daily_bonus_missions Supabase table
   const [bonusMissions, setBonusMissions] = useState<BonusMission[]>([]);
+  const bonusMissionsRef = useRef<BonusMission[]>([]);
+  // Incoming popup — shown when Arquiteto drops missions while app is open
+  const [incomingBonusPopup, setIncomingBonusPopup] = useState<BonusMission[] | null>(null);
 
   // Push notifications
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(
@@ -647,6 +650,35 @@ const App: React.FC = () => {
       setIsLoadingData(false);
     };
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user.id]);
+
+  // Keep ref in sync so realtime handler can detect only newly-arrived missions
+  useEffect(() => { bonusMissionsRef.current = bonusMissions; }, [bonusMissions]);
+
+  // Realtime: detect when Arquiteto drops bonus missions while app is open
+  useEffect(() => {
+    if (!session) return;
+    const channel = supabase.channel('bonus-missions-live')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'daily_bonus_missions',
+        filter: `user_id=eq.${session.user.id}`,
+      }, (payload) => {
+        const incoming = (payload.new as { missions?: BonusMission[] })?.missions;
+        if (!incoming?.length) return;
+        const today = toDateStr(new Date());
+        const todayMissions = incoming.filter((m: BonusMission) => m.generatedDate === today);
+        if (!todayMissions.length) return;
+        // Show popup only for missions not yet seen (supports individual delivery)
+        const knownIds = new Set(bonusMissionsRef.current.map(m => m.id));
+        const newOnly = todayMissions.filter(m => !knownIds.has(m.id));
+        setBonusMissions(todayMissions);
+        if (newOnly.length > 0) setIncomingBonusPopup(newOnly);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user.id]);
 
@@ -3617,6 +3649,93 @@ ${gameContext}`;
         {view === 'MISSIONS' && renderMissions()}
         {view === 'SETTINGS' && renderSettings()}
       </main>
+
+      {/* ── BONUS MISSION ARRIVAL POPUP (anime-style) ── */}
+      <AnimatePresence>
+        {incomingBonusPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/92"
+          >
+            {/* Ambient glow behind card */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <motion.div
+                animate={{ scale: [1, 1.15, 1], opacity: [0.15, 0.3, 0.15] }}
+                transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
+                className="w-80 h-80 rounded-full bg-yellow-500/20 blur-3xl"
+              />
+            </div>
+
+            <motion.div
+              initial={{ scale: 0.65, opacity: 0, y: 60 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.85, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+              className="relative w-full max-w-sm mx-4 bg-slate-950 border-2 border-yellow-500/80 rounded-2xl overflow-hidden shadow-[0_0_80px_rgba(234,179,8,0.45)]"
+            >
+              {/* Scanline effect top strip */}
+              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-yellow-400/80 to-transparent" />
+
+              {/* Header */}
+              <div className="bg-yellow-500/10 border-b border-yellow-500/30 px-6 py-5 text-center relative overflow-hidden">
+                <motion.div
+                  animate={{ opacity: [0.5, 1, 0.5] }}
+                  transition={{ repeat: Infinity, duration: 1.8 }}
+                  className="text-yellow-500/70 font-mono text-[10px] tracking-[0.35em] mb-2"
+                >
+                  ── ARCHITECT SYSTEM ──
+                </motion.div>
+                <motion.h2
+                  animate={{ textShadow: ['0 0 12px rgba(234,179,8,0)', '0 0 20px rgba(234,179,8,0.7)', '0 0 12px rgba(234,179,8,0)'] }}
+                  transition={{ repeat: Infinity, duration: 1.8 }}
+                  className="text-white font-mono text-2xl font-black tracking-widest"
+                >
+                  {t.missions.bonusMissionsArrivedTitle}
+                </motion.h2>
+                <p className="text-yellow-400 font-mono text-sm tracking-[0.25em] font-bold mt-0.5">
+                  {t.missions.bonusMissionsArrivedSubtitle}
+                </p>
+                <p className="text-slate-400 font-mono text-[11px] mt-2">
+                  {t.missions.bonusMissionsArrivedDesc}
+                </p>
+              </div>
+
+              {/* Mission list */}
+              <div className="px-4 py-4 space-y-2">
+                {incomingBonusPopup.map((m, i) => (
+                  <motion.div
+                    key={m.id}
+                    initial={{ opacity: 0, x: -24 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.25 + i * 0.15, type: 'spring', stiffness: 260, damping: 22 }}
+                    className="bg-yellow-500/10 border border-yellow-500/40 rounded-xl p-3"
+                  >
+                    <p className="text-yellow-100 font-mono text-sm font-bold leading-snug">{m.title}</p>
+                    <p className="text-yellow-600/70 font-mono text-[10px] mt-0.5">+{m.rewardXp} XP · +{m.rewardGold} Gold</p>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Accept button */}
+              <div className="px-4 pb-5">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setIncomingBonusPopup(null)}
+                  className="w-full py-3 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/70 rounded-xl text-yellow-300 font-mono font-black text-sm tracking-[0.2em] transition-all shadow-[0_0_16px_rgba(234,179,8,0.2)] hover:shadow-[0_0_24px_rgba(234,179,8,0.4)]"
+                >
+                  {t.missions.bonusMissionsAcceptChallenge}
+                </motion.button>
+              </div>
+
+              {/* Scanline effect bottom strip */}
+              <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-yellow-400/80 to-transparent" />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Voice Suggestion Overlay — above nav */}
       <AnimatePresence>
