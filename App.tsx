@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality, type Blob as GenAIBlob } from '@google/genai';
+import { GoogleGenAI, LiveServerMessage, Modality, Type, type Blob as GenAIBlob, type FunctionResponse } from '@google/genai';
 import type { Session } from '@supabase/supabase-js';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
@@ -837,11 +837,90 @@ const App: React.FC = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+      // Snapshot of current game state to inject into the system prompt
+      const p = profileRef.current ?? profile;
+      const totalPower = p.customStats.reduce((s, c) => s + c.value, 0);
+      const protection = Math.min(50, totalPower);
+      const activeHabitsNow = habits.filter(h => !h.isCompleted && isTodayActive(h) && h.repeatType !== 'oneTime');
+      const activeBossesNow = bossFights.filter(b => b.status === 'active');
+
+      const gameContext = [
+        `=== HUNTER PROFILE ===`,
+        `Name: ${p.name} | Rank: ${p.rank} | Level: ${p.level}`,
+        `XP: ${p.currentXp} | Gold: ${p.gold} | Streak: ${p.streakDays} days`,
+        `Total Power: ${totalPower} | Streak Protection: ${protection}%`,
+        `Stats: ${p.customStats.map(s => `${s.name}=${s.value}`).join(', ')}`,
+        ``,
+        `=== TODAY'S PENDING MISSIONS (${activeHabitsNow.length}) ===`,
+        activeHabitsNow.length > 0
+          ? activeHabitsNow.map(h => `- ${h.title} [${h.repeatType}]`).join('\n')
+          : '- All missions completed today!',
+        ``,
+        `=== ACTIVE BOSS FIGHTS (${activeBossesNow.length}) ===`,
+        activeBossesNow.length > 0
+          ? activeBossesNow.map(b => `- "${b.title}" | Due: ${new Date(b.dueDate).toLocaleDateString()} | Progress: ${b.progress}% | Subtasks: ${b.subTasks.length}`).join('\n')
+          : '- No active boss fights.',
+      ].join('\n');
+
+      const systemInstruction = `You are "The System" — a calm, precise, slightly ominous AI from the Solo Leveling universe. You are the Hunter's personal progression system.
+Address the user as "Hunter" or "Player". Match the language the Hunter speaks — if they speak Portuguese, respond in Portuguese.
+You have tools to create habits/missions and boss fights directly in the Hunter's system, and to read their full current status.
+When the Hunter mentions a goal, routine, challenge, or deadline, proactively suggest and create the appropriate mission or boss fight using your tools. Always confirm what you created with a brief, in-character response.
+
+CURRENT GAME STATE:
+${gameContext}`;
+
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: `You are 'The System', an advanced AI interface for a Hunter (the user). Your tone is calm, precise, and slightly game-like, similar to the System in Solo Leveling. Address the user as 'Player' or 'Hunter'. Current Hunter Rank: ${profile.rank}.`,
+          systemInstruction,
+          tools: [{
+            functionDeclarations: [
+              {
+                name: 'create_habit',
+                description: 'Creates a new habit or recurring mission in the Hunter\'s system. Call this when the Hunter wants to add a routine, daily habit, or repeating task.',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: { type: Type.STRING, description: 'The mission/habit title, concise and action-oriented.' },
+                    repeatType: {
+                      type: Type.STRING,
+                      enum: ['daily', 'weekdays', 'custom', 'oneTime'],
+                      description: 'Recurrence: "daily" (every day), "weekdays" (Mon-Fri), "custom" (specific days), "oneTime" (one-time task that does not count for streak).',
+                    },
+                  },
+                  required: ['title', 'repeatType'],
+                },
+              },
+              {
+                name: 'create_boss_fight',
+                description: 'Creates a Boss Fight — a major challenge or goal with a deadline. Use when the Hunter mentions an exam, project, big goal, or anything with a deadline.',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: { type: Type.STRING, description: 'Boss fight title. Should sound epic and reflect the challenge.' },
+                    description: { type: Type.STRING, description: 'Brief description of the challenge.' },
+                    dueDays: { type: Type.NUMBER, description: 'Number of days from today until the deadline.' },
+                    subTasks: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING },
+                      description: 'Optional list of subtask titles to break the boss fight into steps.',
+                    },
+                  },
+                  required: ['title', 'description', 'dueDays'],
+                },
+              },
+              {
+                name: 'get_status',
+                description: 'Returns the Hunter\'s current full status: profile, pending missions, and active boss fights. Call this when the Hunter asks about their progress, status, or what they have pending.',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {},
+                },
+              },
+            ],
+          }],
         },
         callbacks: {
           onopen: () => {
@@ -852,12 +931,14 @@ const App: React.FC = () => {
             const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
             scriptProcessor.onaudioprocess = (e) => {
               const pcmBlob = createBlob(e.inputBuffer.getChannelData(0));
-              sessionPromise.then(session => session.sendRealtimeInput({ media: pcmBlob }));
+              sessionPromise.then(s => s.sendRealtimeInput({ media: pcmBlob }));
             };
             source.connect(scriptProcessor);
             scriptProcessor.connect(inputCtx.destination);
           },
+
           onmessage: async (message: LiveServerMessage) => {
+            // ── Audio playback ──
             const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (base64Audio && outputCtx) {
               const audioData = decode(base64Audio);
@@ -871,7 +952,86 @@ const App: React.FC = () => {
               sourcesRef.current.add(src);
               src.onended = () => sourcesRef.current.delete(src);
             }
+
+            // ── Tool calls ──
+            const functionCalls = message.toolCall?.functionCalls;
+            if (functionCalls && functionCalls.length > 0) {
+              const responses: FunctionResponse[] = [];
+
+              for (const fc of functionCalls) {
+                const args = (fc.args ?? {}) as Record<string, any>;
+                let response: Record<string, unknown> = {};
+
+                if (fc.name === 'create_habit') {
+                  const title = String(args.title ?? '');
+                  const repeatType = (args.repeatType as RepeatType) ?? 'daily';
+                  const newHabit: Habit = {
+                    id: `h-ai-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    title,
+                    isCompleted: false,
+                    streak: 0,
+                    repeatType,
+                  };
+                  setHabits(prev => [...prev, newHabit]);
+                  setTimeout(() => showNotification('⚡ MISSÃO CRIADA PELO SISTEMA', `"${title}" adicionada`, 'quest'), 100);
+                  response = { success: true, created: title, repeatType };
+
+                } else if (fc.name === 'create_boss_fight') {
+                  const title = String(args.title ?? '');
+                  const description = String(args.description ?? '');
+                  const dueDays = Number(args.dueDays ?? 7);
+                  const subTaskTitles: string[] = Array.isArray(args.subTasks) ? args.subTasks.map(String) : [];
+                  const now = new Date();
+                  const due = new Date(now.getTime() + dueDays * 86400000);
+                  const newBoss: BossFight = {
+                    id: `boss-ai-${Date.now()}`,
+                    title,
+                    description,
+                    xpReward: Math.floor(Math.random() * 151) + 150,
+                    goldReward: Math.floor(Math.random() * 41) + 60,
+                    startDate: now.toISOString(),
+                    dueDate: due.toISOString(),
+                    progress: 0,
+                    subTasks: subTaskTitles.map((s, i) => ({
+                      id: `st-ai-${Date.now()}-${i}`,
+                      title: s,
+                      completed: false,
+                    })),
+                    history: [{ id: `bh-${Date.now()}`, timestamp: now.toISOString(), action: 'started' as const }],
+                    status: 'active',
+                    failPenalty: 'loseStreak',
+                  };
+                  setBossFights(prev => [...prev, newBoss]);
+                  setTimeout(() => showNotification('⚠️ NOVO CHEFÃO DETECTADO', `"${title}" — prazo: ${dueDays} dias`, 'warning'), 100);
+                  response = { success: true, created: title, dueDate: due.toLocaleDateString(), subtasks: subTaskTitles.length };
+
+                } else if (fc.name === 'get_status') {
+                  const cur = profileRef.current ?? profile;
+                  const power = cur.customStats.reduce((s, c) => s + c.value, 0);
+                  response = {
+                    name: cur.name,
+                    rank: cur.rank,
+                    streak: cur.streakDays,
+                    gold: cur.gold,
+                    totalPower: power,
+                    streakProtection: `${Math.min(50, power)}%`,
+                    stats: cur.customStats.map(s => ({ name: s.name, value: s.value })),
+                    pendingMissionsToday: habits.filter(h => !h.isCompleted && isTodayActive(h) && h.repeatType !== 'oneTime').map(h => h.title),
+                    activeBossFights: bossFights.filter(b => b.status === 'active').map(b => ({
+                      title: b.title,
+                      dueDate: new Date(b.dueDate).toLocaleDateString(),
+                      progress: `${b.progress}%`,
+                    })),
+                  };
+                }
+
+                responses.push({ id: fc.id, name: fc.name, response });
+              }
+
+              sessionPromise.then(s => s.sendToolResponse({ functionResponses: responses }));
+            }
           },
+
           onclose: () => { setIsVoiceConnected(false); setIsVoiceConnecting(false); },
           onerror: (e: any) => {
             console.error(e);
@@ -884,6 +1044,7 @@ const App: React.FC = () => {
 
       sessionRef.current = {
         close: () => {
+          sessionPromise.then(s => s.close()).catch(() => {});
           inputCtx.close();
           outputCtx.close();
           stream.getTracks().forEach(tr => tr.stop());
