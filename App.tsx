@@ -3784,7 +3784,7 @@ ${gameContext}`;
                 <motion.button
                   whileHover={{ scale: 1.02, boxShadow: '0 0 24px rgba(59,130,246,0.45)' }}
                   whileTap={{ scale: 0.97 }}
-                  onClick={() => setIncomingBonusPopup(null)}
+                  onClick={() => { setIncomingBonusPopup(null); setView('MISSIONS'); }}
                   className="w-full py-2.5 text-[11px] font-black tracking-[0.35em] uppercase transition-all"
                   style={{
                     border: '1px solid rgba(59,130,246,0.5)',
