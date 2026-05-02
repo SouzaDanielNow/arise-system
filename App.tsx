@@ -3314,6 +3314,9 @@ ${gameContext}`;
                         <p className={`font-bold text-sm leading-tight ${m.isCompleted ? 'line-through text-slate-500' : 'text-yellow-100'}`}>
                           {m.title}
                         </p>
+                        {m.description && !m.isCompleted && (
+                          <p className="text-[11px] text-yellow-200/50 mt-0.5 leading-snug">{m.description}</p>
+                        )}
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-[10px] font-mono text-yellow-600/70">+{m.rewardXp} XP · +{m.rewardGold} Gold</span>
                         </div>
