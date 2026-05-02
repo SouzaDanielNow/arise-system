@@ -67,57 +67,74 @@ async function vapidJWT(
   return `${toSign}.${bytesToB64u(sig)}`;
 }
 
-// ── Web Push encryption (RFC 8291 / RFC 8188) ────────────────────────────────
-// Encrypts the payload with the receiver's p256dh public key + auth secret.
+// ── HKDF primitives (manual, so we can reuse PRK for CEK + nonce) ────────────
+
+async function hmacSha256(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
+  const k = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', k, data));
+}
+
+async function hkdfExtract(salt: Uint8Array, ikm: Uint8Array): Promise<Uint8Array> {
+  return hmacSha256(salt, ikm);
+}
+
+async function hkdfExpand(prk: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
+  const n = Math.ceil(length / 32);
+  const okm = new Uint8Array(n * 32);
+  let t = new Uint8Array(0);
+  for (let i = 1; i <= n; i++) {
+    t = await hmacSha256(prk, concat(t, info, new Uint8Array([i])));
+    okm.set(t, (i - 1) * 32);
+  }
+  return okm.slice(0, length);
+}
+
+// ── Web Push encryption — RFC 8291 / aes128gcm (modern standard) ─────────────
 
 async function encryptPushPayload(
   plaintext: string,
   p256dhB64u: string,
   authB64u: string,
-): Promise<{ ciphertext: Uint8Array; salt: Uint8Array; serverPublicKey: Uint8Array }> {
-  const enc      = new TextEncoder();
-  const authInfo = enc.encode('Content-Encoding: auth\0');
+): Promise<Uint8Array> {
+  const enc = new TextEncoder();
 
+  const receiverPubBytes = b64uToBytes(p256dhB64u);
   const receiverPub = await crypto.subtle.importKey(
-    'raw', b64uToBytes(p256dhB64u),
-    { name: 'ECDH', namedCurve: 'P-256' }, true, [],
+    'raw', receiverPubBytes, { name: 'ECDH', namedCurve: 'P-256' }, true, [],
   );
   const authSecret = b64uToBytes(authB64u);
 
-  // Generate ephemeral key pair
   const { privateKey: senderPriv, publicKey: senderPub } = await crypto.subtle.generateKey(
-    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey', 'deriveBits'],
+    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits'],
   );
-  const senderPubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', senderPub));
+  const senderPubBytes = new Uint8Array(await crypto.subtle.exportKey('raw', senderPub));
 
-  // ECDH shared secret
-  const ikm = new Uint8Array(await crypto.subtle.deriveBits(
+  const dhSecret = new Uint8Array(await crypto.subtle.deriveBits(
     { name: 'ECDH', public: receiverPub }, senderPriv, 256,
   ));
 
-  // PRK via HKDF-Extract with auth as salt
-  const prk = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
-  const prkBits = new Uint8Array(await crypto.subtle.deriveBits(
-    { name: 'HKDF', hash: 'SHA-256', salt: authSecret, info: authInfo }, prk, 256,
+  // RFC 8291: IKM = HKDF(salt=auth, ikm=dh, info="WebPush: info\0" || recv_pub || sender_pub, 32)
+  const prk1 = await hkdfExtract(authSecret, dhSecret);
+  const info1 = concat(enc.encode('WebPush: info\0'), receiverPubBytes, senderPubBytes);
+  const ikm = await hkdfExpand(prk1, info1, 32);
+
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const prk2 = await hkdfExtract(salt, ikm);
+
+  const cek   = await hkdfExpand(prk2, enc.encode('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = await hkdfExpand(prk2, enc.encode('Content-Encoding: nonce\0'), 12);
+
+  const cekKey = await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['encrypt']);
+  // RFC 8188: plaintext || 0x02 (record delimiter)
+  const padded = concat(enc.encode(plaintext), new Uint8Array([0x02]));
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: nonce }, cekKey, padded,
   ));
 
-  // Salt
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-
-  // Expand content encryption key + nonce
-  const receiverPubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', receiverPub));
-  const keyInfo   = concat([enc.encode('Content-Encoding: aesgcm\0'), authInfo, label('P-256'), receiverPubRaw, senderPubRaw]);
-  const nonceInfo = concat([enc.encode('Content-Encoding: nonce\0'),  authInfo, label('P-256'), receiverPubRaw, senderPubRaw]);
-
-  const prkKey = await crypto.subtle.importKey('raw', prkBits, 'HKDF', false, ['deriveBits']);
-  const cekBits   = new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info: keyInfo   }, prkKey, 128));
-  const nonceBits = new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info: nonceInfo }, prkKey, 96));
-
-  const cekKey = await crypto.subtle.importKey('raw', cekBits, 'AES-GCM', false, ['encrypt']);
-  const padded = concat([new Uint8Array(2), enc.encode(plaintext)]); // 2-byte padding length prefix (0)
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonceBits }, cekKey, padded));
-
-  return { ciphertext, salt, serverPublicKey: senderPubRaw };
+  // Body: salt(16) | rs(4, big-endian, 4096) | idlen(1=65) | sender_pub(65) | ciphertext
+  const rs    = new Uint8Array([0x00, 0x00, 0x10, 0x00]);
+  const idlen = new Uint8Array([senderPubBytes.length]);
+  return concat(salt, rs, idlen, senderPubBytes, ciphertext);
 }
 
 function concat(...arrays: Uint8Array[]): Uint8Array {
@@ -126,11 +143,6 @@ function concat(...arrays: Uint8Array[]): Uint8Array {
   let offset = 0;
   for (const a of arrays) { out.set(a, offset); offset += a.length; }
   return out;
-}
-
-function label(str: string): Uint8Array {
-  const enc = new TextEncoder().encode(str);
-  return concat(new Uint8Array([enc.length]), enc, new Uint8Array(1));
 }
 
 // ── Send a single push message ───────────────────────────────────────────────
@@ -142,26 +154,16 @@ async function sendPush(
   vapidPub: string,
   vapidSubject: string,
 ): Promise<void> {
-  const { ciphertext, salt, serverPublicKey } = await encryptPushPayload(
-    payload, sub.keys.p256dh, sub.keys.auth,
-  );
-
-  const jwt = await vapidJWT(sub.endpoint, vapidPriv, vapidPub, vapidSubject);
-
-  // Build body: [salt(16) + rs(4=4096) + keyLen(1) + serverKey(65) + ciphertext]
-  const rs = new Uint8Array([0, 0, 16, 0]); // record size 4096
-  const keyLen = new Uint8Array([serverPublicKey.length]);
-  const body = concat(salt, rs, keyLen, serverPublicKey, ciphertext);
+  const body = await encryptPushPayload(payload, sub.keys.p256dh, sub.keys.auth);
+  const jwt  = await vapidJWT(sub.endpoint, vapidPriv, vapidPub, vapidSubject);
 
   const resp = await fetch(sub.endpoint, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/octet-stream',
-      'Content-Encoding': 'aesgcm',
-      'Encryption': `salt=${bytesToB64u(salt.buffer as ArrayBuffer)}`,
-      'Crypto-Key': `dh=${bytesToB64u(serverPublicKey.buffer as ArrayBuffer)};p256ecdsa=${vapidPub}`,
-      'Authorization': `vapid t=${jwt},k=${vapidPub}`,
-      'TTL': '86400',
+      'Content-Type':     'application/octet-stream',
+      'Content-Encoding': 'aes128gcm',
+      'Authorization':    `vapid t=${jwt},k=${vapidPub}`,
+      'TTL':              '86400',
     },
     body,
   });
@@ -206,11 +208,16 @@ Deno.serve(async (req) => {
       .select('id, profile_data');
     if (profErr) throw profErr;
 
-    // Fetch all push subscriptions
+    // Fetch all push subscriptions (multiple per user — one per device)
     const { data: pushSubs } = await supabase
       .from('push_subscriptions')
-      .select('user_id, subscription');
-    const subMap = new Map((pushSubs ?? []).map((s: any) => [s.user_id, s.subscription]));
+      .select('user_id, endpoint, subscription');
+    const subMap = new Map<string, any[]>();
+    for (const s of pushSubs ?? []) {
+      const arr = subMap.get(s.user_id) ?? [];
+      arr.push({ endpoint: s.endpoint, sub: s.subscription });
+      subMap.set(s.user_id, arr);
+    }
 
     let generated = 0;
     let notified  = 0;
@@ -304,9 +311,9 @@ Responda SOMENTE com um array JSON com 1 item, sem markdown:
         });
         generated++;
 
-        // Send push notification
-        const pushSub = subMap.get(p.id);
-        if (pushSub) {
+        // Send push notification to all devices
+        const devices = subMap.get(p.id) ?? [];
+        for (const { endpoint, sub: pushSub } of devices) {
           try {
             await sendPush(
               pushSub,
@@ -317,12 +324,14 @@ Responda SOMENTE com um array JSON com 1 item, sem markdown:
               }),
               vapidPriv, vapidPub, vapidSub,
             );
-            console.log(`Push sent OK for user ${p.id}`);
+            console.log(`Push sent OK for user ${p.id} [${endpoint?.slice(0, 40)}]`);
             notified++;
           } catch (pushErr) {
             console.warn(`Push FAILED for user ${p.id}:`, String(pushErr));
             if (String(pushErr).includes('410') || String(pushErr).includes('404')) {
-              await supabase.from('push_subscriptions').delete().eq('user_id', p.id);
+              await supabase.from('push_subscriptions').delete()
+                .eq('user_id', p.id)
+                .eq('endpoint', endpoint);
             }
           }
         }

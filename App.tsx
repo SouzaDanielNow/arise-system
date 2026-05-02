@@ -926,8 +926,9 @@ const App: React.FC = () => {
 
       await supabase.from('push_subscriptions').upsert({
         user_id: session.user.id,
+        endpoint: sub.endpoint,
         subscription: sub.toJSON(),
-      });
+      }, { onConflict: 'user_id,endpoint' });
     } catch (e) {
       console.error('enableNotifications:', e);
     }
