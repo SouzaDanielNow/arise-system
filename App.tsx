@@ -916,7 +916,7 @@ const App: React.FC = () => {
       if (permission !== 'granted' || !session) return;
 
       const reg = await navigator.serviceWorker.ready;
-      const vapidKey = (process.env as any).VAPID_PUBLIC_KEY;
+      const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
       if (!vapidKey) return;
 
       const sub = await reg.pushManager.subscribe({
