@@ -86,9 +86,15 @@ function applyDailyReset(gs: GameState): { state: GameState; hadStreakBreak: boo
     h => h.repeatType === 'daily' || h.repeatType === 'weekdays' || h.repeatType === 'custom'
   );
 
+  // A day is considered "completed" if lastCompletionDate matches lastLogin date.
+  // If daysDiff === 1 and they completed yesterday, no penalty.
+  // If daysDiff >= 1 and they didn't complete the last active day, apply penalty.
+  const completedLastActiveDay = gs.profile.lastCompletionDate === lastLogin;
+
   let newStreakDays = gs.profile.streakDays;
   let hadStreakBreak = false;
-  if (daysDiff > 1 && newStreakDays > 0 && hasRecurringHabits) {
+  const missedADay = daysDiff >= 1 && !(daysDiff === 1 && completedLastActiveDay);
+  if (missedADay && newStreakDays > 0 && hasRecurringHabits) {
     const totalPower = gs.profile.customStats.reduce((s, c) => s + c.value, 0);
     const protection = Math.min(50, totalPower);
     newStreakDays = Math.floor(newStreakDays * (protection / 100));
@@ -966,33 +972,58 @@ const App: React.FC = () => {
   };
 
   const toggleHabit = (id: string) => {
-    setHabits(prev => prev.map(h => {
-      if (h.id === id && !h.isCompleted) {
-        addXp(30);
-        addGold(20);
-        showNotification(t.notifications.protocolAdhered, `${h.title} (+30 XP)`, 'shield');
-        // Monarch's Blessing — reduce all active shadow timers by 30 minutes
-        const BLESSING_MS = 1800000;
+    setHabits(prev => {
+      const updated = prev.map(h => {
+        if (h.id === id && !h.isCompleted) {
+          addXp(30);
+          addGold(20);
+          showNotification(t.notifications.protocolAdhered, `${h.title} (+30 XP)`, 'shield');
+          // Monarch's Blessing — reduce all active shadow timers by 30 minutes
+          const BLESSING_MS = 1800000;
+          setProfile(pp => {
+            const activeShadows = (pp.shadows ?? []).filter(
+              s => s.returnTime && (s.status === 'Em Missão' || s.status === 'Treinando' || s.status === 'Regenerando')
+            );
+            if (activeShadows.length === 0) return pp;
+            setTimeout(() => showNotification(t.notifications.monarchBlessing, t.notifications.monarchBlessingSub, 'shield'), 300);
+            return {
+              ...pp,
+              shadows: (pp.shadows ?? []).map(s =>
+                s.returnTime && (s.status === 'Em Missão' || s.status === 'Treinando' || s.status === 'Regenerando')
+                  ? { ...s, returnTime: Math.max(Date.now(), s.returnTime - BLESSING_MS) }
+                  : s
+              ),
+            };
+          });
+          const isRecurring = h.repeatType !== 'oneTime';
+          return { ...h, isCompleted: true, streak: isRecurring ? h.streak + 1 : h.streak };
+        }
+        return h;
+      });
+
+      // Check if all recurring habits active today are now completed → global streak +1
+      const todayStr = toDateStr(new Date());
+      const dow = new Date().getDay();
+      const recurringToday = updated.filter(h => {
+        if (h.repeatType === 'oneTime') return false;
+        if (h.repeatType === 'daily') return true;
+        if (h.repeatType === 'weekdays') return dow >= 1 && dow <= 5;
+        if (h.repeatType === 'custom') return (h.repeatDays ?? []).includes(dow);
+        return false;
+      });
+      const allDone = recurringToday.length > 0 && recurringToday.every(h => h.isCompleted);
+
+      if (allDone) {
         setProfile(pp => {
-          const activeShadows = (pp.shadows ?? []).filter(
-            s => s.returnTime && (s.status === 'Em Missão' || s.status === 'Treinando' || s.status === 'Regenerando')
-          );
-          if (activeShadows.length === 0) return pp;
-          setTimeout(() => showNotification(t.notifications.monarchBlessing, t.notifications.monarchBlessingSub, 'shield'), 300);
-          return {
-            ...pp,
-            shadows: (pp.shadows ?? []).map(s =>
-              s.returnTime && (s.status === 'Em Missão' || s.status === 'Treinando' || s.status === 'Regenerando')
-                ? { ...s, returnTime: Math.max(Date.now(), s.returnTime - BLESSING_MS) }
-                : s
-            ),
-          };
+          if (pp.lastCompletionDate === todayStr) return pp; // already counted today
+          const newStreak = pp.streakDays + 1;
+          setTimeout(() => showNotification(t.notifications.dayComplete, t.notifications.dayCompleteSub(newStreak), 'levelup'), 200);
+          return { ...pp, streakDays: newStreak, lastCompletionDate: todayStr };
         });
-        const isRecurring = h.repeatType !== 'oneTime';
-        return { ...h, isCompleted: true, streak: isRecurring ? h.streak + 1 : h.streak };
       }
-      return h;
-    }));
+
+      return updated;
+    });
   };
 
   const addNewHabit = () => {

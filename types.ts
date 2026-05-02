@@ -40,6 +40,7 @@ export interface HunterProfile {
   shadows: Shadow[];
   avatarUrl?: string;
   availableStatPoints?: number;
+  lastCompletionDate?: string;
 }
 
 export interface Chapter {
