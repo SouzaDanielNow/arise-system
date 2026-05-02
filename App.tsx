@@ -909,15 +909,31 @@ const App: React.FC = () => {
 
   // --- Push Notifications ---
   const enableNotifications = async () => {
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      showNotification('Notificações não suportadas neste dispositivo.', undefined, 'warning');
+      return;
+    }
     try {
+      const current = Notification.permission;
+      if (current === 'denied') {
+        showNotification('Permissão bloqueada. Vá em Configurações do sistema > Notificações e habilite para este app.', undefined, 'warning');
+        return;
+      }
+
+      showNotification('Registrando notificações...', undefined, 'processing');
       const permission = await Notification.requestPermission();
       setNotifPermission(permission);
-      if (permission !== 'granted' || !session) return;
+      if (permission !== 'granted' || !session) {
+        showNotification('Permissão não concedida.', undefined, 'warning');
+        return;
+      }
 
       const reg = await navigator.serviceWorker.ready;
       const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
-      if (!vapidKey) return;
+      if (!vapidKey) {
+        showNotification('Chave VAPID ausente. Verifique as variáveis de ambiente.', undefined, 'warning');
+        return;
+      }
 
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
@@ -929,8 +945,12 @@ const App: React.FC = () => {
         endpoint: sub.endpoint,
         subscription: sub.toJSON(),
       }, { onConflict: 'user_id,endpoint' });
+
+      setNotifPermission('granted');
+      showNotification('Notificações ativadas com sucesso!', undefined, 'quest');
     } catch (e) {
       console.error('enableNotifications:', e);
+      showNotification(`Erro: ${String(e)}`, undefined, 'warning');
     }
   };
 
