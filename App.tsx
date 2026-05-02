@@ -14,7 +14,7 @@ import {
 import {
   HunterProfile, Chapter, ViewState, HunterRank, DungeonPart,
   CustomStat, RewardItem, Habit, SystemQuote, RepeatType,
-  BossFight, BossSubTask, BossHistoryEntry, GameState,
+  BossFight, BossSubTask, BossHistoryEntry, BonusMission, GameState,
   Shadow, ShadowRank, ShadowRole, ShadowStatus, ShadowMission
 } from './types';
 import {
@@ -536,11 +536,22 @@ const App: React.FC = () => {
   const isDataLoadedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const profileRef = useRef<HunterProfile | null>(null);
+  const habitsRef = useRef<Habit[]>([]);
 
   // Shadow missions + inspection state
   const [shadowMissions] = useState<ShadowMission[]>(() => generateDailyMissions());
   const [missionModal, setMissionModal] = useState<{ mission: ShadowMission; selectedIds: string[] } | null>(null);
   const [inspectedShadow, setInspectedShadow] = useState<Shadow | null>(null);
+
+  // Bonus missions (daily AI-generated challenges)
+  const [bonusMissions, setBonusMissions] = useState<BonusMission[]>([]);
+  const [isGeneratingBonus, setIsGeneratingBonus] = useState(false);
+
+  // Voice suggestion queue — AI proposes, Hunter accepts/rejects
+  type VoiceSuggestion =
+    | { id: string; type: 'habit'; title: string; repeatType: RepeatType }
+    | { id: string; type: 'boss'; title: string; description: string; dueDays: number; subTasks: string[] };
+  const [voiceSuggestions, setVoiceSuggestions] = useState<VoiceSuggestion[]>([]);
 
   // Visual effects state
   const [levelUpRank, setLevelUpRank] = useState<HunterRank | null>(null);
@@ -584,6 +595,7 @@ const App: React.FC = () => {
         setChapters(gs.chapters);
         setHabits(gs.habits);
         setBossFights(gs.bossFights ?? []);
+        setBonusMissions(rawGs.bonusMissions ?? []);
         if (hadStreakBreak) {
           const totalPower = gs.profile.customStats.reduce((s, c) => s + c.value, 0);
           setTimeout(() => {
@@ -620,19 +632,31 @@ const App: React.FC = () => {
     if (!session || !isDataLoadedRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
-      const gameState: GameState = { profile, habits, chapters, bossFights };
+      const gameState: GameState = { profile, habits, chapters, bossFights, bonusMissions };
       await supabase.from('profiles').upsert({ id: session.user.id, profile_data: gameState });
     }, 2000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [profile, habits, chapters, bossFights]);
+  }, [profile, habits, chapters, bossFights, bonusMissions]);
+
+  // Auto-generate bonus missions on login when data is ready
+  useEffect(() => {
+    if (isLoadingData || !session || !isDataLoadedRef.current) return;
+    const today = toDateStr(new Date());
+    const alreadyGenerated = bonusMissions.some(m => m.generatedDate === today);
+    if (!alreadyGenerated && new Date().getHours() < 18) {
+      generateBonusMissions();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingData, session?.user.id]);
 
   // Dynamic rank color CSS variable
   useEffect(() => {
     document.documentElement.style.setProperty('--rank-color', RANK_COLORS[profile.rank]);
   }, [profile.rank]);
 
-  // Keep profileRef in sync for the time engine
+  // Keep refs in sync for stale-closure-safe callbacks
   useEffect(() => { profileRef.current = profile; }, [profile]);
+  useEffect(() => { habitsRef.current = habits; }, [habits]);
 
   // Shadow time engine — checks every 60s and on window focus
   useEffect(() => {
@@ -816,6 +840,114 @@ const App: React.FC = () => {
     }));
   };
 
+  // --- Bonus Missions ---
+  const generateBonusMissions = async () => {
+    const today = toDateStr(new Date());
+    const alreadyGenerated = bonusMissions.some(m => m.generatedDate === today);
+    if (alreadyGenerated || isGeneratingBonus) return;
+    const hour = new Date().getHours();
+    if (hour >= 18) return;
+
+    setIsGeneratingBonus(true);
+    try {
+      const apiKey = (process.env as any).API_KEY;
+      if (!apiKey) throw new Error('No Gemini API key');
+      const ai = new GoogleGenAI({ apiKey });
+      const habitList = habits.filter(h => h.repeatType !== 'oneTime').map(h => `- ${h.title} [${h.repeatType}]`).join('\n') || '- (no recurring habits yet)';
+      const prompt = `You are "The System" from Solo Leveling. Based on the hunter's recurring habits below, generate 2-3 spontaneous one-time bonus missions for today. They should complement the existing habits but offer a twist or extra challenge. Vary the XP (20-60) and Gold (10-30) rewards.
+
+HUNTER'S HABITS:
+${habitList}
+
+Respond ONLY with valid JSON array, no markdown, no explanation:
+[{"title":"...", "rewardXp":..., "rewardGold":...}, ...]`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      });
+
+      const raw = response.text?.trim() ?? '';
+      const jsonStr = raw.startsWith('[') ? raw : raw.replace(/```json\n?|\n?```/g, '').trim();
+      const parsed: { title: string; rewardXp: number; rewardGold: number }[] = JSON.parse(jsonStr);
+
+      const newMissions: BonusMission[] = parsed.slice(0, 3).map((m, i) => ({
+        id: `bonus-${Date.now()}-${i}`,
+        title: String(m.title),
+        rewardXp: Number(m.rewardXp) || 30,
+        rewardGold: Number(m.rewardGold) || 15,
+        isCompleted: false,
+        generatedDate: today,
+      }));
+
+      setBonusMissions(newMissions);
+      showNotification(t.notifications.bonusMissionsReady, t.notifications.bonusMissionsReadySub, 'quest');
+    } catch (e) {
+      console.error('generateBonusMissions error:', e);
+    } finally {
+      setIsGeneratingBonus(false);
+    }
+  };
+
+  const completeBonusMission = (id: string) => {
+    setBonusMissions(prev => prev.map(m => {
+      if (m.id !== id || m.isCompleted) return m;
+      addXp(m.rewardXp);
+      addGold(m.rewardGold);
+      setTimeout(() => showNotification(t.notifications.bonusMissionComplete, t.notifications.bonusMissionCompleteSub(m.rewardXp, m.rewardGold), 'levelup'), 100);
+      return { ...m, isCompleted: true };
+    }));
+  };
+
+  // --- Voice Suggestions ---
+  const acceptVoiceSuggestion = (id: string) => {
+    setVoiceSuggestions(prev => {
+      const suggestion = prev.find(s => s.id === id);
+      if (!suggestion) return prev;
+
+      if (suggestion.type === 'habit') {
+        const newHabit: Habit = {
+          id: `h-ai-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          title: suggestion.title,
+          isCompleted: false,
+          streak: 0,
+          repeatType: suggestion.repeatType,
+        };
+        setHabits(hPrev => [...hPrev, newHabit]);
+      } else if (suggestion.type === 'boss') {
+        const now = new Date();
+        const due = new Date(now.getTime() + suggestion.dueDays * 86400000);
+        const newBoss: BossFight = {
+          id: `boss-ai-${Date.now()}`,
+          title: suggestion.title,
+          description: suggestion.description,
+          xpReward: Math.floor(Math.random() * 151) + 150,
+          goldReward: Math.floor(Math.random() * 41) + 60,
+          startDate: now.toISOString(),
+          dueDate: due.toISOString(),
+          progress: 0,
+          subTasks: suggestion.subTasks.map((s, i) => ({
+            id: `st-ai-${Date.now()}-${i}`,
+            title: s,
+            completed: false,
+          })),
+          history: [{ id: `bh-${Date.now()}`, timestamp: now.toISOString(), action: 'started' as const }],
+          status: 'active',
+          failPenalty: 'loseStreak',
+        };
+        setBossFights(bPrev => [...bPrev, newBoss]);
+      }
+
+      setTimeout(() => showNotification(t.notifications.voiceSuggestion, t.notifications.voiceSuggestionAccepted, 'quest'), 100);
+      return prev.filter(s => s.id !== id);
+    });
+  };
+
+  const rejectVoiceSuggestion = (id: string) => {
+    setVoiceSuggestions(prev => prev.filter(s => s.id !== id));
+    showNotification(t.notifications.voiceSuggestion, t.notifications.voiceSuggestionRejected, 'info');
+  };
+
   // --- Voice / Live API ---
   const connectToSystem = async () => {
     if (isVoiceConnected) {
@@ -864,8 +996,8 @@ const App: React.FC = () => {
 
       const systemInstruction = `You are "The System" — a calm, precise, slightly ominous AI from the Solo Leveling universe. You are the Hunter's personal progression system.
 Address the user as "Hunter" or "Player". Match the language the Hunter speaks — if they speak Portuguese, respond in Portuguese.
-You have tools to create habits/missions and boss fights directly in the Hunter's system, and to read their full current status.
-When the Hunter mentions a goal, routine, challenge, or deadline, proactively suggest and create the appropriate mission or boss fight using your tools. Always confirm what you created with a brief, in-character response.
+You have tools to suggest habits/missions, suggest boss fights, complete missions by voice, and read the Hunter's full status.
+When the Hunter mentions a goal, routine, challenge, or deadline, use the suggest tools — do NOT create automatically. The Hunter must accept or reject your suggestions. When marking a mission complete, use complete_mission with the mission title.
 
 CURRENT GAME STATE:
 ${gameContext}`;
@@ -878,8 +1010,8 @@ ${gameContext}`;
           tools: [{
             functionDeclarations: [
               {
-                name: 'create_habit',
-                description: 'Creates a new habit or recurring mission in the Hunter\'s system. Call this when the Hunter wants to add a routine, daily habit, or repeating task.',
+                name: 'suggest_habit',
+                description: 'Suggests a new habit or recurring mission to the Hunter for approval. Use when the Hunter mentions wanting to build a routine or habit. The Hunter will accept or reject it.',
                 parameters: {
                   type: Type.OBJECT,
                   properties: {
@@ -887,15 +1019,15 @@ ${gameContext}`;
                     repeatType: {
                       type: Type.STRING,
                       enum: ['daily', 'weekdays', 'custom', 'oneTime'],
-                      description: 'Recurrence: "daily" (every day), "weekdays" (Mon-Fri), "custom" (specific days), "oneTime" (one-time task that does not count for streak).',
+                      description: 'Recurrence: "daily" (every day), "weekdays" (Mon-Fri), "custom" (specific days), "oneTime" (one-time task).',
                     },
                   },
                   required: ['title', 'repeatType'],
                 },
               },
               {
-                name: 'create_boss_fight',
-                description: 'Creates a Boss Fight — a major challenge or goal with a deadline. Use when the Hunter mentions an exam, project, big goal, or anything with a deadline.',
+                name: 'suggest_boss_fight',
+                description: 'Suggests a Boss Fight challenge for the Hunter to accept. Use when the Hunter mentions an exam, project, big goal, or deadline. The Hunter will approve or reject it.',
                 parameters: {
                   type: Type.OBJECT,
                   properties: {
@@ -909,6 +1041,17 @@ ${gameContext}`;
                     },
                   },
                   required: ['title', 'description', 'dueDays'],
+                },
+              },
+              {
+                name: 'complete_mission',
+                description: 'Marks a mission/habit as completed by voice command. Use when the Hunter says they completed a task. Fuzzy match the mission by title.',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: { type: Type.STRING, description: 'The title of the mission to mark as complete (partial match is fine).' },
+                  },
+                  required: ['title'],
                 },
               },
               {
@@ -962,48 +1105,36 @@ ${gameContext}`;
                 const args = (fc.args ?? {}) as Record<string, any>;
                 let response: Record<string, unknown> = {};
 
-                if (fc.name === 'create_habit') {
+                if (fc.name === 'suggest_habit') {
                   const title = String(args.title ?? '');
                   const repeatType = (args.repeatType as RepeatType) ?? 'daily';
-                  const newHabit: Habit = {
-                    id: `h-ai-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                    title,
-                    isCompleted: false,
-                    streak: 0,
-                    repeatType,
-                  };
-                  setHabits(prev => [...prev, newHabit]);
-                  setTimeout(() => showNotification('⚡ MISSÃO CRIADA PELO SISTEMA', `"${title}" adicionada`, 'quest'), 100);
-                  response = { success: true, created: title, repeatType };
+                  const suggId = `vs-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+                  setVoiceSuggestions(prev => [...prev, { id: suggId, type: 'habit' as const, title, repeatType }]);
+                  response = { success: true, suggested: title, status: 'awaiting_hunter_approval' };
 
-                } else if (fc.name === 'create_boss_fight') {
+                } else if (fc.name === 'suggest_boss_fight') {
                   const title = String(args.title ?? '');
                   const description = String(args.description ?? '');
                   const dueDays = Number(args.dueDays ?? 7);
-                  const subTaskTitles: string[] = Array.isArray(args.subTasks) ? args.subTasks.map(String) : [];
-                  const now = new Date();
-                  const due = new Date(now.getTime() + dueDays * 86400000);
-                  const newBoss: BossFight = {
-                    id: `boss-ai-${Date.now()}`,
-                    title,
-                    description,
-                    xpReward: Math.floor(Math.random() * 151) + 150,
-                    goldReward: Math.floor(Math.random() * 41) + 60,
-                    startDate: now.toISOString(),
-                    dueDate: due.toISOString(),
-                    progress: 0,
-                    subTasks: subTaskTitles.map((s, i) => ({
-                      id: `st-ai-${Date.now()}-${i}`,
-                      title: s,
-                      completed: false,
-                    })),
-                    history: [{ id: `bh-${Date.now()}`, timestamp: now.toISOString(), action: 'started' as const }],
-                    status: 'active',
-                    failPenalty: 'loseStreak',
-                  };
-                  setBossFights(prev => [...prev, newBoss]);
-                  setTimeout(() => showNotification('⚠️ NOVO CHEFÃO DETECTADO', `"${title}" — prazo: ${dueDays} dias`, 'warning'), 100);
-                  response = { success: true, created: title, dueDate: due.toLocaleDateString(), subtasks: subTaskTitles.length };
+                  const subTasks: string[] = Array.isArray(args.subTasks) ? args.subTasks.map(String) : [];
+                  const suggId = `vs-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+                  setVoiceSuggestions(prev => [...prev, { id: suggId, type: 'boss' as const, title, description, dueDays, subTasks }]);
+                  response = { success: true, suggested: title, status: 'awaiting_hunter_approval' };
+
+                } else if (fc.name === 'complete_mission') {
+                  const titleQuery = String(args.title ?? '').toLowerCase();
+                  const currentHabits = habitsRef.current ?? habits;
+                  const match = currentHabits.find(h =>
+                    !h.isCompleted && isTodayActive(h) &&
+                    h.title.toLowerCase().includes(titleQuery)
+                  );
+                  if (match) {
+                    toggleHabit(match.id);
+                    setTimeout(() => showNotification(t.notifications.voiceSuggestion, t.notifications.habitCompletedByVoice(match.title), 'quest'), 100);
+                    response = { success: true, completed: match.title };
+                  } else {
+                    response = { success: false, error: 'Mission not found or already completed.' };
+                  }
 
                 } else if (fc.name === 'get_status') {
                   const cur = profileRef.current ?? profile;
@@ -3113,6 +3244,78 @@ ${gameContext}`;
           )}
         </section>
 
+        {/* ── MISSÕES BÔNUS ── */}
+        {(() => {
+          const today = toDateStr(new Date());
+          const todaysMissions = bonusMissions.filter(m => m.generatedDate === today);
+          const alreadyGenerated = todaysMissions.length > 0;
+          const hour = new Date().getHours();
+          const pastTimeGate = hour >= 18;
+          return (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between border-b border-yellow-900/40 pb-2">
+                <h3 className="text-yellow-400 font-mono text-sm font-bold flex items-center gap-2">
+                  {t.missions.bonusMissionsHeader}
+                </h3>
+                {!alreadyGenerated && !pastTimeGate && (
+                  <button
+                    onClick={generateBonusMissions}
+                    disabled={isGeneratingBonus}
+                    className="flex items-center gap-1 text-xs font-mono text-yellow-400 hover:text-white border border-yellow-600/50 hover:border-yellow-400 px-2 py-1 rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isGeneratingBonus ? <Loader size={10} className="animate-spin" /> : <Zap size={10} />}
+                    {isGeneratingBonus ? t.missions.bonusMissionsGenerating : t.missions.bonusMissionsGenerate}
+                  </button>
+                )}
+                {alreadyGenerated && (
+                  <span className="text-[10px] font-mono text-yellow-600/70">{t.missions.bonusMissionsAlreadyGenerated}</span>
+                )}
+                {!alreadyGenerated && pastTimeGate && (
+                  <span className="text-[10px] font-mono text-slate-600">{t.missions.bonusMissionsTimeGateExpired}</span>
+                )}
+              </div>
+              {todaysMissions.length === 0 ? (
+                <p className="text-[11px] font-mono text-slate-600 text-center py-3">{t.missions.bonusMissionsEmpty}</p>
+              ) : (
+                <div className="space-y-2">
+                  {todaysMissions.map(m => (
+                    <div
+                      key={m.id}
+                      className={`p-3 border rounded-lg flex items-center gap-3 transition-all duration-200
+                        ${m.isCompleted
+                          ? 'bg-yellow-950/10 border-yellow-800/30 opacity-60'
+                          : 'bg-slate-900 border-yellow-700/40 hover:border-yellow-600/60'}`}
+                    >
+                      <div className="p-1.5 rounded-full shrink-0 bg-yellow-500/15 text-yellow-400">
+                        <Zap size={13} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-bold text-sm leading-tight ${m.isCompleted ? 'line-through text-slate-500' : 'text-yellow-100'}`}>
+                          {m.title}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] font-mono text-yellow-600/70">+{m.rewardXp} XP · +{m.rewardGold} Gold</span>
+                        </div>
+                      </div>
+                      {!m.isCompleted && (
+                        <button
+                          onClick={() => completeBonusMission(m.id)}
+                          className="shrink-0 px-2.5 py-1.5 rounded border border-yellow-600/60 bg-yellow-600/15 text-yellow-400 text-[10px] font-mono font-bold hover:bg-yellow-600/30 transition-all"
+                        >
+                          {t.missions.bonusMissionCompleteBtn}
+                        </button>
+                      )}
+                      {m.isCompleted && (
+                        <Check size={16} className="text-yellow-600/70 shrink-0" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          );
+        })()}
+
         {/* ── ACTIVITY LOG ── */}
         {(completedHabits.length > 0 || completedBosses.length > 0) && (
           <section className="space-y-3">
@@ -3401,6 +3604,58 @@ ${gameContext}`;
         {view === 'MISSIONS' && renderMissions()}
         {view === 'SETTINGS' && renderSettings()}
       </main>
+
+      {/* Voice Suggestion Overlay — above nav */}
+      <AnimatePresence>
+        {voiceSuggestions.length > 0 && (
+          <div className="fixed bottom-16 left-0 right-0 z-50 flex flex-col items-center gap-2 px-4 pb-2 pointer-events-none">
+            {voiceSuggestions.map((s, i) => (
+              <motion.div
+                key={s.id}
+                initial={{ opacity: 0, y: 24, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 12, scale: 0.95 }}
+                transition={{ delay: i * 0.06, type: 'spring', stiffness: 260, damping: 22 }}
+                className="w-full max-w-2xl bg-slate-950/97 border border-system-blue/60 rounded-xl px-4 py-3 shadow-[0_0_24px_rgba(59,130,246,0.25)] pointer-events-auto"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="shrink-0">
+                    <span className="text-[9px] font-mono text-system-blue/70 tracking-widest block mb-0.5">
+                      {s.type === 'habit' ? t.missions.voiceSuggestionHabitLabel : t.missions.voiceSuggestionBossLabel}
+                    </span>
+                    <span className="font-mono font-bold text-sm text-white leading-snug">
+                      {s.type === 'habit' ? s.title : s.title}
+                    </span>
+                    {s.type === 'boss' && s.description && (
+                      <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{s.description}</p>
+                    )}
+                    {s.type === 'boss' && (
+                      <span className="text-[9px] font-mono text-slate-500 mt-0.5 block">📅 {s.dueDays} dias</span>
+                    )}
+                    {s.type === 'habit' && (
+                      <span className="text-[9px] font-mono text-slate-500 mt-0.5 block">🔄 {s.repeatType}</span>
+                    )}
+                  </div>
+                  <div className="ml-auto flex gap-2 shrink-0">
+                    <button
+                      onClick={() => rejectVoiceSuggestion(s.id)}
+                      className="px-3 py-1.5 rounded-lg border border-red-700/60 bg-red-900/20 text-red-400 text-xs font-mono font-bold hover:bg-red-900/40 transition-all"
+                    >
+                      ✕ {t.missions.voiceSuggestionsReject}
+                    </button>
+                    <button
+                      onClick={() => acceptVoiceSuggestion(s.id)}
+                      className="px-3 py-1.5 rounded-lg border border-system-blue bg-system-blue/20 text-system-blue text-xs font-mono font-bold hover:bg-system-blue/40 transition-all"
+                    >
+                      ✓ {t.missions.voiceSuggestionsAccept}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Bottom Nav */}
       <nav className="fixed bottom-0 left-0 right-0 bg-system-panel border-t border-slate-800 pb-safe z-40">

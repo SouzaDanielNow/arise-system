@@ -152,10 +152,20 @@ export interface SystemQuote {
 
 export type ViewState = 'DASHBOARD' | 'DUNGEON_MAP' | 'ACTIVE_DUNGEON' | 'SHADOW_ARMY' | 'SHADOW_REVIEW' | 'SHOP' | 'LIFESTYLE' | 'SETTINGS' | 'MISSIONS' | 'IDENTITY';
 
+export interface BonusMission {
+  id: string;
+  title: string;
+  rewardXp: number;
+  rewardGold: number;
+  isCompleted: boolean;
+  generatedDate: string;
+}
+
 export interface GameState {
   profile: HunterProfile;
   chapters: Chapter[];
   habits: Habit[];
   bossFights: BossFight[];
+  bonusMissions?: BonusMission[];
   quests?: Quest[];
 }
