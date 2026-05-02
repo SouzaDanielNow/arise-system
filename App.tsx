@@ -9,7 +9,7 @@ import {
   Brain, Activity, Ghost, RotateCw, Crown,
   ShoppingBag, Dumbbell, Coins, Edit3, Check, Plus, Upload,
   Loader, Mic, MicOff, Heart, Skull, BarChart2, Globe, Quote, Settings, Trash2,
-  Target, Calendar, LogOut, Bell
+  Target, Calendar, LogOut, Bell, BellOff
 } from 'lucide-react';
 import {
   HunterProfile, Chapter, ViewState, HunterRank, DungeonPart,
@@ -563,6 +563,7 @@ const App: React.FC = () => {
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(
     'Notification' in window ? Notification.permission : 'denied'
   );
+  const [isPushSubscribed, setIsPushSubscribed] = useState(false);
 
   // Voice suggestion queue — AI proposes, Hunter accepts/rejects
   type VoiceSuggestion =
@@ -655,6 +656,14 @@ const App: React.FC = () => {
 
   // Keep ref in sync so realtime handler can detect only newly-arrived missions
   useEffect(() => { bonusMissionsRef.current = bonusMissions; }, [bonusMissions]);
+
+  // Check if this device already has an active push subscription
+  useEffect(() => {
+    if (!session || !('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.ready.then(reg =>
+      reg.pushManager.getSubscription().then(sub => setIsPushSubscribed(!!sub))
+    ).catch(() => {});
+  }, [session?.user.id]);
 
   // Realtime: detect when Arquiteto drops bonus missions while app is open
   useEffect(() => {
@@ -947,9 +956,30 @@ const App: React.FC = () => {
       }, { onConflict: 'user_id,endpoint' });
 
       setNotifPermission('granted');
+      setIsPushSubscribed(true);
       showNotification('Notificações ativadas com sucesso!', undefined, 'quest');
     } catch (e) {
       console.error('enableNotifications:', e);
+      showNotification(`Erro: ${String(e)}`, undefined, 'warning');
+    }
+  };
+
+  const disableNotifications = async () => {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await sub.unsubscribe();
+        if (session) {
+          await supabase.from('push_subscriptions').delete()
+            .eq('user_id', session.user.id)
+            .eq('endpoint', sub.endpoint);
+        }
+      }
+      setIsPushSubscribed(false);
+      showNotification('Notificações desativadas.', undefined, 'info');
+    } catch (e) {
+      console.error('disableNotifications:', e);
       showNotification(`Erro: ${String(e)}`, undefined, 'warning');
     }
   };
@@ -3524,20 +3554,30 @@ ${gameContext}`;
           {notifPermission === 'denied' ? (
             <p className="text-red-400/70 text-xs font-mono">{t.settings.notificationsBlocked}</p>
           ) : (
-            <div className="flex items-center justify-between">
-              {notifPermission === 'granted' ? (
+            <div className="flex items-center justify-between gap-2">
+              {isPushSubscribed ? (
                 <div className="flex items-center gap-2 text-green-400 text-xs font-mono">
                   <Check size={13} /> {t.settings.notificationsActive}
                 </div>
               ) : (
                 <span className="text-slate-500 text-xs font-mono">{t.settings.notificationsEnable}</span>
               )}
-              <button
-                onClick={enableNotifications}
-                className="flex items-center gap-2 px-3 py-1.5 rounded border border-system-blue/50 bg-system-blue/10 text-system-blue font-mono text-xs hover:bg-system-blue/20 transition-all"
-              >
-                <Bell size={12} /> {notifPermission === 'granted' ? t.settings.notificationsReactivate : t.settings.notificationsEnable}
-              </button>
+              <div className="flex items-center gap-2">
+                {isPushSubscribed && (
+                  <button
+                    onClick={disableNotifications}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded border border-red-500/40 bg-red-500/10 text-red-400 font-mono text-xs hover:bg-red-500/20 transition-all"
+                  >
+                    <BellOff size={12} /> {t.settings.notificationsDisable}
+                  </button>
+                )}
+                <button
+                  onClick={enableNotifications}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded border border-system-blue/50 bg-system-blue/10 text-system-blue font-mono text-xs hover:bg-system-blue/20 transition-all"
+                >
+                  <Bell size={12} /> {isPushSubscribed ? t.settings.notificationsReactivate : t.settings.notificationsEnable}
+                </button>
+              </div>
             </div>
           )}
         </div>
