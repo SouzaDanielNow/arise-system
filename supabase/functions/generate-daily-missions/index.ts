@@ -261,27 +261,67 @@ Deno.serve(async (req) => {
 
         if (!isSlot1 && !isSlot2) continue; // not this user's delivery hour
 
-        // Build habits context
-        const habits: any[] = p.profile_data?.habits ?? [];
-        const recurring = habits.filter((h: any) => h.repeatType !== 'oneTime');
-        const habitList = recurring.length > 0
-          ? recurring.map((h: any) => `- ${h.title} [${h.repeatType}]`).join('\n')
+        // Build rich player context
+        const profile   = p.profile_data?.profile ?? {};
+        const habits: any[]     = p.profile_data?.habits ?? [];
+        const bossFights: any[] = p.profile_data?.bossFights ?? [];
+
+        const recurringHabits = habits.filter((h: any) => h.repeatType !== 'oneTime');
+        const habitList = recurringHabits.length > 0
+          ? recurringHabits.map((h: any) =>
+              `- ${h.title} [${h.repeatType}]${h.streak > 0 ? ` — streak: ${h.streak} dias` : ''}`
+            ).join('\n')
           : '- (nenhum hábito recorrente cadastrado)';
+
+        const activeBosses = bossFights.filter((b: any) => b.status === 'active');
+        const bossList = activeBosses.length > 0
+          ? activeBosses.map((b: any) =>
+              `- ${b.title} (prazo: ${b.dueDate}, progresso: ${b.progress}%)`
+            ).join('\n')
+          : '- nenhum';
+
+        const stats: any[] = profile.customStats ?? [];
+        const statList = stats.length > 0
+          ? stats.map((s: any) => `- ${s.name}: ${s.value}`).join('\n')
+          : '- (sem stats)';
+
+        // Recent bonus missions to avoid repetition
+        const recentTitles = deliveredMissions
+          .slice(-4)
+          .map((m: any) => `- ${m.title}`)
+          .join('\n') || '- nenhuma ainda hoje';
 
         // Generate exactly 1 mission from Gemini
         const resp = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
           contents: [{ role: 'user', parts: [{ text:
-`Você é "O Arquiteto" do sistema ARISE. Com base nos hábitos do hunter abaixo, gere 1 missão bônus espontânea para hoje.
+`Você é "O Arquiteto" do sistema ARISE — uma IA que envia missões bônus personalizadas para hunters.
 
-Regras:
-- title: nome curto e impactante da missão (máx 5 palavras)
-- description: instrução direta em 1 frase curta dizendo EXATAMENTE o que o hunter deve fazer (ex: "Faça 20 flexões antes do café da manhã.", "Leia por 15 minutos sem interrupções.")
-- rewardXp: entre 20 e 60
+PERFIL DO HUNTER:
+- Rank: ${profile.rank ?? 'E'} | Nível: ${profile.level ?? 1} | Streak: ${profile.streakDays ?? 0} dias
+
+STATS:
+${statList}
+
+HÁBITOS RECORRENTES:
+${habitList}
+
+CHEFÕES ATIVOS (projetos em andamento):
+${bossList}
+
+MISSÕES JÁ ENVIADAS HOJE (não repita):
+${recentTitles}
+
+MISSÃO A GERAR: 1 missão bônus espontânea para hoje.
+
+REGRAS OBRIGATÓRIAS:
+- title: nome curto e impactante (máx 5 palavras)
+- description: ação concreta em 1 frase — o hunter deve conseguir fazer EM QUALQUER MOMENTO DO DIA, sem horário fixo. Use: "Faça X", "Realize X", "Complete X", "Beba X". NUNCA mencione horários ("às 5h", "antes de dormir", "ao acordar", "logo pela manhã"). A missão deve ser flexível e se encaixar na rotina.
+- rewardXp: entre 20 e 60 (proporcional ao esforço)
 - rewardGold: entre 10 e 30
 
-HÁBITOS DO HUNTER:
-${habitList}
+Exemplos bons: "Faça 30 agachamentos hoje.", "Beba 500ml de água a mais hoje.", "Leia por 15 minutos sem interrupções.", "Escreva 3 coisas pelas quais é grato hoje."
+Exemplos RUINS (não faça): "Faça alongamento antes de dormir.", "Medite às 7h.", "Logo ao acordar, faça X."
 
 Responda SOMENTE com um array JSON com 1 item, sem markdown:
 [{"title":"...","description":"...","rewardXp":...,"rewardGold":...}]`
@@ -318,8 +358,8 @@ Responda SOMENTE com um array JSON com 1 item, sem markdown:
             await sendPush(
               pushSub,
               JSON.stringify({
-                title: '⚡ DAILY QUEST CHEGOU',
-                body: 'O Arquiteto enviou um desafio surpresa para você.',
+                title: `⚡ ${newMission.title}`,
+                body: newMission.description,
                 url: '/',
               }),
               vapidPriv, vapidPub, vapidSub,
