@@ -232,10 +232,10 @@ Deno.serve(async (req) => {
         // 1 or 2 missions today
         const missionCount = (h % 2) === 0 ? 1 : 2;
 
-        // Two independent target hours (7–16 UTC), guaranteed different
-        const targetHour1 = 7 + (h % 10);
-        const raw2        = 7 + ((h * 7 + 13) % 10);
-        const targetHour2 = raw2 === targetHour1 ? 7 + ((raw2 - 7 + 5) % 10) : raw2;
+        // Two independent target hours — 10-19 UTC = 7-16 BRT (UTC-3)
+        const targetHour1 = 10 + (h % 10);
+        const raw2        = 10 + ((h * 7 + 13) % 10);
+        const targetHour2 = raw2 === targetHour1 ? 10 + ((raw2 - 10 + 5) % 10) : raw2;
 
         // Check how many missions already delivered today
         const { data: existingRow } = await supabase
@@ -261,6 +261,20 @@ Deno.serve(async (req) => {
 
         if (!isSlot1 && !isSlot2) continue; // not this user's delivery hour
 
+        // Fetch recent bonus missions (last 7 days) to avoid repetition
+        const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+        const { data: recentRows } = await supabase
+          .from('daily_bonus_missions')
+          .select('missions')
+          .eq('user_id', p.id)
+          .gte('generated_date', sevenDaysAgo)
+          .neq('generated_date', today);
+        const recentHistory = (recentRows ?? [])
+          .flatMap((r: any) => r.missions ?? [])
+          .slice(-8)
+          .map((m: any) => `- ${m.title}: ${m.description}`)
+          .join('\n') || '- nenhuma';
+
         // Build rich player context
         const profile   = p.profile_data?.profile ?? {};
         const habits: any[]     = p.profile_data?.habits ?? [];
@@ -285,9 +299,8 @@ Deno.serve(async (req) => {
           ? stats.map((s: any) => `- ${s.name}: ${s.value}`).join('\n')
           : '- (sem stats)';
 
-        // Recent bonus missions to avoid repetition
-        const recentTitles = deliveredMissions
-          .slice(-4)
+        // Today's missions already delivered (avoid repeating in same day)
+        const todayTitles = deliveredMissions
           .map((m: any) => `- ${m.title}`)
           .join('\n') || '- nenhuma ainda hoje';
 
@@ -309,8 +322,11 @@ ${habitList}
 CHEFÕES ATIVOS (projetos em andamento):
 ${bossList}
 
-MISSÕES JÁ ENVIADAS HOJE (não repita):
-${recentTitles}
+MISSÕES ENVIADAS HOJE (não repita):
+${todayTitles}
+
+MISSÕES DOS ÚLTIMOS 7 DIAS (não repita temas similares):
+${recentHistory}
 
 MISSÃO A GERAR: 1 missão bônus espontânea para hoje.
 

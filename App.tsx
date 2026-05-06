@@ -520,6 +520,8 @@ const App: React.FC = () => {
   const [bossNewSubInputs, setBossNewSubInputs] = useState<Record<string, string>>({});
   const [editingSubTaskId, setEditingSubTaskId] = useState<string | null>(null);
   const [editingSubTaskText, setEditingSubTaskText] = useState('');
+  const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
+  const [editingHabitTitle, setEditingHabitTitle] = useState('');
   const [dragState, setDragState] = useState<{ bossId: string; subTaskId: string } | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
@@ -1533,7 +1535,17 @@ ${gameContext}`;
   };
 
   const getDaysUntil = (dateString: string): number => {
-    return Math.floor((new Date(dateString).getTime() - Date.now()) / 86400000);
+    const [dy, dm, dd] = dateString.split('-').map(Number);
+    const [ty, tm, td] = toDateStr(new Date()).split('-').map(Number);
+    const due   = new Date(dy, dm - 1, dd).getTime();
+    const today = new Date(ty, tm - 1, td).getTime();
+    return Math.floor((due - today) / 86400000);
+  };
+
+  const saveHabitTitle = (id: string) => {
+    if (!editingHabitTitle.trim()) return;
+    setHabits(prev => prev.map(h => h.id === id ? { ...h, title: editingHabitTitle.trim() } : h));
+    setEditingHabitId(null);
   };
 
   const addNewBossSubTask = () => {
@@ -2783,19 +2795,40 @@ ${gameContext}`;
                 ${habit.isCompleted ? 'bg-slate-900/50 border-slate-800 opacity-60' : 'bg-slate-900 border-slate-700 hover:border-green-500/50'}
               `}
             >
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-blue-500/20 text-blue-400">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="p-2 rounded-full bg-blue-500/20 text-blue-400 shrink-0">
                   <Sword size={16} />
                 </div>
-                <div>
-                  <h4 className={`font-bold ${habit.isCompleted ? 'line-through text-slate-500' : 'text-white'}`}>{habit.title}</h4>
+                <div className="flex-1 min-w-0">
+                  {editingHabitId === habit.id ? (
+                    <input
+                      autoFocus
+                      value={editingHabitTitle}
+                      onChange={e => setEditingHabitTitle(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveHabitTitle(habit.id); if (e.key === 'Escape') setEditingHabitId(null); }}
+                      onBlur={() => saveHabitTitle(habit.id)}
+                      className="w-full bg-slate-800 border border-system-blue/50 rounded px-2 py-0.5 text-white text-sm font-bold outline-none"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-1.5 group/title">
+                      <h4 className={`font-bold truncate ${habit.isCompleted ? 'line-through text-slate-500' : 'text-white'}`}>{habit.title}</h4>
+                      {!habit.isCompleted && (
+                        <button
+                          onClick={() => { setEditingHabitId(habit.id); setEditingHabitTitle(habit.title); }}
+                          className="opacity-0 group-hover/title:opacity-100 text-slate-500 hover:text-system-blue transition-all shrink-0"
+                        >
+                          <Edit3 size={11} />
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <p className="text-[10px] text-slate-500 font-mono">{t.lifestyle.streakLabel} {habit.streak} {t.lifestyle.streakUnit}</p>
                 </div>
               </div>
               <button
                 onClick={() => toggleHabit(habit.id)}
                 disabled={habit.isCompleted}
-                className={`w-10 h-10 rounded border flex items-center justify-center transition-all
+                className={`w-10 h-10 rounded border flex items-center justify-center transition-all shrink-0
                   ${habit.isCompleted
                     ? 'bg-slate-800 border-slate-700 text-slate-500'
                     : 'bg-slate-950 border-slate-600 hover:bg-green-500/20 hover:border-green-500 hover:text-green-500 text-slate-400'}
@@ -2918,7 +2951,7 @@ ${gameContext}`;
 
           <div className="space-y-4">
             {activeBosses.map(boss => {
-                const isExpired = !!boss.dueDate && new Date(boss.dueDate) < new Date(new Date().toDateString());
+                const isExpired = !!boss.dueDate && getDaysUntil(boss.dueDate) < 0;
                 const daysLeft = boss.dueDate ? getDaysUntil(boss.dueDate) : null;
                 const allDone = boss.subTasks.length === 0 || boss.subTasks.every(s => s.completed);
                 return (
@@ -3701,14 +3734,21 @@ ${gameContext}`;
             <span>{profile.gold}</span>
           </div>
 
-          <button
-            onClick={simulateStreakBreak}
-            className="flex items-center gap-1 text-yellow-500 font-mono text-sm hover:text-red-500 transition-colors hover:scale-105 active:scale-95"
-            title="Click to Simulate Missing a Day"
-          >
-            <Zap size={14} fill="currentColor" />
-            <span>{profile.streakDays} {t.header.days}</span>
-          </button>
+          {isAdmin ? (
+            <button
+              onClick={simulateStreakBreak}
+              className="flex items-center gap-1 text-yellow-500 font-mono text-sm hover:text-red-500 transition-colors hover:scale-105 active:scale-95"
+              title="[Admin] Simulate Missing a Day"
+            >
+              <Zap size={14} fill="currentColor" />
+              <span>{profile.streakDays} {t.header.days}</span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-1 text-yellow-500 font-mono text-sm">
+              <Zap size={14} fill="currentColor" />
+              <span>{profile.streakDays} {t.header.days}</span>
+            </div>
+          )}
         </div>
       </header>
 
