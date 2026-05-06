@@ -11,12 +11,6 @@ export enum HunterRank {
   MONARCA = 'MONARCA',
 }
 
-export enum DungeonPart {
-  ONE = 'Part I: General Navigation',
-  TWO = 'Part II: Aircraft Instruments',
-  THREE = 'Part III: Radio Navigation',
-  BOSS = 'S-Rank Gate: DGCA Final Exam'
-}
 
 export interface CustomStat {
   id: string;
@@ -43,15 +37,6 @@ export interface HunterProfile {
   lastCompletionDate?: string;
 }
 
-export interface Chapter {
-  id: string;
-  title: string;
-  part: string;
-  isCleared: boolean;
-  masteryLevel: number;
-  timeSpentMinutes: number;
-  unlocked: boolean;
-}
 
 export interface Quest {
   id: string;
@@ -150,7 +135,7 @@ export interface SystemQuote {
   author: string;
 }
 
-export type ViewState = 'DASHBOARD' | 'DUNGEON_MAP' | 'ACTIVE_DUNGEON' | 'SHADOW_ARMY' | 'SHADOW_REVIEW' | 'SHOP' | 'LIFESTYLE' | 'SETTINGS' | 'MISSIONS' | 'IDENTITY';
+export type ViewState = 'DASHBOARD' | 'SHADOW_ARMY' | 'SHOP' | 'SETTINGS' | 'MISSIONS' | 'IDENTITY';
 
 export interface BonusMission {
   id: string;
@@ -164,7 +149,6 @@ export interface BonusMission {
 
 export interface GameState {
   profile: HunterProfile;
-  chapters: Chapter[];
   habits: Habit[];
   bossFights: BossFight[];
   bonusMissions?: BonusMission[];

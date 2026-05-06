@@ -12,9 +12,9 @@ Requer `GEMINI_API_KEY` no arquivo `.env.local`.
 
 ## Estrutura de arquivos
 ```
-App.tsx               ← componente único principal (~2200 linhas)
+App.tsx               ← componente único principal (~3500 linhas)
 types.ts              ← todas as interfaces TypeScript (incl. GameState)
-constants.ts          ← dados iniciais (hábitos, quests, capítulos, recompensas)
+constants.ts          ← dados iniciais (hábitos, recompensas — sem dungeons)
 lib/
   supabase.ts         ← client Supabase (VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY)
 i18n/
@@ -124,3 +124,6 @@ Contém: Daily Quote, Profile Card (XP bar, nome, gold), Initialize Plan button,
 - Não usar `setNewTaskType` — estado removido
 - Não commitar `node_modules`, `.env.local` ou arquivos de build
 - Não tornar a retenção do Undying Will superior a 50% (cap intencional de balanceamento)
+- Não recriar sistema de Dungeon / capítulos — removido intencionalmente (v1.2). Será reimplementado do zero no futuro
+- Não recriar `renderLifestyleControl`, `renderShadowReview`, `renderReportModal`, `renderUploadModal` — todos removidos em v1.2
+- `ViewState` não inclui mais 'DUNGEON_MAP', 'ACTIVE_DUNGEON', 'LIFESTYLE', 'SHADOW_REVIEW'

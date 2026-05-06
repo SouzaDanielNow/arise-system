@@ -1,4 +1,4 @@
-import { Chapter, DungeonPart, HunterRank, Quest, RewardItem, Habit, AnalyticsData, SystemQuote, Shadow, ShadowRank, ShadowRole, ShadowMission } from './types';
+import { HunterRank, RewardItem, Habit, SystemQuote, Shadow, ShadowRank, ShadowRole, ShadowMission } from './types';
 
 export const RANK_COLORS: Record<HunterRank, string> = {
   [HunterRank.E]: '#9ca3af',
@@ -59,59 +59,6 @@ export const SYSTEM_QUOTES: SystemQuote[] = [
   { text: "Rank is not given. It is taken.", author: "S-Rank Hunter" }
 ];
 
-export const MOCK_WEEKLY_DATA: AnalyticsData[] = [
-  { day: 'MON', xp: 150, focusMinutes: 45 },
-  { day: 'TUE', xp: 300, focusMinutes: 90 },
-  { day: 'WED', xp: 100, focusMinutes: 30 },
-  { day: 'THU', xp: 450, focusMinutes: 120 },
-  { day: 'FRI', xp: 200, focusMinutes: 60 },
-  { day: 'SAT', xp: 600, focusMinutes: 180 },
-  { day: 'SUN', xp: 0, focusMinutes: 0 },
-];
-
-export const INITIAL_CHAPTERS: Chapter[] = [
-  { id: '1-1', title: 'The Solar System', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: true },
-  { id: '1-2', title: 'The Earth', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '1-3', title: 'Projections', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '1-4', title: 'Convergency', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '1-5', title: 'Time', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '1-6', title: 'Compass and Directions', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '1-7', title: 'Distances on Earth Surface', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '1-8', title: 'Magnetism and Compasses', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '1-9', title: 'Dead Reckoning Navigation (DR)', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '1-10', title: 'Measurement of DR Elements (Pressure)', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '1-11', title: 'Determination of Temperature', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '1-12', title: 'Measurement of Elements', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '1-13', title: 'In-flight Navigation', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '1-14', title: 'Mass and Balance', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '1-15', title: 'Performance', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '1-16', title: 'Flight Planning and Monitoring', part: DungeonPart.ONE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '2-1', title: 'Air Data Systems', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '2-2', title: 'Altimeter', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '2-3', title: 'Air Speed Indicator (ASI)', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '2-4', title: 'Vertical Speed Indicator (VSI)', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '2-5', title: 'Gyroscopes', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '2-6', title: 'Inertial Navigation', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '2-7', title: 'Radio/Radar Altimeter', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '2-8', title: 'Power Plant & Monitoring', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '2-9', title: 'Electronic Displays', part: DungeonPart.TWO, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '3-1', title: 'Basic Radio Theory', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '3-2', title: 'ADF / NDB', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '3-3', title: 'Track and Drift', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '3-4', title: 'VOR', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '3-5', title: 'VOR / RMI / ADF Related', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '3-6', title: 'Holding & Intercepts', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '3-7', title: 'ILS (Instrument Landing System)', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '3-8', title: 'Radar', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '3-9', title: 'GNSS / GPS', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: '3-10', title: 'Nav Aids Summary', part: DungeonPart.THREE, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-  { id: 'BOSS-1', title: 'DGCA MOCK EXAM', part: DungeonPart.BOSS, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-];
-
-export const DAILY_QUESTS: Quest[] = [
-  { id: 'dq-1', description: 'Complete 1 Dungeon Run', target: 1, current: 0, isCompleted: false, rewardXp: 100, rewardStat: '1' },
-  { id: 'dq-2', description: 'Review a Shadow (Cleared Chapter)', target: 1, current: 0, isCompleted: false, rewardXp: 50, rewardStat: '2' }
-];
 
 export const getNextRank = (xp: number): HunterRank => {
   if (xp >= RANK_THRESHOLDS[HunterRank.MONARCA]) return HunterRank.MONARCA;

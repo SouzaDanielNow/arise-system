@@ -5,21 +5,21 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
 import {
-  Shield, Map as MapIcon, Sword, User, Zap, Trophy,
-  Brain, Activity, Ghost, RotateCw, Crown,
-  ShoppingBag, Dumbbell, Coins, Edit3, Check, Plus, Upload,
-  Loader, Mic, MicOff, Heart, Skull, BarChart2, Globe, Quote, Settings, Trash2,
-  Target, Calendar, LogOut, Bell, BellOff
+  Shield, Sword, User, Zap,
+  Brain, Activity, Ghost, RotateCw,
+  ShoppingBag, Coins, Edit3, Check, Plus,
+  Loader, Mic, MicOff, Globe, Quote, Settings, Trash2,
+  Target, LogOut, Bell, BellOff
 } from 'lucide-react';
 import {
-  HunterProfile, Chapter, ViewState, HunterRank, DungeonPart,
+  HunterProfile, ViewState, HunterRank,
   CustomStat, RewardItem, Habit, SystemQuote, RepeatType,
   BossFight, BossSubTask, BossHistoryEntry, BonusMission, GameState,
   Shadow, ShadowRank, ShadowRole, ShadowStatus, ShadowMission
 } from './types';
 import {
-  INITIAL_CHAPTERS, RANK_THRESHOLDS, INITIAL_REWARDS,
-  INITIAL_HABITS, MOCK_WEEKLY_DATA, getNextRank, getNextRankXp, getXpProgress,
+  RANK_THRESHOLDS, INITIAL_REWARDS,
+  INITIAL_HABITS, getNextRank, getNextRankXp, getXpProgress,
   STAT_COLOR_PALETTE, RANK_COLORS, SHADOW_RANK_COLORS, extractShadow, generateDailyMissions
 } from './constants';
 import StatRadar from './components/StatRadar';
@@ -471,8 +471,6 @@ const App: React.FC = () => {
 
   // --- State ---
   const [view, setView] = useState<ViewState>('DASHBOARD');
-  const [chapters, setChapters] = useState<Chapter[]>(INITIAL_CHAPTERS);
-  const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
   const [habits, setHabits] = useState<Habit[]>(() =>
     INITIAL_HABITS.map((h, i) => ({ ...h, title: t.initialHabits[i].title }))
   );
@@ -497,12 +495,6 @@ const App: React.FC = () => {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [newHabitTitle, setNewHabitTitle] = useState('');
   const [dailyQuote, setDailyQuote] = useState<SystemQuote>(t.quotes[0]);
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [reportTab, setReportTab] = useState<'DAILY' | 'WEEKLY' | 'MONTHLY'>('WEEKLY');
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadTitle, setUploadTitle] = useState('');
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [isProcessingUpload, setIsProcessingUpload] = useState(false);
   const [notification, setNotification] = useState<{ msg: string; sub?: string; type?: NotificationType } | null>(null);
   const [newStatName, setNewStatName] = useState('');
   const [newStatEmoji, setNewStatEmoji] = useState('');
@@ -612,7 +604,6 @@ const App: React.FC = () => {
         const rawGs = data.profile_data as GameState;
         const { state: gs, hadStreakBreak, retainedDays } = applyDailyReset(rawGs);
         setProfile(gs.profile);
-        setChapters(gs.chapters);
         setHabits(gs.habits);
         setBossFights(gs.bossFights ?? []);
 
@@ -639,7 +630,6 @@ const App: React.FC = () => {
         const hunterName = session.user.user_metadata?.username || 'Jin-Woo';
         const defaultState: GameState = {
           profile: { ...profile, name: hunterName },
-          chapters,
           habits,
           bossFights,
         };
@@ -696,11 +686,11 @@ const App: React.FC = () => {
     if (!session || !isDataLoadedRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
-      const gameState: GameState = { profile, habits, chapters, bossFights };
+      const gameState: GameState = { profile, habits, bossFights };
       await supabase.from('profiles').upsert({ id: session.user.id, profile_data: gameState });
     }, 2000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [profile, habits, chapters, bossFights]);
+  }, [profile, habits, bossFights]);
 
   // Dynamic rank color CSS variable
   useEffect(() => {
@@ -798,8 +788,6 @@ const App: React.FC = () => {
   const showNotification = (msg: string, sub?: string, type: NotificationType = 'info') => {
     setNotification({ msg, sub, type });
   };
-
-  const translatePart = (part: string): string => t.dungeonParts[part] || part;
 
   const getGlobalStanding = (rank: HunterRank) => t.standing[rank];
 
@@ -1278,72 +1266,6 @@ ${gameContext}`;
     }
   };
 
-  const startDungeon = (chapterId: string) => {
-    setActiveChapterId(chapterId);
-    setView('ACTIVE_DUNGEON');
-  };
-
-  const finishDungeon = (success: boolean) => {
-    if (!activeChapterId) return;
-
-    if (success) {
-      setChapters(prev => {
-        const updated = prev.map(c => {
-          if (c.id === activeChapterId)
-            return { ...c, isCleared: true, masteryLevel: Math.min(100, c.masteryLevel + 25), unlocked: true };
-          return c;
-        });
-        const currentIdx = prev.findIndex(c => c.id === activeChapterId);
-        if (currentIdx < prev.length - 1) updated[currentIdx + 1].unlocked = true;
-        if (activeChapterId.startsWith('BOSS')) {
-          showNotification(t.notifications.sRankCleared, t.notifications.sRankClearedSub, 'levelup');
-        }
-        return updated;
-      });
-
-      const chapter = chapters.find(c => c.id === activeChapterId);
-      const partIndex = [DungeonPart.ONE, DungeonPart.TWO, DungeonPart.THREE].indexOf(chapter?.part as DungeonPart);
-      const statId = partIndex >= 0 ? profile.customStats[partIndex]?.id : undefined;
-
-      addXp(chapter?.part === DungeonPart.BOSS ? 5000 : 150, statId);
-      addGold(chapter?.part === DungeonPart.BOSS ? 2000 : 100);
-
-      if (!activeChapterId.startsWith('BOSS')) {
-        showNotification(t.notifications.dungeonCleared, t.notifications.dungeonClearedSub, 'quest');
-      }
-    } else {
-      showNotification(t.notifications.escapedDungeon, t.notifications.escapedDungeonSub);
-    }
-
-    setView('DUNGEON_MAP');
-    setActiveChapterId(null);
-  };
-
-  const summonShadow = (chapterId: string) => {
-    setActiveChapterId(chapterId);
-    setView('SHADOW_REVIEW');
-  };
-
-  const completeShadowReview = () => {
-    addXp(10, profile.customStats[1]?.id);
-    addGold(20);
-    showNotification(t.notifications.shadowReviewComplete, t.notifications.shadowReviewSub, 'info');
-    setView('SHADOW_ARMY');
-    setActiveChapterId(null);
-  };
-
-  const toggleGymDay = (dayIndex: number) => {
-    if (profile.weeklyGymProgress[dayIndex]) return;
-    setProfile(prev => {
-      const newProgress = [...prev.weeklyGymProgress];
-      newProgress[dayIndex] = true;
-      return { ...prev, weeklyGymProgress: newProgress };
-    });
-    addXp(50, profile.customStats[0]?.id);
-    addGold(75);
-    showNotification(t.notifications.trainingComplete, t.notifications.trainingCompleteSub, 'shield');
-  };
-
   const buyItem = (item: RewardItem) => {
     if (profile.gold >= item.cost) {
       setProfile(prev => ({ ...prev, gold: prev.gold - item.cost }));
@@ -1740,177 +1662,6 @@ ${gameContext}`;
     setTimeout(() => setBossFights(prev => prev.filter(b => b.id !== bossId)), 1500);
   };
 
-  const handleUpload = () => {
-    if (!uploadTitle.trim()) return;
-    setIsProcessingUpload(true);
-    showNotification(t.notifications.analysisInitiated, t.notifications.analysisSub, 'processing');
-
-    setTimeout(() => {
-      const partName = `${t.upload.partPrefix} ${uploadTitle.toUpperCase()}`;
-      const newChapters: Chapter[] = [
-        { id: `c-${Date.now()}-1`, title: `${uploadTitle} - ${t.upload.fundamentals}`, part: partName, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: true },
-        { id: `c-${Date.now()}-2`, title: `${uploadTitle} - ${t.upload.advanced}`, part: partName, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-        { id: `c-${Date.now()}-3`, title: `${uploadTitle} - ${t.upload.practical}`, part: partName, isCleared: false, masteryLevel: 0, timeSpentMinutes: 0, unlocked: false },
-      ];
-      setChapters(prev => [...prev.filter(c => c.part !== DungeonPart.BOSS), ...newChapters, ...prev.filter(c => c.part === DungeonPart.BOSS)]);
-      setIsProcessingUpload(false);
-      setShowUploadModal(false);
-      setUploadTitle('');
-      setUploadFile(null);
-      setView('DUNGEON_MAP');
-      showNotification(t.notifications.dungeonGeneratedTitle, t.notifications.dungeonGeneratedSub(uploadTitle), 'levelup');
-    }, 2500);
-  };
-
-  // --- Render Modals ---
-  const renderUploadModal = () => {
-    if (!showUploadModal) return null;
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md animate-fade-in">
-        <div className="bg-system-panel border border-system-blue w-full max-w-lg p-6 rounded-lg shadow-[0_0_50px_rgba(59,130,246,0.3)] relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-system-blue to-transparent animate-slide-in-right"></div>
-
-          <h2 className="text-2xl font-bold font-mono text-system-blue mb-6 flex items-center gap-2">
-            <Brain size={24} /> {t.upload.title}
-          </h2>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-slate-400 font-mono text-sm mb-1">{t.upload.goalLabel}</label>
-              <input
-                type="text"
-                value={uploadTitle}
-                onChange={(e) => setUploadTitle(e.target.value)}
-                placeholder={t.upload.goalPlaceholder}
-                className="w-full bg-slate-900 border border-slate-700 p-3 rounded text-white font-bold focus:border-system-blue outline-none transition-colors"
-                autoFocus
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-400 font-mono text-sm mb-1">{t.upload.materialLabel}</label>
-              <div className="border-2 border-dashed border-slate-700 rounded-lg p-6 flex flex-col items-center justify-center text-slate-500 hover:border-system-blue/50 hover:bg-system-blue/5 transition-all cursor-pointer relative">
-                <input
-                  type="file"
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                  onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
-                />
-                <Upload size={32} className="mb-2" />
-                <span className="text-xs font-mono">{uploadFile ? uploadFile.name : t.upload.dragFile}</span>
-              </div>
-            </div>
-
-            <div className="bg-blue-900/20 p-3 rounded border border-blue-900/50 text-xs text-blue-200 font-mono">
-              <p>{t.upload.hint1}</p>
-              <p>{t.upload.hint2}</p>
-            </div>
-          </div>
-
-          <div className="mt-8 flex gap-3">
-            <button onClick={() => setShowUploadModal(false)} className="flex-1 py-3 border border-slate-700 text-slate-400 hover:text-white rounded font-mono font-bold">
-              {t.upload.cancel}
-            </button>
-            <button
-              onClick={handleUpload}
-              disabled={!uploadTitle || isProcessingUpload}
-              className={`flex-1 py-3 bg-system-blue text-black font-bold rounded font-mono flex items-center justify-center gap-2 hover:shadow-[0_0_20px_#3b82f6] transition-all ${isProcessingUpload ? 'opacity-50 cursor-wait' : ''}`}
-            >
-              {isProcessingUpload ? <Loader className="animate-spin" /> : t.upload.initialize}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderReportModal = () => {
-    if (!showReportModal) return null;
-    const xpNeeded = RANK_THRESHOLDS[HunterRank.S] - profile.currentXp;
-    const daysRemaining = Math.max(0, Math.ceil(xpNeeded / 150));
-    const standing = getGlobalStanding(profile.rank);
-
-    const reportTabs: { key: 'DAILY' | 'WEEKLY' | 'MONTHLY'; label: string }[] = [
-      { key: 'DAILY', label: t.analytics.daily },
-      { key: 'WEEKLY', label: t.analytics.weekly },
-      { key: 'MONTHLY', label: t.analytics.monthly },
-    ];
-
-    const weeklyDataLocalized = MOCK_WEEKLY_DATA.map((d, i) => ({ ...d, day: t.weeklyDays[i] }));
-
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md animate-fade-in p-4">
-        <div className="bg-system-panel border border-slate-600 w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-lg shadow-[0_0_50px_rgba(255,255,255,0.1)] relative">
-          <button onClick={() => setShowReportModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
-            <Check size={24} />
-          </button>
-
-          <div className="p-6">
-            <h2 className="text-2xl font-bold font-mono text-system-blue mb-1 flex items-center gap-2">
-              <BarChart2 size={24} /> {t.analytics.title}
-            </h2>
-            <p className="text-slate-400 text-sm mb-6 font-mono">{t.analytics.subtitle}</p>
-
-            <div className="flex gap-2 mb-6 border-b border-slate-800 pb-2">
-              {reportTabs.map(({ key, label }) => (
-                <button
-                  key={key}
-                  onClick={() => setReportTab(key)}
-                  className={`px-4 py-2 font-mono text-sm font-bold transition-all ${reportTab === key ? 'text-system-blue border-b-2 border-system-blue' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 bg-slate-900/50 p-4 rounded border border-slate-800">
-                <h3 className="text-sm font-bold text-slate-300 mb-4 font-mono">{t.analytics.xpChart}</h3>
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={weeklyDataLocalized}>
-                      <XAxis dataKey="day" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#475569" fontSize={10} tickLine={false} axisLine={false} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }} cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }} />
-                      <Bar dataKey="xp" fill="#3b82f6" radius={[4, 4, 0, 0]}>
-                        {weeklyDataLocalized.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.xp > 400 ? '#60a5fa' : '#1e3a8a'} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="bg-slate-900/50 p-4 rounded border border-slate-800">
-                  <h3 className="text-sm font-bold text-green-400 mb-2 font-mono flex items-center gap-2">
-                    <Activity size={14} /> {t.analytics.prediction}
-                  </h3>
-                  <div className="text-3xl font-bold text-white mb-1">{daysRemaining} {t.analytics.daysUnit}</div>
-                  <p className="text-xs text-slate-400">{t.analytics.estimatedTime}</p>
-                </div>
-
-                <div className="bg-slate-900/50 p-4 rounded border border-slate-800">
-                  <h3 className="text-sm font-bold text-yellow-400 mb-2 font-mono flex items-center gap-2">
-                    <Crown size={14} /> {t.analytics.status}
-                  </h3>
-                  <div className="flex justify-between items-end mb-1">
-                    <span className="text-slate-300 text-xs">{t.analytics.globalRank}</span>
-                    <span className="text-white font-bold">{standing.percentile}</span>
-                  </div>
-                  <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
-                    <div className="h-full bg-yellow-500 w-[85%]"></div>
-                  </div>
-                  <p className="text-[10px] text-slate-500 mt-2 italic">{t.analytics.outperforming}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // --- Views ---
   const renderDashboard = () => (
     <div className="space-y-6 animate-slide-up">
@@ -1981,15 +1732,6 @@ ${gameContext}`;
           </div>
         </div>
       </div>
-
-      {/* Initialize Plan */}
-      <button
-        onClick={() => setShowUploadModal(true)}
-        className="w-full py-4 border-2 border-dashed border-system-blue/50 rounded-lg flex items-center justify-center gap-2 text-system-blue hover:bg-system-blue/10 hover:border-system-blue transition-all group font-mono font-bold"
-      >
-        <Plus size={20} className="group-hover:rotate-90 transition-transform" />
-        {t.dashboard.initPlan}
-      </button>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2393,129 +2135,6 @@ ${gameContext}`;
     );
   };
 
-  const renderDungeonMap = () => {
-    const groupedChapters: { [key: string]: Chapter[] } = {};
-    chapters.forEach(c => {
-      if (!groupedChapters[c.part]) groupedChapters[c.part] = [];
-      groupedChapters[c.part].push(c);
-    });
-
-    return (
-      <div className="space-y-8 animate-slide-in-right">
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold font-mono text-system-blue tracking-widest">{t.dungeon.title}</h2>
-          <p className="text-slate-400 text-sm">{t.dungeon.subtitle}</p>
-        </div>
-
-        {Object.entries(groupedChapters)
-          .filter(([part]) => part !== DungeonPart.BOSS)
-          .map(([part, partChapters]) => (
-            <div key={part} className="space-y-3">
-              <h3 className="text-lg font-bold text-white border-l-4 border-system-blue pl-3 sticky top-16 bg-system-dark/90 backdrop-blur z-20 py-2 shadow-lg">{translatePart(part)}</h3>
-              <div className="grid gap-3">
-                {partChapters.map(chapter => (
-                  <button
-                    key={chapter.id}
-                    disabled={!chapter.unlocked}
-                    onClick={() => startDungeon(chapter.id)}
-                    className={`w-full text-left p-4 rounded-lg border flex justify-between items-center transition-all duration-200 group transform active:scale-[0.99]
-                      ${chapter.isCleared
-                        ? 'bg-shadow-dark border-shadow-purple/50 text-shadow-purple hover:bg-shadow-purple/20 hover:shadow-[0_0_15px_rgba(139,92,246,0.3)]'
-                        : chapter.unlocked
-                          ? 'bg-slate-900 border-red-900/50 hover:border-red-500 hover:bg-red-900/10 hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]'
-                          : 'bg-slate-950 border-slate-800 opacity-50 cursor-not-allowed'}
-                    `}
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs opacity-50">CH {chapter.id}</span>
-                        <h4 className="font-bold">{chapter.title}</h4>
-                      </div>
-                      <div className="text-xs mt-1 font-mono">
-                        {chapter.isCleared ? t.dungeon.statusCleared : chapter.unlocked ? t.dungeon.statusOpen : t.dungeon.statusLocked}
-                      </div>
-                    </div>
-                    <div>
-                      {chapter.isCleared ? <Ghost className="text-shadow-purple" /> : <Sword className={`${chapter.unlocked ? 'text-red-500 group-hover:scale-110 transition-transform duration-300' : 'text-slate-700'}`} />}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-
-        <div className="mt-12 mb-20 border-t border-slate-800 pt-8">
-          <div className={`p-1 rounded-xl bg-gradient-to-r transition-all duration-500 ${chapters.some(c => c.part === DungeonPart.BOSS && c.unlocked) ? 'from-red-500 via-purple-600 to-red-500 animate-pulse-glow shadow-[0_0_30px_rgba(220,38,38,0.4)]' : 'from-slate-800 to-slate-900'}`}>
-            <div className="bg-black rounded-lg p-6 text-center">
-              <h3 className="text-2xl font-bold text-red-500 font-mono tracking-[0.2em] mb-4">{t.dungeon.sRankGate}</h3>
-              {chapters.filter(c => c.part === DungeonPart.BOSS).map(boss => (
-                <button
-                  key={boss.id}
-                  disabled={!boss.unlocked}
-                  onClick={() => startDungeon(boss.id)}
-                  className={`w-full py-4 border-2 font-bold text-lg rounded uppercase tracking-widest transition-all duration-300 active:scale-95
-                    ${boss.unlocked
-                      ? 'border-red-500 bg-red-900/20 text-red-500 hover:bg-red-500 hover:text-white hover:shadow-[0_0_30px_#ef4444]'
-                      : 'border-slate-800 text-slate-600 cursor-not-allowed'}
-                  `}
-                >
-                  {boss.unlocked ? boss.title : t.dungeon.lockedMsg}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderActiveDungeon = () => {
-    const chapter = chapters.find(c => c.id === activeChapterId);
-    if (!chapter) return null;
-    const isBoss = chapter.part === DungeonPart.BOSS;
-
-    return (
-      <div className="h-[calc(100vh-140px)] flex flex-col items-center justify-center space-y-8 animate-zoom-in">
-        <div className="text-center space-y-2">
-          <span className={`font-mono animate-pulse ${isBoss ? 'text-red-500 font-bold text-xl' : 'text-red-500'}`}>
-            {isBoss ? t.dungeon.bossRaid : t.dungeon.monstersDetected}
-          </span>
-          <h2 className="text-3xl font-bold text-white max-w-xs mx-auto leading-tight">{chapter.title.toUpperCase()}</h2>
-          <p className="text-system-blue font-mono">{translatePart(chapter.part)}</p>
-        </div>
-
-        <div className={`w-64 h-64 border-4 rounded-full flex items-center justify-center relative overflow-hidden bg-slate-900 transition-all duration-500
-          ${isBoss ? 'border-red-600 shadow-[0_0_50px_#dc2626]' : 'border-red-500/30 hover:border-red-500/60'}
-        `}>
-          <div className={`absolute inset-0 bg-red-500/10 ${isBoss ? 'animate-ping opacity-20' : 'animate-pulse-glow'}`}></div>
-          {isBoss ? <Crown size={80} className="text-red-600 relative z-10" /> : <Sword size={64} className="text-red-500 relative z-10" />}
-        </div>
-
-        <div className="text-center text-slate-400 text-sm max-w-sm">
-          <p>{isBoss ? t.dungeon.finalExam : t.dungeon.studyTimer}</p>
-          <p>{isBoss ? t.dungeon.conquerSystem : t.dungeon.readMaterials}</p>
-        </div>
-
-        <div className="flex gap-4 w-full max-w-sm">
-          <button
-            onClick={() => finishDungeon(false)}
-            className="flex-1 py-3 border border-slate-600 text-slate-400 hover:bg-slate-800 hover:text-white rounded font-mono uppercase font-bold transition-all duration-200 active:scale-95"
-          >
-            {t.dungeon.retreat}
-          </button>
-          <button
-            onClick={() => finishDungeon(true)}
-            className={`flex-1 py-3 text-black hover:opacity-90 rounded font-mono uppercase font-bold shadow-[0_0_15px_currentColor] transition-all duration-200 active:scale-95
-              ${isBoss ? 'bg-red-600 text-white shadow-red-600 hover:shadow-red-500' : 'bg-system-blue shadow-blue-500 hover:shadow-blue-400'}
-            `}
-          >
-            {isBoss ? t.dungeon.slayBoss : t.dungeon.clearDungeon}
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   const renderShadowArmy = () => {
     const soldiers = profile.shadows ?? [];
     const readySoldiers = soldiers.filter(s => s.status === 'Pronta');
@@ -2691,45 +2310,6 @@ ${gameContext}`;
     );
   };
 
-  const renderShadowReview = () => {
-    const chapter = chapters.find(c => c.id === activeChapterId);
-    if (!chapter) return null;
-    const partLabel = translatePart(chapter.part).split(':')[1]?.trim() || translatePart(chapter.part);
-
-    return (
-      <div className="h-[calc(100vh-140px)] flex flex-col items-center justify-center space-y-6 animate-fade-in">
-        <div className="w-full max-w-md bg-slate-900 border border-shadow-purple p-8 rounded-lg shadow-[0_0_30px_rgba(139,92,246,0.2)] text-center relative hover:shadow-[0_0_40px_rgba(139,92,246,0.3)] transition-shadow duration-500">
-          <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-shadow-purple text-black font-bold px-4 py-1 rounded-full text-sm font-mono animate-bounce">
-            {t.shadows.reviewMode}
-          </div>
-          <Ghost size={48} className="mx-auto mb-4 text-shadow-purple" />
-          <h3 className="text-xl font-bold mb-2">{chapter.title}</h3>
-          <p className="text-slate-400 text-sm mb-6">"{t.shadows.reviewQuote} {partLabel}."</p>
-
-          <div className="bg-black/30 p-4 rounded text-left mb-6 font-mono text-xs text-green-400">
-            {t.shadows.dbAccess}<br />
-            {t.shadows.dbRetrieve}<br />
-            {t.shadows.dbTopic} {chapter.title}<br />
-            {t.shadows.dbStatus}
-          </div>
-
-          <button
-            onClick={completeShadowReview}
-            className="w-full py-3 bg-shadow-purple text-white font-bold rounded hover:bg-purple-600 hover:shadow-[0_0_20px_rgba(147,51,234,0.5)] transition-all duration-300 flex items-center justify-center gap-2 active:scale-95"
-          >
-            <RotateCw size={18} /> {t.shadows.completeReview}
-          </button>
-          <button
-            onClick={() => { setView('SHADOW_ARMY'); setActiveChapterId(null); }}
-            className="mt-4 text-slate-500 hover:text-white text-sm transition-colors"
-          >
-            {t.shadows.dismiss}
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   const renderShop = () => (
     <div className="space-y-6 animate-slide-up">
       <div className="text-center mb-6">
@@ -2759,84 +2339,6 @@ ${gameContext}`;
             </button>
           </div>
         ))}
-      </div>
-    </div>
-  );
-
-  const renderLifestyleControl = () => (
-    <div className="space-y-6 animate-slide-up">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold font-mono text-green-500 tracking-widest">{t.lifestyle.title}</h2>
-        <p className="text-slate-400 text-sm">{t.lifestyle.subtitle}</p>
-      </div>
-
-      <div className="bg-system-panel border border-slate-700 p-4 rounded-lg">
-        <div className="flex gap-2 mb-4">
-          <input
-            type="text"
-            value={newHabitTitle}
-            onChange={(e) => setNewHabitTitle(e.target.value)}
-            placeholder={t.lifestyle.addPlaceholder}
-            className="flex-1 bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white outline-none focus:border-green-500 font-mono text-sm"
-            onKeyDown={(e) => e.key === 'Enter' && addNewHabit()}
-          />
-          <button onClick={addNewHabit} className="bg-green-600 hover:bg-green-500 text-white px-3 rounded">
-            <Plus size={20} />
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {habits.map(habit => (
-            <div
-              key={habit.id}
-              className={`p-4 border rounded-lg flex items-center justify-between transition-all group
-                ${habit.isCompleted ? 'bg-slate-900/50 border-slate-800 opacity-60' : 'bg-slate-900 border-slate-700 hover:border-green-500/50'}
-              `}
-            >
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="p-2 rounded-full bg-blue-500/20 text-blue-400 shrink-0">
-                  <Sword size={16} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  {editingHabitId === habit.id ? (
-                    <input
-                      autoFocus
-                      value={editingHabitTitle}
-                      onChange={e => setEditingHabitTitle(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') saveHabitTitle(habit.id); if (e.key === 'Escape') setEditingHabitId(null); }}
-                      onBlur={() => saveHabitTitle(habit.id)}
-                      className="w-full bg-slate-800 border border-system-blue/50 rounded px-2 py-0.5 text-white text-sm font-bold outline-none"
-                    />
-                  ) : (
-                    <div className="flex items-center gap-1.5">
-                      <h4 className={`font-bold truncate ${habit.isCompleted ? 'line-through text-slate-500' : 'text-white'}`}>{habit.title}</h4>
-                      {!habit.isCompleted && (
-                        <button
-                          onClick={() => { setEditingHabitId(habit.id); setEditingHabitTitle(habit.title); }}
-                          className="text-slate-600 hover:text-system-blue transition-colors shrink-0"
-                        >
-                          <Edit3 size={11} />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <p className="text-[10px] text-slate-500 font-mono">{t.lifestyle.streakLabel} {habit.streak} {t.lifestyle.streakUnit}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => toggleHabit(habit.id)}
-                disabled={habit.isCompleted}
-                className={`w-10 h-10 rounded border flex items-center justify-center transition-all shrink-0
-                  ${habit.isCompleted
-                    ? 'bg-slate-800 border-slate-700 text-slate-500'
-                    : 'bg-slate-950 border-slate-600 hover:bg-green-500/20 hover:border-green-500 hover:text-green-500 text-slate-400'}
-                `}
-              >
-                {habit.isCompleted ? <Check size={20} /> : <div className="w-3 h-3 rounded-sm border border-current"></div>}
-              </button>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );
@@ -3728,9 +3230,6 @@ ${gameContext}`;
         />
       )}
 
-      {renderUploadModal()}
-      {renderReportModal()}
-
       {/* Top Bar */}
       <header className="sticky top-0 z-30 bg-system-dark/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex justify-between items-center shadow-md">
         <div className="flex items-center gap-2">
@@ -3779,9 +3278,7 @@ ${gameContext}`;
         {view === 'DASHBOARD' && renderDashboard()}
         {view === 'IDENTITY' && renderIdentity()}
         {view === 'SHADOW_ARMY' && renderShadowArmy()}
-        {view === 'SHADOW_REVIEW' && renderShadowReview()}
         {view === 'SHOP' && renderShop()}
-        {view === 'LIFESTYLE' && renderLifestyleControl()}
         {view === 'MISSIONS' && renderMissions()}
         {view === 'SETTINGS' && renderSettings()}
       </main>
@@ -3996,7 +3493,7 @@ ${gameContext}`;
           <NavButton active={view === 'IDENTITY'} onClick={() => setView('IDENTITY')} icon={<User size={18} />} label={t.nav.identity} />
           <NavButton active={view === 'MISSIONS'} onClick={() => setView('MISSIONS')} icon={<Target size={18} />} label={t.nav.missions} />
           <NavButton active={view === 'SHOP'} onClick={() => setView('SHOP')} icon={<ShoppingBag size={18} />} label={t.nav.store} />
-          <NavButton active={view === 'SHADOW_ARMY' || view === 'SHADOW_REVIEW'} onClick={() => setView('SHADOW_ARMY')} icon={<Ghost size={18} />} label={t.nav.shadows} />
+          <NavButton active={view === 'SHADOW_ARMY'} onClick={() => setView('SHADOW_ARMY')} icon={<Ghost size={18} />} label={t.nav.shadows} />
           <NavButton active={view === 'SETTINGS'} onClick={() => setView('SETTINGS')} icon={<Settings size={18} />} label={t.nav.settings} />
         </div>
       </nav>
@@ -4015,12 +3512,6 @@ const NavButton: React.FC<{ active: boolean; onClick: () => void; icon: React.Re
     <span className="text-[9px] sm:text-[10px] font-bold tracking-wider font-mono">{label}</span>
     {active && <span className="absolute bottom-0 w-8 h-0.5 bg-system-blue rounded-t-full shadow-[0_0_8px_#3b82f6] animate-pulse"></span>}
   </button>
-);
-
-const CheckMark = () => (
-  <svg className="w-4 h-4 text-green-500 inline-block ml-1 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-  </svg>
 );
 
 export default App;
