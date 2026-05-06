@@ -247,19 +247,12 @@ Deno.serve(async (req) => {
           .eq('generated_date', today)
           .maybeSingle();
 
-        // When force=true: clear today's missions so we can deliver fresh ones for testing
-        if (forceRun && existingRow) {
-          await supabase.from('daily_bonus_missions')
-            .delete()
-            .eq('user_id', p.id)
-            .eq('generated_date', today);
-        }
-
-        const deliveredMissions: any[] = forceRun ? [] : (existingRow?.missions ?? []);
+        const deliveredMissions: any[] = existingRow?.missions ?? [];
         const deliveredCount = deliveredMissions.length;
 
-        const isSlot1 = forceRun || (currentHour === targetHour1 && deliveredCount === 0);
-        const isSlot2 = !forceRun && (currentHour === targetHour2 && missionCount === 2 && deliveredCount === 1);
+        // force=true: accumulate up to 2 missions (slot1 if 0, slot2 if 1, skip if 2)
+        const isSlot1 = forceRun ? deliveredCount === 0 : (currentHour === targetHour1 && deliveredCount === 0);
+        const isSlot2 = forceRun ? deliveredCount === 1 : (currentHour === targetHour2 && missionCount === 2 && deliveredCount === 1);
 
         if (!isSlot1 && !isSlot2) continue; // not this user's delivery hour
 

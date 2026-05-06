@@ -3308,9 +3308,20 @@ ${gameContext}`;
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <p className={`font-bold text-sm leading-tight ${habit.isCompleted ? 'line-through text-slate-500' : 'text-white'}`}>
-                        {habit.title}
-                      </p>
+                      {editingHabitId === habit.id ? (
+                        <input
+                          autoFocus
+                          value={editingHabitTitle}
+                          onChange={e => setEditingHabitTitle(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveHabitTitle(habit.id); if (e.key === 'Escape') setEditingHabitId(null); }}
+                          onBlur={() => saveHabitTitle(habit.id)}
+                          className="w-full bg-slate-800 border border-system-blue/50 rounded px-2 py-0.5 text-white text-sm font-bold outline-none"
+                        />
+                      ) : (
+                        <p className={`font-bold text-sm leading-tight ${habit.isCompleted ? 'line-through text-slate-500' : 'text-white'}`}>
+                          {habit.title}
+                        </p>
+                      )}
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-[10px] font-mono text-slate-500">{getRepeatLabel(habit)}</span>
                         {!active && (
@@ -3325,6 +3336,11 @@ ${gameContext}`;
                         <span className="text-[10px] font-mono text-yellow-500 flex items-center gap-0.5">
                           <Zap size={9} fill="currentColor" />{habit.streak}
                         </span>
+                      )}
+                      {!habit.isCompleted && editingHabitId !== habit.id && (
+                        <button onClick={() => { setEditingHabitId(habit.id); setEditingHabitTitle(habit.title); }} className="text-slate-700 hover:text-system-blue transition-colors p-0.5">
+                          <Edit3 size={12} />
+                        </button>
                       )}
                       {confirmDeleteHabitId === habit.id ? (
                         <>
