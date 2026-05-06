@@ -677,15 +677,13 @@ const App: React.FC = () => {
         table: 'daily_bonus_missions',
         filter: `user_id=eq.${session.user.id}`,
       }, (payload) => {
-        const incoming = (payload.new as { missions?: BonusMission[] })?.missions;
-        if (!incoming?.length) return;
-        const today = toDateStr(new Date());
-        const todayMissions = incoming.filter((m: BonusMission) => m.generatedDate === today);
-        if (!todayMissions.length) return;
-        // Show popup only for missions not yet seen (supports individual delivery)
+        if (payload.eventType === 'DELETE') return;
+        const incoming: BonusMission[] = (payload.new as { missions?: BonusMission[] })?.missions ?? [];
+        if (!incoming.length) return;
+        // Compare by ID only — avoids UTC vs local date mismatch
         const knownIds = new Set(bonusMissionsRef.current.map(m => m.id));
-        const newOnly = todayMissions.filter(m => !knownIds.has(m.id));
-        setBonusMissions(todayMissions);
+        const newOnly = incoming.filter(m => !knownIds.has(m.id));
+        setBonusMissions(incoming);
         if (newOnly.length > 0) setIncomingBonusPopup(newOnly);
       })
       .subscribe();
@@ -2810,12 +2808,12 @@ ${gameContext}`;
                       className="w-full bg-slate-800 border border-system-blue/50 rounded px-2 py-0.5 text-white text-sm font-bold outline-none"
                     />
                   ) : (
-                    <div className="flex items-center gap-1.5 group/title">
+                    <div className="flex items-center gap-1.5">
                       <h4 className={`font-bold truncate ${habit.isCompleted ? 'line-through text-slate-500' : 'text-white'}`}>{habit.title}</h4>
                       {!habit.isCompleted && (
                         <button
                           onClick={() => { setEditingHabitId(habit.id); setEditingHabitTitle(habit.title); }}
-                          className="opacity-0 group-hover/title:opacity-100 text-slate-500 hover:text-system-blue transition-all shrink-0"
+                          className="text-slate-600 hover:text-system-blue transition-colors shrink-0"
                         >
                           <Edit3 size={11} />
                         </button>
@@ -3406,8 +3404,16 @@ ${gameContext}`;
                         {m.description && !m.isCompleted && (
                           <p className="text-[11px] text-yellow-200/50 mt-0.5 leading-snug">{m.description}</p>
                         )}
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           <span className="text-[10px] font-mono text-yellow-600/70">+{m.rewardXp} XP · +{m.rewardGold} Gold</span>
+                          {(() => {
+                            const now = new Date();
+                            const midnight = new Date(now); midnight.setHours(24, 0, 0, 0);
+                            const ms = midnight.getTime() - now.getTime();
+                            const h = Math.floor(ms / 3600000);
+                            const min = Math.floor((ms % 3600000) / 60000);
+                            return <span className="text-[10px] font-mono text-slate-500">⏳ {h}h {min}min</span>;
+                          })()}
                         </div>
                       </div>
                       {!m.isCompleted && (

@@ -195,8 +195,10 @@ Deno.serve(async (req) => {
     const vapidSub  = Deno.env.get('VAPID_SUBJECT')!;
 
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const currentHour = now.getUTCHours();
+    // Use BRT (UTC-3) so server dates match client local dates in Brazil
+    const brtNow = new Date(now.getTime() - 3 * 3600000);
+    const today = brtNow.toISOString().split('T')[0];
+    const currentHour = brtNow.getUTCHours(); // hours in BRT (0-23)
 
     // ?force=true bypasses hour check (for testing only)
     const url = new URL(req.url);
@@ -232,10 +234,10 @@ Deno.serve(async (req) => {
         // 1 or 2 missions today
         const missionCount = (h % 2) === 0 ? 1 : 2;
 
-        // Two independent target hours — 10-19 UTC = 7-16 BRT (UTC-3)
-        const targetHour1 = 10 + (h % 10);
-        const raw2        = 10 + ((h * 7 + 13) % 10);
-        const targetHour2 = raw2 === targetHour1 ? 10 + ((raw2 - 10 + 5) % 10) : raw2;
+        // Two independent target hours in BRT (7-16)
+        const targetHour1 = 7 + (h % 10);
+        const raw2        = 7 + ((h * 7 + 13) % 10);
+        const targetHour2 = raw2 === targetHour1 ? 7 + ((raw2 - 7 + 5) % 10) : raw2;
 
         // Check how many missions already delivered today
         const { data: existingRow } = await supabase
