@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Type, type Blob as GenAIBlob, type FunctionResponse } from '@google/genai';
 import type { Session } from '@supabase/supabase-js';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+  LineChart, Line, PieChart, Pie
 } from 'recharts';
 import {
   Shield, Sword, User, Zap,
@@ -1282,6 +1283,17 @@ ${gameContext}`;
           addXp(30);
           addGold(20);
           showNotification(t.notifications.protocolAdhered, `${h.title} (+30 XP)`, 'shield');
+          // Record daily completion for weekly tracking chart
+          const historyDate = toDateStr(new Date());
+          setProfile(pp => {
+            const hist = pp.weeklyHistory ?? [];
+            const existing = hist.find(e => e.date === historyDate);
+            const updated = existing
+              ? hist.map(e => e.date === historyDate ? { ...e, completed: e.completed + 1 } : e)
+              : [...hist, { date: historyDate, completed: 1 }];
+            const cutoffStr = toDateStr(new Date(Date.now() - 6 * 86400000));
+            return { ...pp, weeklyHistory: updated.filter(e => e.date >= cutoffStr) };
+          });
           // Monarch's Blessing — reduce all active shadow timers by 30 minutes
           const BLESSING_MS = 1800000;
           setProfile(pp => {
@@ -1663,109 +1675,445 @@ ${gameContext}`;
   };
 
   // --- Views ---
-  const renderDashboard = () => (
-    <div className="space-y-6 animate-slide-up">
-      {/* Daily Quote */}
-      <div className="bg-gradient-to-r from-slate-900 to-system-panel border border-system-blue/30 rounded-lg p-4 relative overflow-hidden shadow-lg group">
-        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-          <Quote size={64} />
-        </div>
-        <div className="flex items-start gap-3 relative z-10">
-          <div className="bg-system-blue/20 p-2 rounded-full text-system-blue">
-            <Quote size={20} />
-          </div>
-          <div>
-            <h3 className="text-system-blue font-mono font-bold text-xs uppercase tracking-widest mb-1">{t.dashboard.systemMessage}</h3>
-            <p className="text-white font-serif italic text-lg leading-relaxed">"{dailyQuote.text}"</p>
-            <p className="text-slate-500 text-xs font-mono mt-2 text-right">- {dailyQuote.author}</p>
-          </div>
-        </div>
-      </div>
+  const renderDashboard = () => {
+    const hour = new Date().getHours();
+    const greetingWord = hour < 12 ? t.dashboard.goodMorning : hour < 18 ? t.dashboard.goodAfternoon : t.dashboard.goodEvening;
+    const rankColor = RANK_COLORS[profile.rank];
+    const level = Math.floor(profile.currentXp / 100) + 1;
+    const levelXpPct = profile.currentXp % 100;
+    const rankXpPct = getXpProgress(profile.currentXp, profile.rank);
 
-      {/* Profile Card */}
-      <div className="bg-system-panel border border-system-border p-6 rounded-lg relative overflow-hidden shadow-lg transform transition-all hover:scale-[1.01]">
-        <div className="absolute top-0 right-0 p-2 opacity-20">
-          <Shield size={100} />
+    const todayHabits = habits.filter(h => isTodayActive(h) && h.repeatType !== 'oneTime');
+    const completedToday = todayHabits.filter(h => h.isCompleted).length;
+    const todayProgress = todayHabits.length > 0 ? (completedToday / todayHabits.length) * 100 : 0;
+
+    const chartData = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(Date.now() - (6 - i) * 86400000);
+      const dateStr = toDateStr(d);
+      const label = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d.getDay()];
+      const entry = (profile.weeklyHistory ?? []).find(e => e.date === dateStr);
+      return { day: label, completed: entry?.completed ?? 0 };
+    });
+
+    const NEON_PIE = ['#00d4ff', '#ff0070', '#00ff88', '#ff8c00', '#bf00ff', '#ffee00', '#ff3366', '#00ffdd'];
+    const habitsWithStreak = habits.filter(h => h.streak > 0);
+    const totalStreak = habitsWithStreak.reduce((sum, h) => sum + h.streak, 0);
+    const pieData = habitsWithStreak.map((h, i) => ({
+      name: h.title,
+      value: h.streak,
+      pct: totalStreak > 0 ? Math.round((h.streak / totalStreak) * 100) : 0,
+      color: NEON_PIE[i % NEON_PIE.length],
+    }));
+
+    const totalPower = profile.customStats.reduce((sum, s) => sum + s.value, 0);
+
+    return (
+      <div className="space-y-5 animate-slide-up">
+
+        {/* ── Greeting ── */}
+        <div className="px-1 pt-1">
+          <p className="text-slate-500 text-[10px] font-mono uppercase tracking-[0.3em]">{greetingWord},</p>
+          <h2 className="text-2xl font-black font-mono tracking-wider mt-0.5">
+            {t.dashboard.hunter} {profile.name.toUpperCase()}
+          </h2>
         </div>
-        <div className="flex items-center space-x-4 mb-4">
-          <div className="w-16 h-16 bg-system-blue rounded-full flex items-center justify-center text-black font-bold text-3xl ring-4 ring-system-blue/30 animate-pulse-glow">
-            {profile.rank}
-          </div>
-          <div className="flex-1">
-            {isEditingName ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={tempName}
-                  onChange={(e) => setTempName(e.target.value)}
-                  className="bg-slate-800 text-white font-mono font-bold text-lg px-2 py-1 rounded border border-system-blue outline-none w-full"
-                  autoFocus
-                  onBlur={saveName}
-                  onKeyDown={(e) => e.key === 'Enter' && saveName()}
-                />
-                <button onClick={saveName} className="text-green-500"><Check size={20} /></button>
+
+        {/* ── Profile Card ── */}
+        <motion.div
+          className="relative font-mono overflow-hidden"
+          style={{
+            background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+            border: `1px solid ${rankColor}50`,
+            boxShadow: `0 0 0 1px ${rankColor}0c, 0 0 40px ${rankColor}14, inset 0 0 30px ${rankColor}05`,
+            borderRadius: '12px',
+          }}
+          animate={{
+            x: [0, -0.5, 0.5, 0, 0, 0, -0.5, 1, 0],
+            filter: [
+              'none',
+              `drop-shadow(1.5px 0 ${rankColor}35) drop-shadow(-1.5px 0 rgba(255,0,80,0.12))`,
+              'none', 'none', 'none', 'none',
+              `drop-shadow(1px 0 ${rankColor}22)`,
+              'none',
+            ],
+          }}
+          transition={{ repeat: Infinity, duration: 9, ease: 'linear', delay: 4 }}
+        >
+          {/* Corner accents */}
+          {(['top-0 left-0 border-t border-l', 'top-0 right-0 border-t border-r', 'bottom-0 left-0 border-b border-l', 'bottom-0 right-0 border-b border-r'] as const).map((cls, i) => (
+            <div key={i} className={`absolute w-3 h-3 ${cls}`} style={{ borderColor: `${rankColor}80` }} />
+          ))}
+          {/* Scan line */}
+          <motion.div
+            className="absolute left-0 right-0 h-px pointer-events-none z-10"
+            style={{ background: `linear-gradient(90deg, transparent, ${rankColor}55, transparent)` }}
+            animate={{ top: ['0%', '100%', '0%'] }}
+            transition={{ repeat: Infinity, duration: 5, ease: 'linear' }}
+          />
+
+          <div className="p-4 relative z-0">
+            {/* Avatar + Name row */}
+            <div className="flex items-center gap-4 mb-4">
+              {/* Avatar */}
+              <div className="relative shrink-0 cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
+                <div
+                  className="w-[70px] h-[70px] rounded-full overflow-hidden flex items-center justify-center"
+                  style={{
+                    border: `2px solid ${rankColor}`,
+                    boxShadow: `0 0 22px ${rankColor}55, 0 0 44px ${rankColor}20, inset 0 0 18px ${rankColor}10`,
+                  }}
+                >
+                  {profile.avatarUrl ? (
+                    <img src={profile.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <div
+                      className="w-full h-full flex items-center justify-center font-black text-3xl"
+                      style={{
+                        background: `radial-gradient(ellipse at center, ${rankColor}22 0%, rgba(3,6,22,0.9) 100%)`,
+                        color: rankColor,
+                        textShadow: `0 0 20px ${rankColor}, 0 0 40px ${rankColor}88`,
+                      }}
+                    >
+                      {profile.rank}
+                    </div>
+                  )}
+                </div>
+                {/* Rank badge — hex shape */}
+                <div
+                  className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[8px] font-black tracking-[0.18em] px-2.5 py-0.5 whitespace-nowrap"
+                  style={{
+                    background: rankColor,
+                    color: '#04060f',
+                    clipPath: 'polygon(8px 0%, calc(100% - 8px) 0%, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0% 50%)',
+                  }}
+                >
+                  {profile.rank}
+                </div>
               </div>
+
+              {/* Name + meta */}
+              <div className="flex-1 min-w-0">
+                {isEditingName ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={tempName}
+                      onChange={(e) => setTempName(e.target.value)}
+                      className="bg-slate-900/80 text-white font-mono font-bold text-base px-2 py-1 rounded border outline-none w-full"
+                      style={{ borderColor: `${rankColor}60` }}
+                      autoFocus
+                      onBlur={saveName}
+                      onKeyDown={(e) => e.key === 'Enter' && saveName()}
+                    />
+                    <button onClick={saveName} className="text-green-500 shrink-0"><Check size={18} /></button>
+                  </div>
+                ) : (
+                  <div className="group cursor-pointer" onClick={() => { setTempName(profile.name); setIsEditingName(true); }}>
+                    <div className="flex items-center gap-2">
+                      <h3
+                        className="text-base font-black tracking-wider truncate"
+                        style={{ color: '#fff', textShadow: `0 0 14px ${rankColor}55` }}
+                      >
+                        {profile.name.toUpperCase()}
+                      </h3>
+                      <Edit3 size={11} className="text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                    </div>
+                  </div>
+                )}
+                <motion.p
+                  className="text-[9px] tracking-[0.35em] uppercase mt-1"
+                  animate={{ opacity: [0.35, 0.65, 0.35] }}
+                  transition={{ repeat: Infinity, duration: 3.5 }}
+                  style={{ color: `${rankColor}` }}
+                >
+                  {t.dashboard.navigatorSystem}
+                </motion.p>
+                <div className="flex items-center gap-1.5 mt-2.5">
+                  <Coins size={11} style={{ color: '#facc15', filter: 'drop-shadow(0 0 5px #facc15aa)' }} />
+                  <span
+                    className="text-sm font-black tracking-wider"
+                    style={{ color: '#facc15', textShadow: '0 0 10px rgba(250,204,21,0.55)' }}
+                  >
+                    {profile.gold.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div
+              className="mb-4 h-px"
+              style={{ background: `linear-gradient(90deg, transparent, ${rankColor}40, transparent)` }}
+            />
+
+            {/* XP Bars */}
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between items-center text-[9px] tracking-[0.2em] uppercase mb-1.5">
+                  <span style={{ color: `${rankColor}99` }}>{t.dashboard.rankProgress}</span>
+                  <span style={{ color: rankColor, textShadow: `0 0 8px ${rankColor}` }}>{Math.round(rankXpPct)}%</span>
+                </div>
+                <div
+                  className="h-1.5 rounded-sm overflow-hidden"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${rankColor}18` }}
+                >
+                  <motion.div
+                    className="h-full rounded-sm"
+                    style={{ background: `linear-gradient(90deg, ${rankColor}70, ${rankColor})`, boxShadow: `0 0 10px ${rankColor}` }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${rankXpPct}%` }}
+                    transition={{ duration: 1.2, ease: 'easeOut' }}
+                  />
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between items-center text-[9px] tracking-[0.2em] uppercase mb-1.5">
+                  <span style={{ color: 'rgba(147,197,253,0.55)' }}>{t.dashboard.levelProgress}</span>
+                  <span style={{ color: '#93c5fd', textShadow: '0 0 8px rgba(147,197,253,0.7)' }}>{levelXpPct}%</span>
+                </div>
+                <div
+                  className="h-1.5 rounded-sm overflow-hidden"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(59,130,246,0.18)' }}
+                >
+                  <motion.div
+                    className="h-full rounded-sm"
+                    style={{ background: 'linear-gradient(90deg, rgba(59,130,246,0.65), #3b82f6)', boxShadow: '0 0 10px rgba(59,130,246,0.8)' }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${levelXpPct}%` }}
+                    transition={{ duration: 1.2, ease: 'easeOut', delay: 0.2 }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ── Today's Missions ── */}
+        <div className="bg-system-panel border border-system-border rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-system-blue font-mono text-xs uppercase tracking-widest flex items-center gap-2">
+              <Target size={13} /> {t.dashboard.todaysMissions}
+            </h3>
+            <span className="text-xs font-mono text-slate-400">{completedToday}/{todayHabits.length}</span>
+          </div>
+          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mb-3">
+            <div
+              className="h-full bg-system-blue rounded-full transition-all duration-500 shadow-[0_0_6px_#3b82f6]"
+              style={{ width: `${todayProgress}%` }}
+            />
+          </div>
+          <div className="space-y-1.5">
+            {todayHabits.length === 0 ? (
+              <p className="text-slate-500 text-xs font-mono text-center py-3">{t.missions.noTasks}</p>
             ) : (
-              <div className="flex items-center gap-2 group cursor-pointer" onClick={() => { setTempName(profile.name); setIsEditingName(true); }}>
-                <h2 className="text-xl font-bold font-mono tracking-wider">{t.dashboard.hunter} {profile.name.toUpperCase()}</h2>
-                <Edit3 size={14} className="text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+              todayHabits.map(habit => (
+                <button
+                  key={habit.id}
+                  onClick={() => !habit.isCompleted && toggleHabit(habit.id)}
+                  className={`w-full flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition-all ${
+                    habit.isCompleted
+                      ? 'bg-green-500/10 border-green-500/25 cursor-default'
+                      : 'bg-slate-900/50 border-slate-700 hover:border-system-blue/50 hover:bg-slate-800 active:scale-[0.99]'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+                    habit.isCompleted ? 'bg-green-500 border-green-500' : 'border-slate-600'
+                  }`}>
+                    {habit.isCompleted && <Check size={10} className="text-black" />}
+                  </div>
+                  <span className={`text-sm font-mono flex-1 ${habit.isCompleted ? 'line-through text-slate-500' : 'text-white'}`}>
+                    {habit.title}
+                  </span>
+                  {habit.streak > 0 && (
+                    <span className="text-[10px] font-mono text-orange-400 flex-shrink-0">🔥 {habit.streak}</span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* ── Weekly Tracking ── */}
+        <div className="bg-system-panel border border-system-border rounded-xl p-4">
+          <h3 className="text-system-blue font-mono text-xs uppercase tracking-widest flex items-center gap-2 mb-3">
+            <Activity size={13} /> {t.dashboard.weeklyTracking}
+          </h3>
+          <ResponsiveContainer width="100%" height={110}>
+            <LineChart data={chartData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+              <XAxis
+                dataKey="day"
+                tick={{ fill: '#475569', fontSize: 9, fontFamily: 'monospace' }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis hide allowDecimals={false} />
+              <Tooltip
+                contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontFamily: 'monospace', fontSize: 11 }}
+                labelStyle={{ color: '#64748b' }}
+                itemStyle={{ color: '#3b82f6' }}
+                formatter={(v: number) => [v, '']}
+              />
+              <Line
+                type="monotone"
+                dataKey="completed"
+                stroke="#3b82f6"
+                strokeWidth={2}
+                dot={{ fill: '#3b82f6', r: 3, strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: '#60a5fa' }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* ── Habit Fidelity ── */}
+        <div
+          className="relative overflow-hidden font-mono"
+          style={{
+            background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+            border: '1px solid rgba(59,130,246,0.30)',
+            boxShadow: '0 0 0 1px rgba(59,130,246,0.07), 0 0 30px rgba(59,130,246,0.08), inset 0 0 20px rgba(59,130,246,0.04)',
+            borderRadius: '12px',
+          }}
+        >
+          {/* Corner accents */}
+          {(['top-0 left-0 border-t border-l', 'top-0 right-0 border-t border-r', 'bottom-0 left-0 border-b border-l', 'bottom-0 right-0 border-b border-r'] as const).map((cls, i) => (
+            <div key={i} className={`absolute w-2.5 h-2.5 ${cls} border-blue-500/40`} />
+          ))}
+          {/* Slow scan line */}
+          <motion.div
+            className="absolute left-0 right-0 h-px pointer-events-none z-10"
+            style={{ background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.4), transparent)' }}
+            animate={{ top: ['0%', '100%', '0%'] }}
+            transition={{ repeat: Infinity, duration: 7, ease: 'linear' }}
+          />
+
+          <div className="p-4 relative z-0">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[9px] tracking-[0.4em] uppercase" style={{ color: 'rgba(147,197,253,0.55)' }}>
+                {t.dashboard.habitFidelity}
+              </p>
+              <Zap size={11} style={{ color: 'rgba(147,197,253,0.4)' }} />
+            </div>
+
+            {pieData.length === 0 ? (
+              <p
+                className="text-[10px] tracking-widest text-center py-6"
+                style={{ color: 'rgba(147,197,253,0.25)' }}
+              >
+                {t.dashboard.noHabitStreaks}
+              </p>
+            ) : (
+              <div className="flex items-center gap-5">
+                <div className="shrink-0">
+                  <ResponsiveContainer width={115} height={115}>
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={32}
+                        outerRadius={54}
+                        dataKey="value"
+                        paddingAngle={3}
+                        strokeWidth={0}
+                      >
+                        {pieData.map((entry, i) => (
+                          <Cell
+                            key={i}
+                            fill={entry.color}
+                            style={{ filter: `drop-shadow(0 0 6px ${entry.color})` }}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          background: 'rgba(3,6,22,0.97)',
+                          border: '1px solid rgba(59,130,246,0.35)',
+                          borderRadius: 6,
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                        }}
+                        formatter={(_v: number, _name: string, props: { payload?: { name: string; pct: number } }) =>
+                          [`${props.payload?.pct ?? 0}%`, props.payload?.name ?? '']
+                        }
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="flex-1 space-y-2.5 min-w-0">
+                  {pieData.map((entry, i) => (
+                    <div key={i} className="flex items-center gap-2.5">
+                      <div
+                        className="w-1 h-5 rounded-sm shrink-0"
+                        style={{ background: entry.color, boxShadow: `0 0 7px ${entry.color}` }}
+                      />
+                      <span className="text-[11px] text-slate-400 flex-1 truncate tracking-wide">{entry.name}</span>
+                      <span
+                        className="text-xs font-black shrink-0 tracking-wider"
+                        style={{ color: entry.color, textShadow: `0 0 8px ${entry.color}` }}
+                      >
+                        {entry.pct}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
-            <p className="text-sm text-slate-400">{t.dashboard.navigatorSystem}</p>
           </div>
         </div>
 
-        <div className="mt-2">
-          <div className="flex justify-between text-xs text-system-blue font-mono mb-1">
-            <span>{t.dashboard.xp}</span>
-            <span>
-              {getNextRankXp(profile.rank) !== null
-                ? `${profile.currentXp} / ${getNextRankXp(profile.rank)}`
-                : t.identity.xpMax}
-            </span>
+        {/* ── Radar + Attributes ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-system-panel border border-system-border p-4 rounded-xl hover:border-system-blue/30 transition-colors">
+            <h3 className="text-system-blue font-mono text-xs mb-3 border-b border-slate-800 pb-2 flex items-center gap-2">
+              <Activity size={13} /> {t.dashboard.parameters}
+            </h3>
+            <StatRadar customStats={profile.customStats} />
           </div>
-          <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-system-blue shadow-[0_0_10px_#3b82f6] transition-all duration-1000 ease-out"
-              style={{ width: `${getXpProgress(profile.currentXp, profile.rank)}%` }}
-            ></div>
+          <div className="bg-system-panel border border-system-border p-4 rounded-xl flex flex-col justify-between">
+            <div className="space-y-2 flex-1">
+              {profile.customStats.map(stat => (
+                <div
+                  key={stat.id}
+                  className="flex items-center justify-between p-2 bg-slate-900/50 rounded-lg border border-slate-800 hover:bg-slate-800 transition-colors"
+                >
+                  <span className="flex items-center gap-2 font-mono text-sm" style={{ color: stat.color }}>
+                    {stat.emoji} {stat.name}
+                  </span>
+                  <span className="text-xl font-bold">{stat.value}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
+              <span className="text-xs font-mono text-slate-400 flex items-center gap-1">
+                <Zap size={12} /> {t.dashboard.totalPower}
+              </span>
+              <span className="text-lg font-bold text-system-blue">{totalPower}</span>
+            </div>
           </div>
         </div>
+
+        {/* ── System Quote ── */}
+        <div className="bg-gradient-to-r from-slate-900 to-system-panel border border-system-blue/20 rounded-xl p-4 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+            <Quote size={56} />
+          </div>
+          <div className="flex items-start gap-3 relative z-10">
+            <div className="bg-system-blue/20 p-2 rounded-full text-system-blue shrink-0">
+              <Quote size={16} />
+            </div>
+            <div>
+              <h3 className="text-system-blue font-mono font-bold text-[10px] uppercase tracking-widest mb-1">{t.dashboard.systemMessage}</h3>
+              <p className="text-white font-serif italic text-base leading-relaxed">"{dailyQuote.text}"</p>
+              <p className="text-slate-500 text-xs font-mono mt-1.5 text-right">- {dailyQuote.author}</p>
+            </div>
+          </div>
+        </div>
+
       </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-system-panel border border-system-border p-4 rounded-lg hover:border-system-blue/30 transition-colors">
-          <h3 className="text-system-blue font-mono text-sm mb-4 border-b border-slate-800 pb-2 flex items-center gap-2">
-            <Activity size={16} /> {t.dashboard.parameters}
-          </h3>
-          <StatRadar customStats={profile.customStats} />
-        </div>
-
-        <div className="bg-system-panel border border-system-border p-4 rounded-lg flex flex-col justify-between">
-          <div className="space-y-2 flex-1">
-            {profile.customStats.map(stat => (
-              <div key={stat.id} className="flex items-center justify-between p-2 bg-slate-900/50 rounded border border-slate-800 hover:bg-slate-800 transition-colors">
-                <span className="flex items-center gap-2 font-mono text-sm" style={{ color: stat.color }}>
-                  {stat.emoji} {stat.name}
-                </span>
-                <span className="text-xl font-bold">{stat.value}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
-            <span className="text-xs font-mono text-slate-400 flex items-center gap-1">
-              <Zap size={12} /> {t.dashboard.totalPower}
-            </span>
-            <span className="text-lg font-bold text-system-blue">
-              {profile.customStats.reduce((sum, s) => sum + s.value, 0)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  );
+    );
+  };
 
   const renderIdentity = () => {
     const rankColor = RANK_COLORS[profile.rank];
