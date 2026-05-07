@@ -1,4 +1,4 @@
-# CLAUDE.md — ARISE SYSTEM v1.1
+# CLAUDE.md — ARISE SYSTEM v1.2
 
 ## Stack
 React 19 + TypeScript + Vite + TailwindCSS + Recharts + Lucide React + Google Gemini Live API + Supabase
@@ -6,9 +6,16 @@ React 19 + TypeScript + Vite + TailwindCSS + Recharts + Lucide React + Google Ge
 ## Rodar localmente
 ```
 npm install
-npm run dev   # http://localhost:5173
+npm run dev   # http://localhost:3000 (porta padrão atual)
 ```
 Requer `GEMINI_API_KEY` no arquivo `.env.local`.
+
+## Git & Deploy
+- Repositório: https://github.com/SouzaDanielNow/arise-system.git (branch `main`)
+- Deploy automático via **Vercel** — basta `git push origin main` para publicar
+- Não commitar: `node_modules`, `.env.local`, arquivos de build (`dist/`)
+- Convenção de commit: `feat: descrição` ou `fix: descrição`
+- Sempre rodar `npx tsc --noEmit` antes de commitar
 
 ## Estrutura de arquivos
 ```
@@ -112,8 +119,17 @@ components/
 - Seção no final da aba MISSÕES
 - Mostra: hábitos com `isCompleted: true` + `bossFights.filter(b => b.status === 'completed')`
 
-## Aba STATUS (Dashboard)
-Contém: Daily Quote, Profile Card (XP bar, nome, gold), Initialize Plan button, Stats Grid (radar + valores), Total Power.
+## Aba PAINEL (Dashboard) — v1.2
+Ordem das seções:
+1. **Saudação dinâmica** — "Bom dia/Boa tarde/Boa noite, CAÇADOR [Nome]" (por hora do dia)
+2. **Card de perfil neon** — avatar clicável, badge rank hexagonal, nome editável, gold, 2 barras XP (rank + nível). Estética: fundo dark gradient, borda neon na cor do rank, corner accents, scan line animada, glitch periódico.
+3. **Missões de Hoje** — barra de progresso + contador (X/Y) + lista de hábitos clicáveis (marca como completo direto daqui)
+4. **Rastreio Semanal** — LineChart Seg→Dom. Dados em `profile.weeklyHistory[]` (atualizado em `toggleHabit`; mantém últimos 7 dias)
+5. **Fidelidade com Hábitos** — PieChart donut com cores neon. Calcula % por streak de cada hábito. Estética tech igual ao popup de missão bônus.
+6. **Radar + Atributos** — StatRadar lado a lado com lista de stats + Total Power
+7. **Mensagem do Sistema** — quote diária aleatória
+
+**Nível**: derivado de `Math.floor(profile.currentXp / 100) + 1` (não salvo, calculado on-the-fly)
 **Removidos na v1.1**: World Ranking card, Analytics/View Report button, Gym Tracker, Daily Quests.
 
 ## O que NÃO fazer
