@@ -511,6 +511,7 @@ const App: React.FC = () => {
   const [newBossSubInput, setNewBossSubInput] = useState('');
   const [confirmCancelBossId, setConfirmCancelBossId] = useState<string | null>(null);
   const [bossNewSubInputs, setBossNewSubInputs] = useState<Record<string, string>>({});
+  const [expandedBossIds, setExpandedBossIds] = useState<Set<string>>(new Set());
   const [editingSubTaskId, setEditingSubTaskId] = useState<string | null>(null);
   const [editingSubTaskText, setEditingSubTaskText] = useState('');
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
@@ -1472,6 +1473,11 @@ ${gameContext}`;
     const due   = new Date(dy, dm - 1, dd).getTime();
     const today = new Date(ty, tm - 1, td).getTime();
     return Math.floor((due - today) / 86400000);
+  };
+
+  const formatBRDate = (dateStr: string): string => {
+    const [y, m, d] = dateStr.split('-');
+    return `${d}/${m}/${y}`;
   };
 
   const saveHabitTitle = (id: string) => {
@@ -2692,7 +2698,14 @@ ${gameContext}`;
   );
 
   const renderMissions = () => {
-    const activeBosses = bossFights.filter(b => b.status === 'active');
+    const activeBosses = bossFights
+      .filter(b => b.status === 'active')
+      .sort((a, b) => {
+        if (!a.dueDate && !b.dueDate) return 0;
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return a.dueDate.localeCompare(b.dueDate);
+      });
     const completedBosses = bossFights.filter(b => b.status === 'completed');
     const completedHabits = habits.filter(h => h.isCompleted);
 
@@ -2802,36 +2815,66 @@ ${gameContext}`;
                 const isExpired = !!boss.dueDate && getDaysUntil(boss.dueDate) < 0;
                 const daysLeft = boss.dueDate ? getDaysUntil(boss.dueDate) : null;
                 const allDone = boss.subTasks.length === 0 || boss.subTasks.every(s => s.completed);
+                const isCollapsed = !expandedBossIds.has(boss.id);
+                const toggleCollapse = () => setExpandedBossIds(prev => {
+                  const next = new Set(prev);
+                  next.has(boss.id) ? next.delete(boss.id) : next.add(boss.id);
+                  return next;
+                });
                 return (
                   <div key={boss.id} className="relative border-2 border-purple-500/60 rounded-lg bg-purple-950/20 shadow-[0_0_24px_rgba(168,85,247,0.18)] overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-purple-500 to-transparent" />
 
-                    <div className="p-4 space-y-4">
-                      {/* Header */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h4 className="text-purple-200 font-mono font-bold text-sm leading-snug">
-                            ⚔️ BOSS FIGHT: {boss.title.toUpperCase()}
-                          </h4>
-                          {boss.description && <p className="text-slate-400 text-xs mt-1">{boss.description}</p>}
-                        </div>
-                        {isExpired ? (
-                          <span className="text-[9px] font-mono font-bold px-2 py-1 bg-red-500/20 border border-red-500 text-red-400 rounded shrink-0 animate-pulse">
-                            ⚠️ {t.missions.bossExpired}
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-mono px-2 py-1 bg-purple-500/15 border border-purple-500/40 text-purple-300 rounded shrink-0">
-                            {t.missions.bossActive}
-                          </span>
-                        )}
+                    {/* ── Header (always visible) ── */}
+                    <button
+                      onClick={toggleCollapse}
+                      className="w-full p-4 flex items-center gap-3 text-left"
+                    >
+                      <span className="text-purple-400 text-xs shrink-0 transition-transform duration-200" style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>▾</span>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-purple-200 font-mono font-bold text-sm leading-snug truncate">
+                          ⚔️ {boss.title.toUpperCase()}
+                        </h4>
+                        {/* Summary: date + progress — only when collapsed */}
+                        {isCollapsed && <>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            {boss.dueDate && (
+                              <span className={`text-[10px] font-mono font-bold ${isExpired ? 'text-red-400' : daysLeft !== null && daysLeft <= 3 ? 'text-yellow-400' : 'text-slate-500'}`}>
+                                {isExpired ? `⚠️ expirado há ${Math.abs(daysLeft!)}d` : `📅 ${formatBRDate(boss.dueDate)} (${daysLeft}d)`}
+                              </span>
+                            )}
+                            <span className="text-[10px] font-mono text-purple-400 font-bold ml-auto">{boss.progress}%</span>
+                          </div>
+                          <div className="w-full bg-slate-800 rounded-full h-1 mt-1">
+                            <div
+                              className="h-1 rounded-full bg-gradient-to-r from-purple-700 to-purple-400 transition-all duration-500"
+                              style={{ width: `${boss.progress}%` }}
+                            />
+                          </div>
+                        </>}
                       </div>
+                      {isExpired ? (
+                        <span className="text-[9px] font-mono font-bold px-2 py-1 bg-red-500/20 border border-red-500 text-red-400 rounded shrink-0 animate-pulse">
+                          ⚠️ {t.missions.bossExpired}
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-mono px-2 py-1 bg-purple-500/15 border border-purple-500/40 text-purple-300 rounded shrink-0">
+                          {t.missions.bossActive}
+                        </span>
+                      )}
+                    </button>
 
-                      {/* Deadline */}
+                    {/* ── Expanded body ── */}
+                    {!isCollapsed && <div className="px-4 pb-4 space-y-4 border-t border-purple-500/20 pt-3">
+                      {/* Description */}
+                      {boss.description && <p className="text-slate-400 text-xs">{boss.description}</p>}
+
+                      {/* Deadline (full detail) */}
                       {boss.dueDate && (
                         <p className={`text-xs font-mono font-bold ${isExpired ? 'text-red-400' : daysLeft !== null && daysLeft <= 3 ? 'text-yellow-400' : 'text-slate-400'}`}>
                           {isExpired
                             ? `⚠️ Prazo expirou há ${Math.abs(daysLeft!)}d`
-                            : `📅 ${boss.dueDate} (${daysLeft}d restantes)`}
+                            : `📅 ${formatBRDate(boss.dueDate)} (${daysLeft}d restantes)`}
                         </p>
                       )}
 
@@ -3017,7 +3060,7 @@ ${gameContext}`;
                           )}
                         </div>
                       )}
-                    </div>
+                    </div>}
                   </div>
                 );
               })}
