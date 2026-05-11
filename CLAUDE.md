@@ -1,4 +1,4 @@
-# CLAUDE.md — ARISE SYSTEM v1.2
+# CLAUDE.md — ARISE SYSTEM v1.3
 
 ## Stack
 React 19 + TypeScript + Vite + TailwindCSS + Recharts + Lucide React + Google Gemini Live API + Supabase
@@ -16,6 +16,14 @@ Requer `GEMINI_API_KEY` no arquivo `.env.local`.
 - Não commitar: `node_modules`, `.env.local`, arquivos de build (`dist/`)
 - Convenção de commit: `feat: descrição` ou `fix: descrição`
 - Sempre rodar `npx tsc --noEmit` antes de commitar
+
+## Tipografia (v1.3)
+- **Garet** (`font-garet`) — tudo que é título, label uppercase, nav tabs, cabeçalhos de seção, botões de ação, badges de status, nomes de personagem, overlays de animação. Self-hosted em `/public/fonts/garet-400.woff2` e `garet-700.woff2`
+- **Roboto Mono** (`font-mono`) — texto descritivo, valores numéricos, body text, conteúdo de formulários, timestamps, dados técnicos. Self-hosted em `/public/fonts/roboto-mono-400.woff2` e `roboto-mono-700.woff2`
+- **Inter** (`font-sans`) — texto UI geral (descrições longas, subtítulos). Google Fonts CDN
+- **Playfair Display** (`font-serif`) — quote do sistema (itálico). Google Fonts CDN
+- `@font-face` declarados em `index.html` dentro de `<style>` (antes do Tailwind config)
+- **Regra prática**: se o texto está em MAIÚSCULAS ou é um label/botão de interface → `font-garet`. Se é dado/valor/descrição → `font-mono`.
 
 ## Estrutura de arquivos
 ```
@@ -90,7 +98,7 @@ components/
 - `isTodayActive(habit)` — verifica se o hábito é para hoje
 - Completar: +30 XP, +20 Gold, streak++
 
-### Chefões (BossFight) — v1.1
+### Chefões (BossFight) — v1.3
 - Criados diretamente na aba MISSÕES (sem camada de ProcrastinationItem)
 - Formulário: título + descrição + prazo + sub-tarefas opcionais
 - `xpReward` = random 150–300, `goldReward` = random 60–100 (gerado na criação)
@@ -102,6 +110,9 @@ components/
 - Edit inline de sub-tarefa: `editingSubTaskId` formato `"bossId::subTaskId"`
 - Drag & drop nativo HTML5: `dragState: {bossId, subTaskId} | null`
 - Penalidade por expiração: -7 dias de streak
+- **Cards colapsáveis**: estado `expandedBossIds: Set<string>` — vazio por padrão (todos colapsados ao abrir o app)
+- **Ordenação**: por prazo mais próximo (`a.dueDate.localeCompare(b.dueDate)`) — urgência em primeiro
+- **Data em formato BR**: `formatBRDate(dateStr)` converte `yyyy-mm-dd` → `dd/mm/yyyy`
 
 ### Passiva Undying Will — v1.1
 - `protection = Math.min(50, totalPower)` — máximo de 50% de retenção
@@ -119,9 +130,9 @@ components/
 - Seção no final da aba MISSÕES
 - Mostra: hábitos com `isCompleted: true` + `bossFights.filter(b => b.status === 'completed')`
 
-## Aba PAINEL (Dashboard) — v1.2
+## Aba PAINEL (Dashboard) — v1.2/v1.3
 Ordem das seções:
-1. **Saudação dinâmica** — "Bom dia/Boa tarde/Boa noite, CAÇADOR [Nome]" (por hora do dia)
+1. **Saudação dinâmica** — "Saudação, CAÇADOR [Nome]" com palavra de saudação variando por hora (Bom dia/Boa tarde/Boa noite)
 2. **Card de perfil neon** — avatar clicável, badge rank hexagonal, nome editável, gold, 2 barras XP (rank + nível). Estética: fundo dark gradient, borda neon na cor do rank, corner accents, scan line animada, glitch periódico.
 3. **Missões de Hoje** — barra de progresso + contador (X/Y) + lista de hábitos clicáveis (marca como completo direto daqui)
 4. **Rastreio Semanal** — LineChart Seg→Dom. Dados em `profile.weeklyHistory[]` (atualizado em `toggleHabit`; mantém últimos 7 dias)
@@ -143,3 +154,5 @@ Ordem das seções:
 - Não recriar sistema de Dungeon / capítulos — removido intencionalmente (v1.2). Será reimplementado do zero no futuro
 - Não recriar `renderLifestyleControl`, `renderShadowReview`, `renderReportModal`, `renderUploadModal` — todos removidos em v1.2
 - `ViewState` não inclui mais 'DUNGEON_MAP', 'ACTIVE_DUNGEON', 'LIFESTYLE', 'SHADOW_REVIEW'
+- Não usar `font-mono` em labels uppercase, títulos, botões de interface — usar `font-garet` (v1.3)
+- Não usar JetBrains Mono — removida em v1.3 (substituída por Garet + Roboto Mono, ambas self-hosted)

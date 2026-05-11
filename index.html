@@ -23,14 +23,46 @@
       }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Playfair+Display:ital@1&display=swap" rel="stylesheet">
+    <style>
+      @font-face {
+        font-family: 'Garet';
+        src: url('/fonts/garet-400.woff2') format('woff2');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Garet';
+        src: url('/fonts/garet-700.woff2') format('woff2');
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Roboto Mono';
+        src: url('/fonts/roboto-mono-400.woff2') format('woff2');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Roboto Mono';
+        src: url('/fonts/roboto-mono-700.woff2') format('woff2');
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+    </style>
     <script>
       tailwind.config = {
         theme: {
           extend: {
             fontFamily: {
-              mono: ['"JetBrains Mono"', 'monospace'],
+              garet: ['Garet', 'sans-serif'],
+              mono: ['"Roboto Mono"', 'monospace'],
               sans: ['Inter', 'sans-serif'],
+              serif: ['"Playfair Display"', 'serif'],
             },
             colors: {
               system: {

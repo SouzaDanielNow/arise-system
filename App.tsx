@@ -186,16 +186,16 @@ const LevelUpOverlay: React.FC<{ rank: HunterRank; onDone: () => void }> = ({ ra
         animate={{ scale: [0.2, 1.3, 1, 1, 1], opacity: [0, 1, 1, 1, 0] }}
         transition={{ duration: 3.5, times: [0, 0.2, 0.35, 0.7, 1] }}
       >
-        <div className="text-xs font-mono tracking-[0.5em] mb-3" style={{ color }}>
+        <div className="text-xs font-garet tracking-[0.5em] mb-3" style={{ color }}>
           ⚔ RANK UP ⚔
         </div>
         <div
-          className="text-8xl font-black font-mono"
+          className="text-8xl font-black font-garet"
           style={{ color, textShadow: `0 0 40px ${color}, 0 0 80px ${color}88` }}
         >
           {rank}
         </div>
-        <div className="text-white font-mono text-sm tracking-[0.4em] mt-3 opacity-70">
+        <div className="text-white font-garet text-sm tracking-[0.4em] mt-3 opacity-70">
           RANK ACHIEVED
         </div>
       </motion.div>
@@ -234,9 +234,9 @@ const ShadowExtractionOverlay: React.FC<{ shadow: Shadow; onDone: () => void }> 
         animate={{ scale: [0.6, 1.05, 1, 1, 0.96], opacity: [0, 1, 1, 1, 0], y: [24, 0, 0, 0, -12] }}
         transition={{ duration: 3.5, times: [0, 0.15, 0.3, 0.72, 1] }}
       >
-        <div className="text-[9px] font-mono tracking-[0.5em] text-slate-500 mb-3">⚔ SOMBRA EXTRAÍDA ⚔</div>
+        <div className="text-[9px] font-garet tracking-[0.5em] text-slate-500 mb-3">⚔ SOMBRA EXTRAÍDA ⚔</div>
         <div
-          className="text-3xl font-black font-mono mb-3"
+          className="text-3xl font-black font-garet mb-3"
           style={{ color, textShadow: `0 0 24px ${color}aa` }}
         >
           {shadow.name}
@@ -1718,8 +1718,8 @@ ${gameContext}`;
 
         {/* ── Greeting ── */}
         <div className="px-1 pt-1">
-          <p className="text-slate-500 text-[10px] font-mono uppercase tracking-[0.3em]">{greetingWord},</p>
-          <h2 className="text-2xl font-black font-mono tracking-wider mt-0.5">
+          <p className="text-slate-500 text-[10px] font-garet uppercase tracking-[0.3em]">{greetingWord},</p>
+          <h2 className="text-2xl font-black font-garet tracking-wider mt-0.5">
             {t.dashboard.hunter} {profile.name.toUpperCase()}
           </h2>
         </div>
@@ -1817,7 +1817,7 @@ ${gameContext}`;
                   <div className="group cursor-pointer" onClick={() => { setTempName(profile.name); setIsEditingName(true); }}>
                     <div className="flex items-center gap-2">
                       <h3
-                        className="text-base font-black tracking-wider truncate"
+                        className="text-base font-black font-garet tracking-wider truncate"
                         style={{ color: '#fff', textShadow: `0 0 14px ${rankColor}55` }}
                       >
                         {profile.name.toUpperCase()}
@@ -1827,7 +1827,7 @@ ${gameContext}`;
                   </div>
                 )}
                 <motion.p
-                  className="text-[9px] tracking-[0.35em] uppercase mt-1"
+                  className="text-[9px] font-garet tracking-[0.35em] uppercase mt-1"
                   animate={{ opacity: [0.35, 0.65, 0.35] }}
                   transition={{ repeat: Infinity, duration: 3.5 }}
                   style={{ color: `${rankColor}` }}
@@ -1855,7 +1855,7 @@ ${gameContext}`;
             {/* XP Bars */}
             <div className="space-y-3">
               <div>
-                <div className="flex justify-between items-center text-[9px] tracking-[0.2em] uppercase mb-1.5">
+                <div className="flex justify-between items-center text-[9px] font-garet tracking-[0.2em] uppercase mb-1.5">
                   <span style={{ color: `${rankColor}99` }}>{t.dashboard.rankProgress}</span>
                   <span style={{ color: rankColor, textShadow: `0 0 8px ${rankColor}` }}>{Math.round(rankXpPct)}%</span>
                 </div>
@@ -1873,7 +1873,7 @@ ${gameContext}`;
                 </div>
               </div>
               <div>
-                <div className="flex justify-between items-center text-[9px] tracking-[0.2em] uppercase mb-1.5">
+                <div className="flex justify-between items-center text-[9px] font-garet tracking-[0.2em] uppercase mb-1.5">
                   <span style={{ color: 'rgba(147,197,253,0.55)' }}>{t.dashboard.levelProgress}</span>
                   <span style={{ color: '#93c5fd', textShadow: '0 0 8px rgba(147,197,253,0.7)' }}>{levelXpPct}%</span>
                 </div>
@@ -1897,7 +1897,7 @@ ${gameContext}`;
         {/* ── Today's Missions ── */}
         <div className="bg-system-panel border border-system-border rounded-xl p-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-system-blue font-mono text-xs uppercase tracking-widest flex items-center gap-2">
+            <h3 className="text-system-blue font-garet text-xs uppercase tracking-widest flex items-center gap-2">
               <Target size={13} /> {t.dashboard.todaysMissions}
             </h3>
             <span className="text-xs font-mono text-slate-400">{completedToday}/{todayHabits.length}</span>
@@ -1941,7 +1941,7 @@ ${gameContext}`;
 
         {/* ── Weekly Tracking ── */}
         <div className="bg-system-panel border border-system-border rounded-xl p-4">
-          <h3 className="text-system-blue font-mono text-xs uppercase tracking-widest flex items-center gap-2 mb-3">
+          <h3 className="text-system-blue font-garet text-xs uppercase tracking-widest flex items-center gap-2 mb-3">
             <Activity size={13} /> {t.dashboard.weeklyTracking}
           </h3>
           <ResponsiveContainer width="100%" height={110}>
@@ -1995,7 +1995,7 @@ ${gameContext}`;
 
           <div className="p-4 relative z-0">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] tracking-[0.4em] uppercase" style={{ color: 'rgba(147,197,253,0.55)' }}>
+              <p className="text-[9px] font-garet tracking-[0.4em] uppercase" style={{ color: 'rgba(147,197,253,0.55)' }}>
                 {t.dashboard.habitFidelity}
               </p>
               <Zap size={11} style={{ color: 'rgba(147,197,253,0.4)' }} />
@@ -2072,7 +2072,7 @@ ${gameContext}`;
         {/* ── Radar + Attributes ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-system-panel border border-system-border p-4 rounded-xl hover:border-system-blue/30 transition-colors">
-            <h3 className="text-system-blue font-mono text-xs mb-3 border-b border-slate-800 pb-2 flex items-center gap-2">
+            <h3 className="text-system-blue font-garet text-xs mb-3 border-b border-slate-800 pb-2 flex items-center gap-2">
               <Activity size={13} /> {t.dashboard.parameters}
             </h3>
             <StatRadar customStats={profile.customStats} />
@@ -2110,7 +2110,7 @@ ${gameContext}`;
               <Quote size={16} />
             </div>
             <div>
-              <h3 className="text-system-blue font-mono font-bold text-[10px] uppercase tracking-widest mb-1">{t.dashboard.systemMessage}</h3>
+              <h3 className="text-system-blue font-garet font-bold text-[10px] uppercase tracking-widest mb-1">{t.dashboard.systemMessage}</h3>
               <p className="text-white font-serif italic text-base leading-relaxed">"{dailyQuote.text}"</p>
               <p className="text-slate-500 text-xs font-mono mt-1.5 text-right">- {dailyQuote.author}</p>
             </div>
@@ -2219,7 +2219,7 @@ ${gameContext}`;
                       onClick={() => { setTempName(profile.name); setIsEditingName(true); }}
                     >
                       <h2
-                        className="text-lg font-bold font-mono tracking-widest truncate"
+                        className="text-lg font-bold font-garet tracking-widest truncate"
                         style={{ color: rankColor }}
                       >
                         {profile.name.toUpperCase()}
@@ -2227,7 +2227,7 @@ ${gameContext}`;
                       <Edit3 size={12} className="text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                     </div>
                   )}
-                  <p className="text-[10px] font-mono text-slate-500 tracking-widest uppercase mb-2">
+                  <p className="text-[10px] font-garet text-slate-500 tracking-widest uppercase mb-2">
                     {t.identity.rankTitle(profile.rank)}
                   </p>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -2247,7 +2247,7 @@ ${gameContext}`;
                 <div className="shrink-0 flex flex-col items-center gap-0.5 bg-yellow-900/20 border border-yellow-700/30 rounded-xl px-3 py-2.5">
                   <Coins size={14} className="text-yellow-400" />
                   <span className="text-yellow-300 font-mono text-sm font-bold">{profile.gold}</span>
-                  <span className="text-yellow-700 font-mono text-[9px] tracking-widest">GOLD</span>
+                  <span className="text-yellow-700 font-garet text-[9px] tracking-widest">GOLD</span>
                 </div>
               </div>
 
@@ -2294,7 +2294,7 @@ ${gameContext}`;
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden">
             {/* Header + view toggle */}
             <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-800/60">
-              <h3 className="text-[10px] font-mono font-bold text-slate-400 tracking-widest uppercase flex items-center gap-2">
+              <h3 className="text-[10px] font-garet font-bold text-slate-400 tracking-widest uppercase flex items-center gap-2">
                 <Activity size={13} /> {t.identity.attributeAnalysis}
               </h3>
               <div className="flex gap-0.5 bg-slate-800/80 rounded-lg p-0.5">
@@ -2302,7 +2302,7 @@ ${gameContext}`;
                   <button
                     key={view}
                     onClick={() => setIdentityStatsView(view)}
-                    className={`px-3 py-1 rounded text-[10px] font-mono font-bold transition-all ${
+                    className={`px-3 py-1 rounded text-[10px] font-garet font-bold transition-all ${
                       identityStatsView === view
                         ? 'bg-system-blue text-black shadow'
                         : 'text-slate-500 hover:text-slate-300'
@@ -2438,10 +2438,10 @@ ${gameContext}`;
             {/* Header row */}
             <div className="flex items-start justify-between mb-4">
               <div>
-                <p className="text-[9px] font-mono text-purple-500/50 tracking-widest uppercase mb-0.5">
+                <p className="text-[9px] font-garet text-purple-500/50 tracking-widest uppercase mb-0.5">
                   {t.identity.passiveSkill}
                 </p>
-                <h3 className="text-sm font-mono font-bold text-purple-300 flex items-center gap-2">
+                <h3 className="text-sm font-garet font-bold text-purple-300 flex items-center gap-2">
                   <Shield size={14} className="text-purple-400" />
                   {t.identity.undyingWill}
                 </h3>
@@ -2451,7 +2451,7 @@ ${gameContext}`;
               <div className="flex flex-col items-center bg-purple-950/40 border border-purple-700/25 rounded-xl px-3 py-2 min-w-[56px]">
                 <Zap size={15} className="text-purple-400 mb-0.5" fill="currentColor" />
                 <span className="text-xl font-bold font-mono text-purple-200 leading-none">{profile.streakDays}</span>
-                <span className="text-[9px] font-mono text-purple-600 uppercase tracking-wider mt-0.5">STREAK</span>
+                <span className="text-[9px] font-garet text-purple-600 uppercase tracking-wider mt-0.5">STREAK</span>
               </div>
             </div>
 
@@ -2508,13 +2508,13 @@ ${gameContext}`;
     return (
       <div className="space-y-8 animate-fade-in">
         <div className="text-center">
-          <h2 className="text-2xl font-bold font-mono text-shadow-purple tracking-widest">{t.shadows.title}</h2>
+          <h2 className="text-2xl font-bold font-garet text-shadow-purple tracking-widest">{t.shadows.title}</h2>
           <p className="text-slate-400 text-sm">{t.shadows.subtitle}</p>
         </div>
 
         {/* ── Mission Board ── */}
         <section>
-          <h3 className="text-xs font-mono tracking-[0.35em] text-slate-500 mb-4 flex items-center gap-2">
+          <h3 className="text-xs font-garet tracking-[0.35em] text-slate-500 mb-4 flex items-center gap-2">
             <Target size={12} className="text-yellow-500" />
             {t.shadows.missionBoardTitle}
           </h3>
@@ -2552,7 +2552,7 @@ ${gameContext}`;
 
         {/* ── Shadow Soldiers (compact grid) ── */}
         <section>
-          <h3 className="text-xs font-mono tracking-[0.35em] text-slate-500 mb-4 flex items-center gap-2">
+          <h3 className="text-xs font-garet tracking-[0.35em] text-slate-500 mb-4 flex items-center gap-2">
             <Ghost size={12} className="text-shadow-purple" />
             {t.shadows.soldiersTitle}
             <span className="ml-auto text-shadow-purple font-bold">{soldiers.length}</span>
@@ -2593,7 +2593,7 @@ ${gameContext}`;
                 exit={{ y: 40, opacity: 0 }}
                 onClick={e => e.stopPropagation()}
               >
-                <p className="text-xs font-mono tracking-[0.3em] text-yellow-500 mb-1">{t.shadows.missionSelectTitle}</p>
+                <p className="text-xs font-garet tracking-[0.3em] text-yellow-500 mb-1">{t.shadows.missionSelectTitle}</p>
                 <p className="font-mono font-bold text-white mb-1">{selectedMission.title}</p>
                 <p className="text-[10px] font-mono text-slate-500 mb-4">{t.shadows.missionSelectHint}</p>
 
@@ -2667,7 +2667,7 @@ ${gameContext}`;
   const renderShop = () => (
     <div className="space-y-6 animate-slide-up">
       <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold font-mono text-yellow-500 tracking-widest">{t.shop.title}</h2>
+        <h2 className="text-2xl font-bold font-garet text-yellow-500 tracking-widest">{t.shop.title}</h2>
         <div className="flex items-center justify-center gap-2 mt-2">
           <span className="text-slate-400 text-sm">{t.shop.subtitle}</span>
           <div className="flex items-center gap-1 text-yellow-400 font-mono bg-yellow-900/20 px-2 py-0.5 rounded border border-yellow-700/50 text-xs">
@@ -2713,18 +2713,18 @@ ${gameContext}`;
       <div className="space-y-8 animate-slide-up">
         {/* Header */}
         <div className="text-center">
-          <h2 className="text-2xl font-bold font-mono text-white tracking-widest">{t.missions.title}</h2>
+          <h2 className="text-2xl font-bold font-garet text-white tracking-widest">{t.missions.title}</h2>
         </div>
 
         {/* ── CHEFÕES ── */}
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-purple-900/50 pb-2">
-            <h3 className="text-purple-400 font-mono text-sm font-bold flex items-center gap-2">
+            <h3 className="text-purple-400 font-garet text-sm font-bold flex items-center gap-2">
               ⚔️ {t.missions.bossHeader}
             </h3>
             <button
               onClick={() => setShowAddBossForm(v => !v)}
-              className="flex items-center gap-1 text-xs font-mono text-purple-400 hover:text-white border border-purple-500/50 hover:border-purple-400 px-2 py-1 rounded transition-all"
+              className="flex items-center gap-1 text-xs font-garet text-purple-400 hover:text-white border border-purple-500/50 hover:border-purple-400 px-2 py-1 rounded transition-all"
             >
               <Plus size={12} /> {t.missions.newBoss}
             </button>
@@ -2733,7 +2733,7 @@ ${gameContext}`;
           {/* New boss form */}
           {showAddBossForm && (
             <div className="bg-slate-900/80 border border-purple-500/30 rounded-lg p-4 space-y-3 animate-fade-in">
-              <p className="text-[10px] font-mono text-purple-400 font-bold tracking-widest">⚔️ {t.missions.bossFormTitle}</p>
+              <p className="text-[10px] font-garet text-purple-400 font-bold tracking-widest">⚔️ {t.missions.bossFormTitle}</p>
               <input
                 type="text"
                 value={newBossTitle}
@@ -2832,7 +2832,7 @@ ${gameContext}`;
                     >
                       <span className="text-purple-400 text-xs shrink-0 transition-transform duration-200" style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>▾</span>
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-purple-200 font-mono font-bold text-sm leading-snug truncate">
+                        <h4 className="text-purple-200 font-garet font-bold text-sm leading-snug truncate">
                           ⚔️ {boss.title.toUpperCase()}
                         </h4>
                         {/* Summary: date + progress — only when collapsed */}
@@ -2854,11 +2854,11 @@ ${gameContext}`;
                         </>}
                       </div>
                       {isExpired ? (
-                        <span className="text-[9px] font-mono font-bold px-2 py-1 bg-red-500/20 border border-red-500 text-red-400 rounded shrink-0 animate-pulse">
+                        <span className="text-[9px] font-garet font-bold px-2 py-1 bg-red-500/20 border border-red-500 text-red-400 rounded shrink-0 animate-pulse">
                           ⚠️ {t.missions.bossExpired}
                         </span>
                       ) : (
-                        <span className="text-[9px] font-mono px-2 py-1 bg-purple-500/15 border border-purple-500/40 text-purple-300 rounded shrink-0">
+                        <span className="text-[9px] font-garet px-2 py-1 bg-purple-500/15 border border-purple-500/40 text-purple-300 rounded shrink-0">
                           {t.missions.bossActive}
                         </span>
                       )}
@@ -2974,7 +2974,7 @@ ${gameContext}`;
                       {/* History */}
                       {boss.history.length > 0 && (
                         <div className="pt-2 border-t border-slate-800/60 space-y-1.5">
-                          <p className="text-[10px] font-mono text-slate-500 font-bold tracking-wider">📋 {t.missions.bossHistoryTitle}</p>
+                          <p className="text-[10px] font-garet text-slate-500 font-bold tracking-wider">📋 {t.missions.bossHistoryTitle}</p>
                           <div className="space-y-1">
                             {boss.history.map((entry, idx) => {
                               const time = new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -3070,12 +3070,12 @@ ${gameContext}`;
         {/* ── TAREFAS ── */}
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-green-900/40 pb-2">
-            <h3 className="text-system-blue font-mono text-sm font-bold flex items-center gap-2">
+            <h3 className="text-system-blue font-garet text-sm font-bold flex items-center gap-2">
               <Sword size={15} /> {t.missions.tasksHeader}
             </h3>
             <button
               onClick={() => setShowAddTaskForm(v => !v)}
-              className="flex items-center gap-1 text-xs font-mono text-system-blue hover:text-white border border-system-blue/50 hover:border-system-blue px-2 py-1 rounded transition-all"
+              className="flex items-center gap-1 text-xs font-garet text-system-blue hover:text-white border border-system-blue/50 hover:border-system-blue px-2 py-1 rounded transition-all"
             >
               <Plus size={12} /> {t.missions.addTask}
             </button>
@@ -3097,7 +3097,7 @@ ${gameContext}`;
               {/* Repeat pattern — recurring vs one-time */}
               <div className="space-y-2">
                 <div>
-                  <p className="text-[9px] font-mono text-slate-500 tracking-widest mb-1.5">⚡ HÁBITO RECORRENTE</p>
+                  <p className="text-[9px] font-garet text-slate-500 tracking-widest mb-1.5">⚡ HÁBITO RECORRENTE</p>
                   <div className="flex gap-1.5 flex-wrap">
                     {(['daily', 'weekdays', 'custom'] as RepeatType[]).map(r => {
                       const labels: Record<string, string> = {
@@ -3122,7 +3122,7 @@ ${gameContext}`;
                   </div>
                 </div>
                 <div>
-                  <p className="text-[9px] font-mono text-amber-600/70 tracking-widest mb-1.5">📌 TAREFA PONTUAL <span className="text-slate-600 normal-case">(não conta para streak)</span></p>
+                  <p className="text-[9px] font-garet text-amber-600/70 tracking-widest mb-1.5">📌 TAREFA PONTUAL <span className="text-slate-600 normal-case">(não conta para streak)</span></p>
                   <button
                     onClick={() => setNewTaskRepeat('oneTime')}
                     className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold border transition-all ${
@@ -3282,7 +3282,7 @@ ${gameContext}`;
           return (
             <section className="space-y-3">
               <div className="flex items-center justify-between border-b border-yellow-900/40 pb-2">
-                <h3 className="text-yellow-400 font-mono text-sm font-bold flex items-center gap-2">
+                <h3 className="text-yellow-400 font-garet text-sm font-bold flex items-center gap-2">
                   {t.missions.bonusMissionsHeader}
                 </h3>
                 {alreadyGenerated && (
@@ -3347,13 +3347,13 @@ ${gameContext}`;
         {/* ── ACTIVITY LOG ── */}
         {(completedHabits.length > 0 || completedBosses.length > 0) && (
           <section className="space-y-3">
-            <h3 className="text-slate-500 font-mono text-sm font-bold flex items-center gap-2 border-b border-slate-800 pb-2">
+            <h3 className="text-slate-500 font-garet text-sm font-bold flex items-center gap-2 border-b border-slate-800 pb-2">
               📋 {t.missions.activityHeader}
             </h3>
 
             {completedHabits.length > 0 && (
               <div>
-                <p className="text-[10px] font-mono text-slate-600 mb-2 tracking-wider">{t.missions.activityHabitsTitle}</p>
+                <p className="text-[10px] font-garet text-slate-600 mb-2 tracking-wider">{t.missions.activityHabitsTitle}</p>
                 <div className="space-y-1.5">
                   {completedHabits.map(h => (
                     <div key={h.id} className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-slate-900/50 rounded px-3 py-1.5 border border-slate-800">
@@ -3368,7 +3368,7 @@ ${gameContext}`;
 
             {completedBosses.length > 0 && (
               <div>
-                <p className="text-[10px] font-mono text-slate-600 mb-2 tracking-wider">{t.missions.activityBossTitle}</p>
+                <p className="text-[10px] font-garet text-slate-600 mb-2 tracking-wider">{t.missions.activityBossTitle}</p>
                 <div className="space-y-1.5">
                   {completedBosses.map(b => (
                     <div key={b.id} className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-purple-950/20 rounded px-3 py-1.5 border border-purple-900/40">
@@ -3389,13 +3389,13 @@ ${gameContext}`;
   const renderSettings = () => (
     <div className="space-y-6 animate-slide-up">
       <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold font-mono text-system-blue tracking-widest">{t.settings.title}</h2>
+        <h2 className="text-2xl font-bold font-garet text-system-blue tracking-widest">{t.settings.title}</h2>
         <p className="text-slate-400 text-sm">{t.settings.subtitle}</p>
       </div>
 
       {/* Custom Stats CRUD */}
       <div className="bg-system-panel border border-slate-700 p-4 rounded-lg">
-        <h3 className="text-system-blue font-mono text-sm mb-2 border-b border-slate-800 pb-2 flex items-center gap-2">
+        <h3 className="text-system-blue font-garet text-sm mb-2 border-b border-slate-800 pb-2 flex items-center gap-2">
           <Activity size={16} /> {t.settings.statsSection}
         </h3>
         <p className="text-slate-400 text-xs mb-4">{t.settings.statsDesc}</p>
@@ -3465,7 +3465,7 @@ ${gameContext}`;
 
       {/* Language */}
       <div className="bg-system-panel border border-slate-700 p-4 rounded-lg">
-        <h3 className="text-system-blue font-mono text-sm mb-2 border-b border-slate-800 pb-2 flex items-center gap-2">
+        <h3 className="text-system-blue font-garet text-sm mb-2 border-b border-slate-800 pb-2 flex items-center gap-2">
           <Globe size={16} /> {t.settings.languageSection}
         </h3>
         <p className="text-slate-400 text-xs mb-4">{t.settings.languageDesc}</p>
@@ -3500,7 +3500,7 @@ ${gameContext}`;
       {/* Notifications */}
       {'Notification' in window && (
         <div className="bg-system-panel border border-slate-700 p-4 rounded-lg">
-          <h3 className="text-system-blue font-mono text-sm mb-2 border-b border-slate-800 pb-2 flex items-center gap-2">
+          <h3 className="text-system-blue font-garet text-sm mb-2 border-b border-slate-800 pb-2 flex items-center gap-2">
             <Bell size={16} /> {t.settings.notificationsSection}
           </h3>
           <p className="text-slate-400 text-xs mb-4">{t.settings.notificationsDesc}</p>
@@ -3519,14 +3519,14 @@ ${gameContext}`;
                 {isPushSubscribed && (
                   <button
                     onClick={disableNotifications}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded border border-red-500/40 bg-red-500/10 text-red-400 font-mono text-xs hover:bg-red-500/20 transition-all"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded border border-red-500/40 bg-red-500/10 text-red-400 font-garet text-xs hover:bg-red-500/20 transition-all"
                   >
                     <BellOff size={12} /> {t.settings.notificationsDisable}
                   </button>
                 )}
                 <button
                   onClick={enableNotifications}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded border border-system-blue/50 bg-system-blue/10 text-system-blue font-mono text-xs hover:bg-system-blue/20 transition-all"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded border border-system-blue/50 bg-system-blue/10 text-system-blue font-garet text-xs hover:bg-system-blue/20 transition-all"
                 >
                   <Bell size={12} /> {isPushSubscribed ? t.settings.notificationsReactivate : t.settings.notificationsEnable}
                 </button>
@@ -3539,13 +3539,13 @@ ${gameContext}`;
       {/* Account */}
       {session && (
         <div className="bg-system-panel border border-slate-700 p-4 rounded-lg">
-          <h3 className="text-system-blue font-mono text-sm mb-3 border-b border-slate-800 pb-2 flex items-center gap-2">
+          <h3 className="text-system-blue font-garet text-sm mb-3 border-b border-slate-800 pb-2 flex items-center gap-2">
             <Shield size={16} /> {t.settings.accountSection}
           </h3>
           <p className="text-slate-500 text-xs mb-4 font-mono">{session.user.email}</p>
           <button
             onClick={() => supabase.auth.signOut()}
-            className="flex items-center gap-2 px-4 py-2 rounded border border-red-800 bg-red-900/10 text-red-400 font-mono text-sm hover:bg-red-900/30 hover:border-red-600 transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded border border-red-800 bg-red-900/10 text-red-400 font-garet text-sm hover:bg-red-900/30 hover:border-red-600 transition-all"
           >
             <LogOut size={14} /> {t.settings.signOut}
           </button>
@@ -3558,7 +3558,7 @@ ${gameContext}`;
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center font-mono">
         <div className="text-center">
-          <div className="text-blue-400 text-4xl font-bold tracking-widest mb-4 drop-shadow-[0_0_15px_rgba(59,130,246,0.6)]">ARISE</div>
+          <div className="text-blue-400 text-4xl font-bold font-garet tracking-widest mb-4 drop-shadow-[0_0_15px_rgba(59,130,246,0.6)]">ARISE</div>
           <div className="flex items-center justify-center gap-2 text-slate-500 text-sm">
             <Loader size={14} className="animate-spin" />
             <span>{isLoadingAuth ? 'INITIALIZING SYSTEM...' : 'LOADING HUNTER DATA...'}</span>
@@ -3624,12 +3624,12 @@ ${gameContext}`;
       {/* Top Bar */}
       <header className="sticky top-0 z-30 bg-system-dark/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex justify-between items-center shadow-md">
         <div className="flex items-center gap-2">
-          <div className="text-system-blue font-bold font-mono tracking-tighter text-lg animate-pulse">{t.header.title}</div>
+          <div className="text-system-blue font-bold font-garet tracking-tighter text-lg animate-pulse">{t.header.title}</div>
         </div>
         <div className="flex items-center gap-2 sm:gap-4">
           <button
             onClick={connectToSystem}
-            className={`flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-mono transition-all duration-300
+            className={`flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-garet transition-all duration-300
               ${isVoiceConnected
                 ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse'
                 : isVoiceConnecting
@@ -3649,14 +3649,14 @@ ${gameContext}`;
           {isAdmin ? (
             <button
               onClick={simulateStreakBreak}
-              className="flex items-center gap-1 text-yellow-500 font-mono text-sm hover:text-red-500 transition-colors hover:scale-105 active:scale-95"
+              className="flex items-center gap-1 text-yellow-500 font-garet text-sm hover:text-red-500 transition-colors hover:scale-105 active:scale-95"
               title="[Admin] Simulate Missing a Day"
             >
               <Zap size={14} fill="currentColor" />
               <span>{profile.streakDays} {t.header.days}</span>
             </button>
           ) : (
-            <div className="flex items-center gap-1 text-yellow-500 font-mono text-sm">
+            <div className="flex items-center gap-1 text-yellow-500 font-garet text-sm">
               <Zap size={14} fill="currentColor" />
               <span>{profile.streakDays} {t.header.days}</span>
             </div>
@@ -3840,7 +3840,7 @@ ${gameContext}`;
               >
                 <div className="flex items-center gap-3">
                   <div className="shrink-0">
-                    <span className="text-[9px] font-mono text-system-blue/70 tracking-widest block mb-0.5">
+                    <span className="text-[9px] font-garet text-system-blue/70 tracking-widest block mb-0.5">
                       {s.type === 'habit' ? t.missions.voiceSuggestionHabitLabel : t.missions.voiceSuggestionBossLabel}
                     </span>
                     <span className="font-mono font-bold text-sm text-white leading-snug">
@@ -3900,7 +3900,7 @@ const NavButton: React.FC<{ active: boolean; onClick: () => void; icon: React.Re
     <div className={`transition-transform duration-300 ${active ? 'scale-110 drop-shadow-[0_0_5px_rgba(59,130,246,0.8)]' : ''}`}>
       {icon}
     </div>
-    <span className="text-[9px] sm:text-[10px] font-bold tracking-wider font-mono">{label}</span>
+    <span className="text-[9px] sm:text-[10px] font-bold tracking-wider font-garet">{label}</span>
     {active && <span className="absolute bottom-0 w-8 h-0.5 bg-system-blue rounded-t-full shadow-[0_0_8px_#3b82f6] animate-pulse"></span>}
   </button>
 );
