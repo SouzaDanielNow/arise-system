@@ -2058,14 +2058,14 @@ ${gameContext}`;
             ) : (
               <div className="flex items-center gap-5">
                 <div className="shrink-0">
-                  <ResponsiveContainer width={115} height={115}>
-                    <PieChart>
+                  <ResponsiveContainer width={140} height={140}>
+                    <PieChart margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
                       <Pie
                         data={pieData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={32}
-                        outerRadius={54}
+                        innerRadius={30}
+                        outerRadius={48}
                         dataKey="value"
                         paddingAngle={3}
                         strokeWidth={0}
