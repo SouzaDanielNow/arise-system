@@ -1895,80 +1895,118 @@ ${gameContext}`;
         </motion.div>
 
         {/* ── Today's Missions ── */}
-        <div className="bg-system-panel border border-system-border rounded-xl p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-system-blue font-garet text-xs uppercase tracking-widest flex items-center gap-2">
-              <Target size={13} /> {t.dashboard.todaysMissions}
-            </h3>
-            <span className="text-xs font-mono text-slate-400">{completedToday}/{todayHabits.length}</span>
+        <motion.div
+          className="relative overflow-hidden"
+          style={{
+            background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+            border: '1px solid rgba(59,130,246,0.28)',
+            borderRadius: '12px',
+          }}
+          animate={{
+            boxShadow: [
+              '0 0 0 1px rgba(59,130,246,0.04), 0 0 18px rgba(59,130,246,0.06)',
+              '0 0 0 1px rgba(59,130,246,0.13), 0 0 32px rgba(59,130,246,0.15), inset 0 0 24px rgba(59,130,246,0.04)',
+              '0 0 0 1px rgba(59,130,246,0.04), 0 0 18px rgba(59,130,246,0.06)',
+            ],
+          }}
+          transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut' }}
+        >
+          {/* Corner accents */}
+          {(['top-0 left-0 border-t border-l', 'top-0 right-0 border-t border-r', 'bottom-0 left-0 border-b border-l', 'bottom-0 right-0 border-b border-r'] as const).map((cls, i) => (
+            <div key={i} className={`absolute w-2.5 h-2.5 ${cls} border-blue-500/35`} />
+          ))}
+          <div className="p-4 relative z-0">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-system-blue font-garet text-xs uppercase tracking-widest flex items-center gap-2">
+                <Target size={13} /> {t.dashboard.todaysMissions}
+              </h3>
+              <span className="text-xs font-mono text-slate-400">{completedToday}/{todayHabits.length}</span>
+            </div>
+            <div className="h-1.5 bg-slate-800/80 rounded-full overflow-hidden mb-3">
+              <div
+                className="h-full bg-system-blue rounded-full transition-all duration-500 shadow-[0_0_6px_#3b82f6]"
+                style={{ width: `${todayProgress}%` }}
+              />
+            </div>
+            <div className="space-y-1.5">
+              {todayHabits.length === 0 ? (
+                <p className="text-slate-500 text-xs font-mono text-center py-3">{t.missions.noTasks}</p>
+              ) : (
+                todayHabits.map(habit => (
+                  <button
+                    key={habit.id}
+                    onClick={() => !habit.isCompleted && toggleHabit(habit.id)}
+                    className={`w-full flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition-all ${
+                      habit.isCompleted
+                        ? 'bg-green-500/10 border-green-500/20 cursor-default'
+                        : 'bg-slate-900/60 border-slate-700/60 hover:border-system-blue/50 hover:bg-slate-800/80 active:scale-[0.99]'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+                      habit.isCompleted ? 'bg-green-500 border-green-500' : 'border-slate-600'
+                    }`}>
+                      {habit.isCompleted && <Check size={10} className="text-black" />}
+                    </div>
+                    <span className={`text-sm font-mono flex-1 ${habit.isCompleted ? 'line-through text-slate-500' : 'text-white'}`}>
+                      {habit.title}
+                    </span>
+                    {habit.streak > 0 && (
+                      <span className="text-[10px] font-mono text-orange-400 flex-shrink-0">🔥 {habit.streak}</span>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
           </div>
-          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mb-3">
-            <div
-              className="h-full bg-system-blue rounded-full transition-all duration-500 shadow-[0_0_6px_#3b82f6]"
-              style={{ width: `${todayProgress}%` }}
-            />
-          </div>
-          <div className="space-y-1.5">
-            {todayHabits.length === 0 ? (
-              <p className="text-slate-500 text-xs font-mono text-center py-3">{t.missions.noTasks}</p>
-            ) : (
-              todayHabits.map(habit => (
-                <button
-                  key={habit.id}
-                  onClick={() => !habit.isCompleted && toggleHabit(habit.id)}
-                  className={`w-full flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition-all ${
-                    habit.isCompleted
-                      ? 'bg-green-500/10 border-green-500/25 cursor-default'
-                      : 'bg-slate-900/50 border-slate-700 hover:border-system-blue/50 hover:bg-slate-800 active:scale-[0.99]'
-                  }`}
-                >
-                  <div className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
-                    habit.isCompleted ? 'bg-green-500 border-green-500' : 'border-slate-600'
-                  }`}>
-                    {habit.isCompleted && <Check size={10} className="text-black" />}
-                  </div>
-                  <span className={`text-sm font-mono flex-1 ${habit.isCompleted ? 'line-through text-slate-500' : 'text-white'}`}>
-                    {habit.title}
-                  </span>
-                  {habit.streak > 0 && (
-                    <span className="text-[10px] font-mono text-orange-400 flex-shrink-0">🔥 {habit.streak}</span>
-                  )}
-                </button>
-              ))
-            )}
-          </div>
-        </div>
+        </motion.div>
 
         {/* ── Weekly Tracking ── */}
-        <div className="bg-system-panel border border-system-border rounded-xl p-4">
-          <h3 className="text-system-blue font-garet text-xs uppercase tracking-widest flex items-center gap-2 mb-3">
-            <Activity size={13} /> {t.dashboard.weeklyTracking}
-          </h3>
-          <ResponsiveContainer width="100%" height={110}>
-            <LineChart data={chartData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-              <XAxis
-                dataKey="day"
-                tick={{ fill: '#475569', fontSize: 9, fontFamily: 'monospace' }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis hide allowDecimals={false} />
-              <Tooltip
-                contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontFamily: 'monospace', fontSize: 11 }}
-                labelStyle={{ color: '#64748b' }}
-                itemStyle={{ color: '#3b82f6' }}
-                formatter={(v: number) => [v, '']}
-              />
-              <Line
-                type="monotone"
-                dataKey="completed"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={{ fill: '#3b82f6', r: 3, strokeWidth: 0 }}
-                activeDot={{ r: 5, fill: '#60a5fa' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        <div
+          className="relative overflow-hidden"
+          style={{
+            background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+            border: '1px solid rgba(59,130,246,0.22)',
+            boxShadow: '0 0 0 1px rgba(59,130,246,0.05), inset 0 0 20px rgba(59,130,246,0.03)',
+            borderRadius: '12px',
+          }}
+        >
+          {/* Data beam — vertical stripe sweeping left → right */}
+          <motion.div
+            className="absolute top-0 bottom-0 w-px pointer-events-none z-10"
+            style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(59,130,246,0.55) 50%, transparent 100%)' }}
+            animate={{ left: ['-2%', '102%'] }}
+            transition={{ repeat: Infinity, duration: 4, ease: 'linear', repeatDelay: 3 }}
+          />
+          <div className="p-4 relative z-0">
+            <h3 className="text-system-blue font-garet text-xs uppercase tracking-widest flex items-center gap-2 mb-3">
+              <Activity size={13} /> {t.dashboard.weeklyTracking}
+            </h3>
+            <ResponsiveContainer width="100%" height={110}>
+              <LineChart data={chartData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+                <XAxis
+                  dataKey="day"
+                  tick={{ fill: '#475569', fontSize: 9, fontFamily: 'monospace' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis hide allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ background: 'rgba(3,6,22,0.97)', border: '1px solid rgba(59,130,246,0.35)', borderRadius: 8, fontFamily: 'monospace', fontSize: 11 }}
+                  labelStyle={{ color: '#64748b' }}
+                  itemStyle={{ color: '#3b82f6' }}
+                  formatter={(v: number) => [v, '']}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="completed"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dot={{ fill: '#3b82f6', r: 3, strokeWidth: 0 }}
+                  activeDot={{ r: 5, fill: '#60a5fa' }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
         {/* ── Habit Fidelity ── */}
@@ -2071,42 +2109,112 @@ ${gameContext}`;
 
         {/* ── Radar + Attributes ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-system-panel border border-system-border p-4 rounded-xl hover:border-system-blue/30 transition-colors">
-            <h3 className="text-system-blue font-garet text-xs mb-3 border-b border-slate-800 pb-2 flex items-center gap-2">
+          {/* Radar — corner accents pulsando em sequência */}
+          <div
+            className="relative overflow-hidden p-4"
+            style={{
+              background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+              border: '1px solid rgba(59,130,246,0.25)',
+              boxShadow: '0 0 0 1px rgba(59,130,246,0.05), inset 0 0 22px rgba(59,130,246,0.04)',
+              borderRadius: '12px',
+            }}
+          >
+            {/* Animated corner accents — pulse em sequência */}
+            {([
+              'top-0 left-0 border-t border-l',
+              'top-0 right-0 border-t border-r',
+              'bottom-0 right-0 border-b border-r',
+              'bottom-0 left-0 border-b border-l',
+            ] as const).map((cls, i) => (
+              <motion.div
+                key={i}
+                className={`absolute w-3 h-3 ${cls}`}
+                style={{ borderColor: 'rgba(59,130,246,0.7)' }}
+                animate={{ opacity: [0.2, 1, 0.2] }}
+                transition={{ repeat: Infinity, duration: 2.4, delay: i * 0.5, ease: 'easeInOut' }}
+              />
+            ))}
+            <h3 className="text-system-blue font-garet text-xs mb-3 border-b border-slate-800/80 pb-2 flex items-center gap-2 relative z-10">
               <Activity size={13} /> {t.dashboard.parameters}
             </h3>
             <StatRadar customStats={profile.customStats} />
           </div>
-          <div className="bg-system-panel border border-system-border p-4 rounded-xl flex flex-col justify-between">
+
+          {/* Attributes — neon stat items + shimmer no Total Power */}
+          <div
+            className="relative overflow-hidden p-4 flex flex-col justify-between"
+            style={{
+              background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+              border: '1px solid rgba(59,130,246,0.22)',
+              boxShadow: '0 0 0 1px rgba(59,130,246,0.04), inset 0 0 18px rgba(59,130,246,0.03)',
+              borderRadius: '12px',
+            }}
+          >
             <div className="space-y-2 flex-1">
               {profile.customStats.map(stat => (
                 <div
                   key={stat.id}
-                  className="flex items-center justify-between p-2 bg-slate-900/50 rounded-lg border border-slate-800 hover:bg-slate-800 transition-colors"
+                  className="flex items-center justify-between p-2 rounded-lg border transition-colors"
+                  style={{
+                    background: `linear-gradient(90deg, ${stat.color}08 0%, rgba(3,6,22,0.5) 100%)`,
+                    borderColor: `${stat.color}25`,
+                    boxShadow: `inset 3px 0 0 ${stat.color}60`,
+                  }}
                 >
                   <span className="flex items-center gap-2 font-mono text-sm" style={{ color: stat.color }}>
                     {stat.emoji} {stat.name}
                   </span>
-                  <span className="text-xl font-bold">{stat.value}</span>
+                  <span
+                    className="text-xl font-bold"
+                    style={{ color: stat.color, textShadow: `0 0 10px ${stat.color}88` }}
+                  >
+                    {stat.value}
+                  </span>
                 </div>
               ))}
             </div>
-            <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
+            <div className="mt-3 pt-3 border-t border-slate-800/60 flex items-center justify-between">
               <span className="text-xs font-mono text-slate-400 flex items-center gap-1">
                 <Zap size={12} /> {t.dashboard.totalPower}
               </span>
-              <span className="text-lg font-bold text-system-blue">{totalPower}</span>
+              <motion.span
+                className="text-lg font-bold text-system-blue"
+                animate={{ textShadow: ['0 0 6px rgba(59,130,246,0.4)', '0 0 18px rgba(59,130,246,0.9)', '0 0 6px rgba(59,130,246,0.4)'] }}
+                transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+              >
+                {totalPower}
+              </motion.span>
             </div>
           </div>
         </div>
 
         {/* ── System Quote ── */}
-        <div className="bg-gradient-to-r from-slate-900 to-system-panel border border-system-blue/20 rounded-xl p-4 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Quote size={56} />
-          </div>
-          <div className="flex items-start gap-3 relative z-10">
-            <div className="bg-system-blue/20 p-2 rounded-full text-system-blue shrink-0">
+        <motion.div
+          className="relative overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, rgba(6,12,40,0.99) 0%, rgba(8,6,30,0.99) 60%, rgba(3,6,22,0.99) 100%)',
+            border: '1px solid rgba(59,130,246,0.22)',
+            borderRadius: '12px',
+          }}
+          animate={{
+            boxShadow: [
+              '0 0 16px rgba(59,130,246,0.04), inset 0 0 24px rgba(59,130,246,0.03)',
+              '0 0 36px rgba(59,130,246,0.11), inset 0 0 40px rgba(59,130,246,0.06)',
+              '0 0 16px rgba(59,130,246,0.04), inset 0 0 24px rgba(59,130,246,0.03)',
+            ],
+          }}
+          transition={{ repeat: Infinity, duration: 5, ease: 'easeInOut' }}
+        >
+          {/* Background quote icon — slowly pulses */}
+          <motion.div
+            className="absolute top-0 right-0 p-3 text-system-blue pointer-events-none"
+            animate={{ opacity: [0.04, 0.09, 0.04] }}
+            transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
+          >
+            <Quote size={64} />
+          </motion.div>
+          <div className="p-4 flex items-start gap-3 relative z-10">
+            <div className="bg-system-blue/15 p-2 rounded-full text-system-blue shrink-0 border border-system-blue/20">
               <Quote size={16} />
             </div>
             <div>
@@ -2115,7 +2223,7 @@ ${gameContext}`;
               <p className="text-slate-500 text-xs font-mono mt-1.5 text-right">- {dailyQuote.author}</p>
             </div>
           </div>
-        </div>
+        </motion.div>
 
       </div>
     );
