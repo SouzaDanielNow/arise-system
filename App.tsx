@@ -1693,12 +1693,14 @@ ${gameContext}`;
     const completedToday = todayHabits.filter(h => h.isCompleted).length;
     const todayProgress = todayHabits.length > 0 ? (completedToday / todayHabits.length) * 100 : 0;
 
+    const totalHabits = habits.length || 1;
     const chartData = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(Date.now() - (6 - i) * 86400000);
       const dateStr = toDateStr(d);
       const label = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d.getDay()];
       const entry = (profile.weeklyHistory ?? []).find(e => e.date === dateStr);
-      return { day: label, completed: entry?.completed ?? 0 };
+      const completed = entry?.completed ?? 0;
+      return { day: label, pct: Math.min(100, Math.round((completed / totalHabits) * 100)) };
     });
 
     const NEON_PIE = ['#00d4ff', '#ff0070', '#00ff88', '#ff8c00', '#bf00ff', '#ffee00', '#ff3366', '#00ffdd'];
@@ -1995,16 +1997,16 @@ ${gameContext}`;
                   axisLine={false}
                   tickLine={false}
                 />
-                <YAxis hide allowDecimals={false} />
+                <YAxis hide domain={[0, 100]} />
                 <Tooltip
                   contentStyle={{ background: 'rgba(3,6,22,0.97)', border: '1px solid rgba(59,130,246,0.35)', borderRadius: 8, fontFamily: 'monospace', fontSize: 11 }}
                   labelStyle={{ color: '#64748b' }}
                   itemStyle={{ color: '#3b82f6' }}
-                  formatter={(v: number) => [v, '']}
+                  formatter={(v: number) => [`${v}%`, '']}
                 />
                 <Area
                   type="monotone"
-                  dataKey="completed"
+                  dataKey="pct"
                   stroke="#3b82f6"
                   strokeWidth={2}
                   fill="url(#weeklyGradient)"
