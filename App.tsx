@@ -2245,17 +2245,43 @@ ${gameContext}`;
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
         >
-          <div
-            className="relative rounded-2xl overflow-hidden border"
-            style={{ borderColor: `${rankColor}35`, boxShadow: `0 0 30px ${rankColor}12` }}
+          <motion.div
+            className="relative rounded-2xl overflow-hidden"
+            style={{
+              background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+              border: `1px solid ${rankColor}40`,
+              boxShadow: `0 0 0 1px ${rankColor}0a, 0 0 32px ${rankColor}12, inset 0 0 28px ${rankColor}06`,
+            }}
+            animate={{
+              x: [0, -0.4, 0.4, 0, 0, 0, -0.4, 0.8, 0],
+              filter: [
+                'none',
+                `drop-shadow(1.2px 0 ${rankColor}30) drop-shadow(-1.2px 0 rgba(255,0,80,0.10))`,
+                'none', 'none', 'none', 'none',
+                `drop-shadow(0.8px 0 ${rankColor}20)`,
+                'none',
+              ],
+            }}
+            transition={{ repeat: Infinity, duration: 11, ease: 'linear', delay: 3 }}
           >
             {/* Top rank accent line */}
             <div
-              className="absolute top-0 left-0 right-0 h-0.5"
+              className="absolute top-0 left-0 right-0 h-0.5 z-10"
               style={{ background: `linear-gradient(90deg, transparent, ${rankColor}, transparent)` }}
             />
+            {/* Corner accents */}
+            {(['top-0 left-0 border-t border-l', 'top-0 right-0 border-t border-r', 'bottom-0 left-0 border-b border-l', 'bottom-0 right-0 border-b border-r'] as const).map((cls, i) => (
+              <div key={i} className={`absolute w-3 h-3 ${cls} z-10`} style={{ borderColor: `${rankColor}70` }} />
+            ))}
+            {/* Scan line */}
+            <motion.div
+              className="absolute left-0 right-0 h-px pointer-events-none z-10"
+              style={{ background: `linear-gradient(90deg, transparent, ${rankColor}45, transparent)` }}
+              animate={{ top: ['0%', '100%', '0%'] }}
+              transition={{ repeat: Infinity, duration: 6, ease: 'linear' }}
+            />
 
-            <div className="bg-slate-900/80 p-5">
+            <div className="p-5 relative z-0">
               {/* Avatar + name row */}
               <div className="flex items-start gap-4 mb-5">
 
@@ -2390,7 +2416,7 @@ ${gameContext}`;
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </motion.div>
 
         {/* ── CARD 2: Attribute Analysis ── */}
@@ -2399,9 +2425,23 @@ ${gameContext}`;
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1 }}
         >
-          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden">
+          <div
+            className="relative rounded-2xl overflow-hidden"
+            style={{
+              background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+              border: '1px solid rgba(59,130,246,0.25)',
+              boxShadow: '0 0 0 1px rgba(59,130,246,0.06), inset 0 0 22px rgba(59,130,246,0.04)',
+            }}
+          >
+            {/* Data beam — varre esq→dir */}
+            <motion.div
+              className="absolute top-0 bottom-0 w-px pointer-events-none z-10"
+              style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(59,130,246,0.5) 50%, transparent 100%)' }}
+              animate={{ left: ['-2%', '102%'] }}
+              transition={{ repeat: Infinity, duration: 5, ease: 'linear', repeatDelay: 4 }}
+            />
             {/* Header + view toggle */}
-            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-800/60">
+            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-700/40">
               <h3 className="text-[10px] font-garet font-bold text-slate-400 tracking-widest uppercase flex items-center gap-2">
                 <Activity size={13} /> {t.identity.attributeAnalysis}
               </h3>
@@ -2534,14 +2574,33 @@ ${gameContext}`;
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.2 }}
         >
-          <div
-            className="relative rounded-2xl overflow-hidden border bg-slate-900/50 p-5"
-            style={{ borderColor: '#7c3aed30', boxShadow: '0 0 20px #7c3aed08' }}
+          <motion.div
+            className="relative rounded-2xl overflow-hidden p-5"
+            style={{
+              background: 'linear-gradient(160deg, rgba(10,4,40,0.99) 0%, rgba(6,3,28,0.99) 100%)',
+              border: '1px solid rgba(124,58,237,0.32)',
+            }}
+            animate={{
+              boxShadow: [
+                '0 0 18px rgba(124,58,237,0.06), inset 0 0 24px rgba(124,58,237,0.04)',
+                '0 0 40px rgba(124,58,237,0.16), inset 0 0 40px rgba(124,58,237,0.08)',
+                '0 0 18px rgba(124,58,237,0.06), inset 0 0 24px rgba(124,58,237,0.04)',
+              ],
+            }}
+            transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
           >
-            {/* Background ghost shield */}
-            <div className="absolute top-0 right-0 p-3 opacity-[0.04] pointer-events-none select-none">
+            {/* Corner accents — purple */}
+            {(['top-0 left-0 border-t border-l', 'top-0 right-0 border-t border-r', 'bottom-0 left-0 border-b border-l', 'bottom-0 right-0 border-b border-r'] as const).map((cls, i) => (
+              <div key={i} className={`absolute w-3 h-3 ${cls}`} style={{ borderColor: 'rgba(168,85,247,0.45)' }} />
+            ))}
+            {/* Background ghost shield — pulsa */}
+            <motion.div
+              className="absolute top-0 right-0 p-3 pointer-events-none select-none text-purple-400"
+              animate={{ opacity: [0.03, 0.08, 0.03] }}
+              transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
+            >
               <Shield size={110} />
-            </div>
+            </motion.div>
 
             {/* Header row */}
             <div className="flex items-start justify-between mb-4">
@@ -2590,7 +2649,7 @@ ${gameContext}`;
               </span>
               <span className="text-purple-600">{t.identity.daysRetained(retainedDays)}</span>
             </div>
-          </div>
+          </motion.div>
         </motion.div>
 
       </div>
