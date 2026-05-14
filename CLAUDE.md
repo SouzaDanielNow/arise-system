@@ -1,4 +1,4 @@
-# CLAUDE.md — ARISE SYSTEM v1.3
+# CLAUDE.md — ARISE SYSTEM v1.4
 
 ## Stack
 React 19 + TypeScript + Vite + TailwindCSS + Recharts + Lucide React + Google Gemini Live API + Supabase
@@ -130,7 +130,30 @@ components/
 - Seção no final da aba MISSÕES
 - Mostra: hábitos com `isCompleted: true` + `bossFights.filter(b => b.status === 'completed')`
 
-## Aba PAINEL (Dashboard) — v1.2/v1.3
+## Efeitos visuais neon — v1.4
+
+Sete efeitos distintos aplicados por tipo de card. **Nunca repetir o mesmo efeito em dois cards adjacentes.**
+
+| # | Efeito | Como funciona | Onde está |
+|---|---|---|---|
+| 1 | **Scan Line** | `motion.div` descendo top→bottom, gradiente vertical | Card Hunter Profile (Identidade) |
+| 2 | **Data Beam** | `motion.div` varrendo left→right (`left:['-5%','105%']`), faixa vertical | Rastreio Semanal (Painel), Análise de Atributos (Identidade), Stats (Config), Mission Board (Sombras) |
+| 3 | **Pulsing Border Glow** | `animate boxShadow` com `0 0 0 1px` + `inset` — borda "acendendo" | Cards Loja, Mission Board Sombras, Idioma e Notificações (Config) |
+| 4 | **Sequential Corner Pulse** | 4 divs em L nos cantos com `opacity:[0.2,1,0.2]` e `delay: i*0.5` | Seção Radar (Painel), Hunter Profile (Identidade) |
+| 5 | **Neon Inset Border** | `box-shadow: inset 3px 0 0 ${cor}` — borda esquerda colorida por stat/estado | Lista de Atributos (Painel), itens de hábito/tarefa (Missões) |
+| 6 | **Shimmer de Texto** | `animate textShadow` entre intensidades — texto pulsante | Total Power (Painel) |
+| 7 | **Ambient Glow Pulse** | `animate boxShadow` spread largo (20–45px), sem borda forte, sem `inset` — card "respirando" | Missões de Hoje (Painel), Undying Will (Identidade), Conta (Config), estado vazio Sombras |
+
+### Corner accents estáticos
+4 divs em L (`absolute w-2.5 h-2.5 border-{lado}`) aplicados como decoração base em vários cards. Presentes em: Hunter Profile, boss fight cards (Missões), cards da Loja.
+
+### Background padrão dark gradient
+Todos os cards neon usam:
+- Azul: `linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)`
+- Roxo (chefões/Undying Will): `linear-gradient(160deg, rgba(10,4,40,0.99) 0%, rgba(6,3,28,0.99) 100%)`
+- Vermelho (Conta): `linear-gradient(160deg, rgba(20,4,4,0.99) 0%, rgba(10,3,3,0.99) 100%)`
+
+## Aba PAINEL (Dashboard) — v1.2/v1.4
 Ordem das seções:
 1. **Saudação dinâmica** — "Saudação, CAÇADOR [Nome]" com palavra de saudação variando por hora (Bom dia/Boa tarde/Boa noite)
 2. **Card de perfil neon** — avatar clicável, badge rank hexagonal, nome editável, gold, 2 barras XP (rank + nível). Estética: fundo dark gradient, borda neon na cor do rank, corner accents, scan line animada, glitch periódico.
@@ -142,6 +165,22 @@ Ordem das seções:
 
 **Nível**: derivado de `Math.floor(profile.currentXp / 100) + 1` (não salvo, calculado on-the-fly)
 **Removidos na v1.1**: World Ranking card, Analytics/View Report button, Gym Tracker, Daily Quests.
+
+### Rastreio Semanal — v1.4
+- Usa `AreaChart` + `Area` (não mais `LineChart` + `Line`) com gradient fill via `<defs><linearGradient id="weeklyGradient">`
+- Eixo Y fixo `domain={[0, 100]}` — escala em percentual
+- `chartData` retorna `{ day, pct }` onde `pct = Math.min(100, Math.round((completed / habits.length) * 100))`
+- Tooltip mostra `${v}%`
+
+### Fidelidade com Hábitos — v1.4
+- `ResponsiveContainer width={140} height={140}` com `PieChart margin={{ top:10, right:10, bottom:10, left:10 }}`
+- `outerRadius={48}` e `innerRadius={30}` — reduzido para o `drop-shadow` não ser cortado pelo viewport SVG
+
+## O que NÃO fazer — efeitos visuais
+- Não aplicar o mesmo efeito em dois cards adjacentes — sempre variar
+- Não usar `overflow: hidden` em cards com `drop-shadow` — o glow é cortado
+- Não usar `drop-shadow` em `Cell` do Recharts sem aumentar o container e adicionar `margin` ao `PieChart`
+- Não usar `LineChart`/`Line` para o Rastreio Semanal — foi substituído por `AreaChart`/`Area` (v1.4)
 
 ## O que NÃO fazer
 - Não adicionar campo `type: 'good' | 'bad'` em Habit — foi removido intencionalmente
