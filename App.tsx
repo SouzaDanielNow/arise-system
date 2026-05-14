@@ -1901,17 +1901,17 @@ ${gameContext}`;
           className="relative overflow-hidden"
           style={{
             background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
-            border: '1px solid rgba(59,130,246,0.28)',
+            border: '1px solid rgba(59,130,246,0.22)',
             borderRadius: '12px',
           }}
           animate={{
             boxShadow: [
-              '0 0 0 1px rgba(59,130,246,0.04), 0 0 18px rgba(59,130,246,0.06)',
-              '0 0 0 1px rgba(59,130,246,0.13), 0 0 32px rgba(59,130,246,0.15), inset 0 0 24px rgba(59,130,246,0.04)',
-              '0 0 0 1px rgba(59,130,246,0.04), 0 0 18px rgba(59,130,246,0.06)',
+              '0 0 20px rgba(59,130,246,0.05)',
+              '0 0 45px rgba(59,130,246,0.18)',
+              '0 0 20px rgba(59,130,246,0.05)',
             ],
           }}
-          transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut' }}
+          transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
         >
           {/* Corner accents */}
           {(['top-0 left-0 border-t border-l', 'top-0 right-0 border-t border-r', 'bottom-0 left-0 border-b border-l', 'bottom-0 right-0 border-b border-r'] as const).map((cls, i) => (
