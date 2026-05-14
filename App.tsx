@@ -2899,7 +2899,14 @@ ${gameContext}`;
 
           {/* New boss form */}
           {showAddBossForm && (
-            <div className="bg-slate-900/80 border border-purple-500/30 rounded-lg p-4 space-y-3 animate-fade-in">
+            <div
+              className="rounded-lg p-4 space-y-3 animate-fade-in"
+              style={{
+                background: 'linear-gradient(160deg, rgba(10,4,40,0.99) 0%, rgba(6,3,28,0.99) 100%)',
+                border: '1px solid rgba(168,85,247,0.35)',
+                boxShadow: '0 0 20px rgba(168,85,247,0.10), inset 0 0 16px rgba(168,85,247,0.04)',
+              }}
+            >
               <p className="text-[10px] font-garet text-purple-400 font-bold tracking-widest">⚔️ {t.missions.bossFormTitle}</p>
               <input
                 type="text"
@@ -2989,7 +2996,21 @@ ${gameContext}`;
                   return next;
                 });
                 return (
-                  <div key={boss.id} className="relative border-2 border-purple-500/60 rounded-lg bg-purple-950/20 shadow-[0_0_24px_rgba(168,85,247,0.18)] overflow-hidden">
+                  <div
+                    key={boss.id}
+                    className="relative overflow-hidden rounded-lg"
+                    style={{
+                      background: 'linear-gradient(160deg, rgba(10,4,40,0.99) 0%, rgba(6,3,28,0.99) 100%)',
+                      border: isExpired ? '1px solid rgba(239,68,68,0.50)' : '1px solid rgba(168,85,247,0.50)',
+                      boxShadow: isExpired
+                        ? '0 0 0 1px rgba(239,68,68,0.06), 0 0 28px rgba(239,68,68,0.14), inset 0 0 24px rgba(239,68,68,0.04)'
+                        : '0 0 0 1px rgba(168,85,247,0.06), 0 0 28px rgba(168,85,247,0.14), inset 0 0 24px rgba(168,85,247,0.04)',
+                    }}
+                  >
+                    {/* Corner accents */}
+                    {(['top-0 left-0 border-t border-l', 'top-0 right-0 border-t border-r', 'bottom-0 left-0 border-b border-l', 'bottom-0 right-0 border-b border-r'] as const).map((cls, i) => (
+                      <div key={i} className={`absolute w-2.5 h-2.5 ${cls}`} style={{ borderColor: isExpired ? 'rgba(239,68,68,0.40)' : 'rgba(168,85,247,0.40)' }} />
+                    ))}
                     <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-purple-500 to-transparent" />
 
                     {/* ── Header (always visible) ── */}
@@ -3353,13 +3374,25 @@ ${gameContext}`;
                 return (
                   <div
                     key={habit.id}
-                    className={`p-3 border rounded-lg flex items-center gap-3 transition-all duration-200
-                      ${!active
-                        ? 'opacity-40 bg-slate-950 border-slate-800'
+                    className="p-3 rounded-lg flex items-center gap-3 transition-all duration-200"
+                    style={{
+                      background: !active
+                        ? 'rgba(6,8,20,0.60)'
                         : habit.isCompleted
-                          ? 'bg-system-blue/5 border-system-blue/30'
-                          : 'bg-slate-900 border-slate-800 hover:border-slate-700'}
-                    `}
+                          ? 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)'
+                          : 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+                      border: !active
+                        ? '1px solid rgba(30,41,59,0.50)'
+                        : habit.isCompleted
+                          ? '1px solid rgba(34,197,94,0.25)'
+                          : '1px solid rgba(59,130,246,0.25)',
+                      boxShadow: !active
+                        ? 'none'
+                        : habit.isCompleted
+                          ? 'inset 3px 0 0 rgba(34,197,94,0.50)'
+                          : 'inset 3px 0 0 rgba(59,130,246,0.50)',
+                      opacity: !active ? 0.45 : 1,
+                    }}
                   >
                     {/* Mission icon */}
                     <div className="p-1.5 rounded-full shrink-0 bg-system-blue/15 text-system-blue">
@@ -3465,10 +3498,15 @@ ${gameContext}`;
                   {todaysMissions.map(m => (
                     <div
                       key={m.id}
-                      className={`p-3 border rounded-lg flex items-center gap-3 transition-all duration-200
-                        ${m.isCompleted
-                          ? 'bg-yellow-950/10 border-yellow-800/30 opacity-60'
-                          : 'bg-slate-900 border-yellow-700/40 hover:border-yellow-600/60'}`}
+                      className="p-3 rounded-lg flex items-center gap-3 transition-all duration-200"
+                      style={{
+                        background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+                        border: m.isCompleted ? '1px solid rgba(161,120,0,0.20)' : '1px solid rgba(234,179,8,0.35)',
+                        boxShadow: m.isCompleted
+                          ? 'none'
+                          : '0 0 14px rgba(234,179,8,0.08), inset 3px 0 0 rgba(234,179,8,0.45)',
+                        opacity: m.isCompleted ? 0.55 : 1,
+                      }}
                     >
                       <div className="p-1.5 rounded-full shrink-0 bg-yellow-500/15 text-yellow-400">
                         <Zap size={13} />
@@ -3513,8 +3551,15 @@ ${gameContext}`;
 
         {/* ── ACTIVITY LOG ── */}
         {(completedHabits.length > 0 || completedBosses.length > 0) && (
-          <section className="space-y-3">
-            <h3 className="text-slate-500 font-garet text-sm font-bold flex items-center gap-2 border-b border-slate-800 pb-2">
+          <section
+            className="space-y-3 p-4 rounded-xl"
+            style={{
+              background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+              border: '1px solid rgba(59,130,246,0.15)',
+              boxShadow: '0 0 0 1px rgba(59,130,246,0.04), inset 0 0 20px rgba(59,130,246,0.03)',
+            }}
+          >
+            <h3 className="text-slate-500 font-garet text-sm font-bold flex items-center gap-2 border-b border-slate-700/40 pb-2">
               📋 {t.missions.activityHeader}
             </h3>
 
