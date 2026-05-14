@@ -2687,10 +2687,24 @@ ${gameContext}`;
           </h3>
           <div className="grid grid-cols-1 gap-3">
             {shadowMissions.map(mission => (
-              <div
+              <motion.div
                 key={mission.id}
-                className="bg-slate-900 border border-yellow-500/20 rounded-lg p-4 hover:border-yellow-500/40 transition-all"
+                className="rounded-lg p-4 relative overflow-hidden"
+                style={{
+                  background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+                  border: '1px solid rgba(234,179,8,0.25)',
+                  boxShadow: '0 0 18px rgba(234,179,8,0.07)',
+                }}
+                animate={{ boxShadow: ['0 0 10px rgba(234,179,8,0.05)', '0 0 22px rgba(234,179,8,0.13)', '0 0 10px rgba(234,179,8,0.05)'] }}
+                transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
               >
+                {/* data beam */}
+                <motion.div
+                  className="absolute top-0 bottom-0 w-8 pointer-events-none"
+                  style={{ background: 'linear-gradient(90deg, transparent, rgba(234,179,8,0.07), transparent)' }}
+                  animate={{ left: ['-5%', '105%'] }}
+                  transition={{ duration: 4, repeat: Infinity, ease: 'linear', repeatDelay: 3.5 }}
+                />
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
                     <p className="font-mono font-bold text-sm text-white">{mission.title}</p>
@@ -2712,7 +2726,7 @@ ${gameContext}`;
                 >
                   {t.shadows.missionSendBtn}
                 </button>
-              </div>
+              </motion.div>
             ))}
           </div>
         </section>
@@ -2725,11 +2739,19 @@ ${gameContext}`;
             <span className="ml-auto text-shadow-purple font-bold">{soldiers.length}</span>
           </h3>
           {soldiers.length === 0 ? (
-            <div className="text-center py-14 text-slate-600 border border-dashed border-slate-800 rounded-lg">
+            <motion.div
+              className="text-center py-14 text-slate-600 rounded-lg"
+              style={{
+                background: 'linear-gradient(160deg, rgba(6,12,40,0.80) 0%, rgba(3,6,22,0.80) 100%)',
+                border: '1px dashed rgba(139,92,246,0.20)',
+              }}
+              animate={{ boxShadow: ['0 0 6px rgba(139,92,246,0.03)', '0 0 18px rgba(139,92,246,0.09)', '0 0 6px rgba(139,92,246,0.03)'] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            >
               <Ghost size={40} className="mx-auto mb-3 opacity-20" />
               <p className="text-sm">{t.shadows.soldiersEmpty}</p>
               <p className="text-xs mt-1 text-slate-700">{t.shadows.soldiersEmptyHint}</p>
-            </div>
+            </motion.div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {soldiers.map(s => (
@@ -2845,8 +2867,22 @@ ${gameContext}`;
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        {localizedRewards.map(item => (
-          <div key={item.id} className="bg-slate-900 border border-slate-700 p-4 rounded-lg flex flex-col justify-between hover:border-yellow-500/50 hover:shadow-[0_0_15px_rgba(234,179,8,0.2)] transition-all group">
+        {localizedRewards.map((item, idx) => (
+          <motion.div
+            key={item.id}
+            className="p-4 rounded-lg flex flex-col justify-between group relative overflow-hidden"
+            style={{
+              background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+              border: '1px solid rgba(234,179,8,0.22)',
+            }}
+            animate={{ boxShadow: ['0 0 8px rgba(234,179,8,0.04)', '0 0 20px rgba(234,179,8,0.12)', '0 0 8px rgba(234,179,8,0.04)'] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: idx * 0.4 }}
+            whileHover={{ scale: 1.02 }}
+          >
+            {/* corner accents */}
+            {[['top-1.5 left-1.5', true, true, false, false], ['top-1.5 right-1.5', true, false, false, true], ['bottom-1.5 left-1.5', false, true, true, false], ['bottom-1.5 right-1.5', false, false, true, true]].map(([pos, bT, bL, bB, bR], i) => (
+              <div key={i} className={`absolute ${pos} w-3 h-3 pointer-events-none`} style={{ borderTop: bT ? '1px solid rgba(234,179,8,0.45)' : undefined, borderLeft: bL ? '1px solid rgba(234,179,8,0.45)' : undefined, borderBottom: bB ? '1px solid rgba(234,179,8,0.45)' : undefined, borderRight: bR ? '1px solid rgba(234,179,8,0.45)' : undefined }} />
+            ))}
             <div className="text-center mb-4">
               <div className="text-4xl mb-2 group-hover:scale-110 transition-transform duration-300">{item.icon}</div>
               <h3 className="font-bold text-white leading-tight">{item.name}</h3>
@@ -2858,7 +2894,7 @@ ${gameContext}`;
             >
               <Coins size={12} /> {item.cost}
             </button>
-          </div>
+          </motion.div>
         ))}
       </div>
     </div>
@@ -3606,7 +3642,23 @@ ${gameContext}`;
       </div>
 
       {/* Custom Stats CRUD */}
-      <div className="bg-system-panel border border-slate-700 p-4 rounded-lg">
+      <motion.div
+        className="p-4 rounded-lg relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+          border: '1px solid rgba(59,130,246,0.28)',
+          boxShadow: '0 0 14px rgba(59,130,246,0.07)',
+        }}
+        animate={{ boxShadow: ['0 0 8px rgba(59,130,246,0.05)', '0 0 22px rgba(59,130,246,0.13)', '0 0 8px rgba(59,130,246,0.05)'] }}
+        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        {/* data beam */}
+        <motion.div
+          className="absolute top-0 bottom-0 w-8 pointer-events-none"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.07), transparent)' }}
+          animate={{ left: ['-5%', '105%'] }}
+          transition={{ duration: 5, repeat: Infinity, ease: 'linear', repeatDelay: 4 }}
+        />
         <h3 className="text-system-blue font-garet text-sm mb-2 border-b border-slate-800 pb-2 flex items-center gap-2">
           <Activity size={16} /> {t.settings.statsSection}
         </h3>
@@ -3673,10 +3725,18 @@ ${gameContext}`;
         {profile.customStats.length <= 1 && (
           <p className="text-red-400 text-xs mt-2 font-mono">{t.settings.minStatWarning}</p>
         )}
-      </div>
+      </motion.div>
 
       {/* Language */}
-      <div className="bg-system-panel border border-slate-700 p-4 rounded-lg">
+      <motion.div
+        className="p-4 rounded-lg"
+        style={{
+          background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+          border: '1px solid rgba(59,130,246,0.28)',
+        }}
+        animate={{ boxShadow: ['0 0 6px rgba(59,130,246,0.04)', '0 0 18px rgba(59,130,246,0.10)', '0 0 6px rgba(59,130,246,0.04)'] }}
+        transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: 0.6 }}
+      >
         <h3 className="text-system-blue font-garet text-sm mb-2 border-b border-slate-800 pb-2 flex items-center gap-2">
           <Globe size={16} /> {t.settings.languageSection}
         </h3>
@@ -3695,7 +3755,7 @@ ${gameContext}`;
             🇺🇸 English
           </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Dev Panel — admin only */}
       {isAdmin && (
@@ -3711,7 +3771,15 @@ ${gameContext}`;
 
       {/* Notifications */}
       {'Notification' in window && (
-        <div className="bg-system-panel border border-slate-700 p-4 rounded-lg">
+        <motion.div
+          className="p-4 rounded-lg"
+          style={{
+            background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+            border: '1px solid rgba(59,130,246,0.28)',
+          }}
+          animate={{ boxShadow: ['0 0 6px rgba(59,130,246,0.04)', '0 0 18px rgba(59,130,246,0.10)', '0 0 6px rgba(59,130,246,0.04)'] }}
+          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1.2 }}
+        >
           <h3 className="text-system-blue font-garet text-sm mb-2 border-b border-slate-800 pb-2 flex items-center gap-2">
             <Bell size={16} /> {t.settings.notificationsSection}
           </h3>
@@ -3745,12 +3813,20 @@ ${gameContext}`;
               </div>
             </div>
           )}
-        </div>
+        </motion.div>
       )}
 
       {/* Account */}
       {session && (
-        <div className="bg-system-panel border border-slate-700 p-4 rounded-lg">
+        <motion.div
+          className="p-4 rounded-lg relative overflow-hidden"
+          style={{
+            background: 'linear-gradient(160deg, rgba(20,4,4,0.99) 0%, rgba(10,3,3,0.99) 100%)',
+            border: '1px solid rgba(239,68,68,0.22)',
+          }}
+          animate={{ boxShadow: ['0 0 6px rgba(239,68,68,0.04)', '0 0 18px rgba(239,68,68,0.10)', '0 0 6px rgba(239,68,68,0.04)'] }}
+          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1.8 }}
+        >
           <h3 className="text-system-blue font-garet text-sm mb-3 border-b border-slate-800 pb-2 flex items-center gap-2">
             <Shield size={16} /> {t.settings.accountSection}
           </h3>
@@ -3761,7 +3837,7 @@ ${gameContext}`;
           >
             <LogOut size={14} /> {t.settings.signOut}
           </button>
-        </div>
+        </motion.div>
       )}
     </div>
   );
