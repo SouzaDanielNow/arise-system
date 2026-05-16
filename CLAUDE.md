@@ -1,4 +1,4 @@
-# CLAUDE.md — ARISE SYSTEM v1.4
+# CLAUDE.md — ARISE SYSTEM v1.4.2
 
 ## Stack
 React 19 + TypeScript + Vite + TailwindCSS + Recharts + Lucide React + Google Gemini Live API + Supabase
@@ -14,7 +14,7 @@ Requer `GEMINI_API_KEY` no arquivo `.env.local`.
 - Repositório: https://github.com/SouzaDanielNow/arise-system.git (branch `main`)
 - Deploy automático via **Vercel** — basta `git push origin main` para publicar
 - Não commitar: `node_modules`, `.env.local`, arquivos de build (`dist/`)
-- Convenção de commit: `feat: descrição` ou `fix: descrição`
+- Convenção de commit: `feat(vX.Y.Z): descrição` ou `fix: descrição`
 - Sempre rodar `npx tsc --noEmit` antes de commitar
 
 ## Tipografia (v1.3)
@@ -27,9 +27,9 @@ Requer `GEMINI_API_KEY` no arquivo `.env.local`.
 
 ## Estrutura de arquivos
 ```
-App.tsx               ← componente único principal (~3500 linhas)
+App.tsx               ← componente único principal (~3600+ linhas)
 types.ts              ← todas as interfaces TypeScript (incl. GameState)
-constants.ts          ← dados iniciais (hábitos, recompensas — sem dungeons)
+constants.ts          ← motor de progressão, dados iniciais, funções utilitárias
 lib/
   supabase.ts         ← client Supabase (VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY)
 i18n/
@@ -69,66 +69,96 @@ components/
 
 ### Commits
 - Sempre commite antes de iniciar uma nova feature grande.
-- Mensagem: `feat: descrição breve` ou `fix: descrição`.
+- Mensagem: `feat(vX.Y.Z): descrição breve` ou `fix: descrição`.
 
-## Sistemas principais
+---
 
-### Perfil e progressão
-- `profile.currentXp` → rank calculado por `getNextRank(xp)` em `constants.ts`
-- Ranks: E(0) D(750) C(2250) B(5250) A(7000) S(15000) SS(30000) SSS(60000) NACIONAL(120000) MONARCA(250000)
-- `addXp(amount, statId?)` — incrementa XP e opcionalmente +1 no stat vinculado
-- `addGold(amount)` — incrementa Gold
-- **Total Power** = `profile.customStats.reduce((s,c) => s + c.value, 0)` — protege streak
+## Motor de Progressão — v1.4.1+
 
-### Ranks
-- 10 ranks: E, D, C, B, A, S, SS, SSS, NACIONAL, MONARCA
+### Nível (Level)
+- Campo `level` **não existe mais** no `HunterProfile` — é calculado on-the-fly.
+- `getLevelFromXp(totalXp)` → `{ level, xpIntoLevel, xpForNextLevel }` — única fonte da verdade.
+- Curva polinomial quadrática: `xpForNextLevel = Math.floor(200 + level² × 3)`
+  - Nível 1 → 203 XP | Nível 10 → 500 XP | Nível 50 → 7.700 XP | Nível 100 → 30.200 XP
+- `getXpForLevel(targetLevel)` → XP acumulado total necessário para chegar a um nível.
+
+### Rank (derivado do Nível)
+- Rank é calculado via `getRankFromLevel(level)` — **não mais por XP threshold**.
+- `RANK_LEVEL_THRESHOLDS`: E=1, D=20, C=40, B=60, A=80, S=100, SS=120, SSS=140, NACIONAL=160, MONARCA=180
+- Cada rank abrange 20 níveis. No MONARCA (Nv180+) o rank estabiliza mas o nível continua subindo.
 - Cores: E=#9ca3af D=#10b981 C=#3b82f6 B=#8b5cf6 A=#ec4899 S=#facc15 SS=#f97316 SSS=#ef4444 NACIONAL=#c084fc MONARCA=#e2e8f0
-- CSS custom property `--rank-color` em `:root`, atualizado via `useEffect` quando `profile.rank` muda
-- `@property --rank-color` em `index.html` para suporte a CSS transition suave
+- CSS custom property `--rank-color` em `:root`, atualizado via `useEffect` quando `profile.rank` muda.
 
-### Stats customizáveis
-- `profile.customStats: CustomStat[]` — criados/deletados pelo usuário em Settings
-- Defaults: Físico💪, Intelectual🧠, Profissional💼, Espiritual🧘 (IDs: '1','2','3','4')
-- Mínimo 1 stat obrigatório
-- `STAT_COLOR_PALETTE` em `constants.ts` atribui cores automaticamente
+### Multiplicadores de Rank (`getRankMultiplier`)
+| Rank | Mult | Rank | Mult |
+|---|---|---|---|
+| E | 1.0 | S | 5.0 |
+| D | 1.2 | SS | 7.0 |
+| C | 1.5 | SSS | 10.0 |
+| B | 2.0 | NACIONAL | 15.0 |
+| A | 3.0 | MONARCA | 25.0 |
+
+### `addXp(amount, statId?)`
+- Detecta level up (nível anterior vs novo) e rank up (rank anterior vs novo).
+- **Rank up** → dispara `LevelUpOverlay` + notificação de rank.
+- **Level up sem rank up** → dispara notificação `NÍVEL X! +4 Pontos de Atributo desbloqueados`.
+- A cada level up: `availableStatPoints += 4`.
+
+### HunterProfile — campos removidos
+- `level: number` — **removido** (era zumbi, calculado de `currentXp`).
+- `requiredXp: number` — **removido** (era zumbi, hardcoded 500).
+- Salvo no Supabase: apenas `currentXp`. Nível e rank são sempre derivados.
+
+### Barras de progresso (Dashboard + Identidade)
+- **Barra de Rank**: progresso dentro dos 20 níveis do rank atual → `(level - rankMinLevel) / 20 × 100%`.
+- **Barra de Nível**: `xpIntoLevel / xpForNextLevel × 100%` — progresso até o próximo nível.
+
+---
+
+## Sistemas de Recompensa — v1.4.2
 
 ### Hábitos (Habit)
 - Campo `type` NÃO existe. Todas as missões são produtivas.
 - `repeatType: 'daily' | 'weekdays' | 'custom' | 'oneTime'`
-- `isTodayActive(habit)` — verifica se o hábito é para hoje
-- Completar: +30 XP, +20 Gold, streak++
+- `isTodayActive(habit)` — verifica se o hábito é para hoje.
+- **XP ao completar**: `Math.floor(30 × streakBonus × getRankMultiplier(rank))`
+  - `streakBonus = Math.min(2.0, 1 + streak × 0.05)` — +5% por dia, cap 2×
+  - Streak 0 + Rank E = 30 XP | Streak 20 + Rank S = 300 XP | Streak 20 + Rank MONARCA = 1.500 XP
+- Gold ao completar: +20 (fixo).
 
-### Chefões (BossFight) — v1.3
-- Criados diretamente na aba MISSÕES (sem camada de ProcrastinationItem)
-- Formulário: título + descrição + prazo + sub-tarefas opcionais
-- `xpReward` = random 150–300, `goldReward` = random 60–100 (gerado na criação)
-- `progress` = % automático de subTasks.completed — nunca manual
-- `allDone = boss.subTasks.length === 0 || boss.subTasks.every(s => s.completed)` — boss sem sub-tarefas pode ser completado
-- Chefões completados (`status: 'completed'`) ficam no estado e aparecem no Activity Log
-- `history: BossHistoryEntry[]` — inicia com `action:'started'` na criação
-- `toggleBossSubTask` adiciona entrada no histórico com timestamp
-- Edit inline de sub-tarefa: `editingSubTaskId` formato `"bossId::subTaskId"`
-- Drag & drop nativo HTML5: `dragState: {bossId, subTaskId} | null`
-- Penalidade por expiração: -7 dias de streak
-- **Cards colapsáveis**: estado `expandedBossIds: Set<string>` — vazio por padrão (todos colapsados ao abrir o app)
-- **Ordenação**: por prazo mais próximo (`a.dueDate.localeCompare(b.dueDate)`) — urgência em primeiro
-- **Data em formato BR**: `formatBRDate(dateStr)` converte `yyyy-mm-dd` → `dd/mm/yyyy`
+### Chefões (BossFight) — v1.4.2
+- Criados diretamente na aba MISSÕES.
+- **XP híbrida (mérito + RNG)**:
+  - `baseXp = (diasDePrazo × random(5–10)) + (nSubTarefas × random(40–60)) + random(50–199)`
+  - `xpReward = Math.floor(baseXp × getRankMultiplier(rank))`
+  - Boss de 7 dias + 3 subtarefas + Rank E ≈ 250–450 XP
+  - Mesmo boss + Rank S ≈ 1.250–2.250 XP
+- Válido para boss manual e boss criado por IA (usa `suggestion.dueDays` e `suggestion.subTasks.length`).
+- `goldReward` = random 60–100 (ainda fixo).
+- `progress` = % automático de subTasks.completed — nunca manual.
+- `allDone = boss.subTasks.length === 0 || boss.subTasks.every(s => s.completed)`
+- Chefões completados aparecem no Activity Log.
+- Penalidade por expiração: -7 dias de streak.
+- Cards colapsáveis por padrão. Ordenados por prazo mais próximo.
+- `formatBRDate(dateStr)` converte `yyyy-mm-dd` → `dd/mm/yyyy`.
 
-### Passiva Undying Will — v1.1
-- `protection = Math.min(50, totalPower)` — máximo de 50% de retenção
-- `retainedDays = Math.floor(currentStreak * (protection / 100))`
-- Com 50+ Total Power → retém 50% do streak. Menos que isso → retenção proporcional.
-- Aplicada em `applyDailyReset` (login) e `simulateStreakBreak` (botão streak no header)
+### Sombras — Dízimo das Sombras (v1.4.2)
+- `Shadow` agora guarda `missionRewardXP?` e `missionRewardGold?` ao ser enviada em missão.
+- No retorno com sucesso:
+  - **Hunter**: `Math.floor(missionRewardXP × getRankMultiplier(rank))` XP + `missionRewardGold` Gold.
+  - **Sombra**: `missionRewardXP` XP para seu nível interno (não escala com rank do caçador).
+- `randomBetween(min, max)` — utilitário definido em App.tsx (módulo-level).
+
+### Passiva Undying Will
+- `protection = Math.min(50, totalPower)` — máximo de 50% de retenção.
+- `retainedDays = Math.floor(currentStreak × (protection / 100))`.
+- Aplicada em `applyDailyReset` (login) e `simulateStreakBreak` (botão streak no header).
 
 ### Quests do sistema (inline, opcionais)
-- dq-1: "Complete 1 Dungeon Run" (+100 XP, vinculada ao stat '1')
-- dq-2: "Review a Shadow" (+50 XP, vinculada ao stat '2')
-- Aparecem no final da aba MISSIONS com badge OPCIONAL (âmbar)
-- NÃO penalizam streak
+- dq-1: "Complete 1 Dungeon Run" (+100 XP) | dq-2: "Review a Shadow" (+50 XP)
+- NÃO penalizam streak. Aparecem na aba MISSIONS com badge OPCIONAL (âmbar).
 
-### Activity Log — v1.1
-- Seção no final da aba MISSÕES
-- Mostra: hábitos com `isCompleted: true` + `bossFights.filter(b => b.status === 'completed')`
+---
 
 ## Efeitos visuais neon — v1.4
 
@@ -144,54 +174,37 @@ Sete efeitos distintos aplicados por tipo de card. **Nunca repetir o mesmo efeit
 | 6 | **Shimmer de Texto** | `animate textShadow` entre intensidades — texto pulsante | Total Power (Painel) |
 | 7 | **Ambient Glow Pulse** | `animate boxShadow` spread largo (20–45px), sem borda forte, sem `inset` — card "respirando" | Missões de Hoje (Painel), Undying Will (Identidade), Conta (Config), estado vazio Sombras |
 
-### Corner accents estáticos
-4 divs em L (`absolute w-2.5 h-2.5 border-{lado}`) aplicados como decoração base em vários cards. Presentes em: Hunter Profile, boss fight cards (Missões), cards da Loja.
-
 ### Background padrão dark gradient
-Todos os cards neon usam:
 - Azul: `linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)`
 - Roxo (chefões/Undying Will): `linear-gradient(160deg, rgba(10,4,40,0.99) 0%, rgba(6,3,28,0.99) 100%)`
 - Vermelho (Conta): `linear-gradient(160deg, rgba(20,4,4,0.99) 0%, rgba(10,3,3,0.99) 100%)`
 
-## Aba PAINEL (Dashboard) — v1.2/v1.4
-Ordem das seções:
-1. **Saudação dinâmica** — "Saudação, CAÇADOR [Nome]" com palavra de saudação variando por hora (Bom dia/Boa tarde/Boa noite)
-2. **Card de perfil neon** — avatar clicável, badge rank hexagonal, nome editável, gold, 2 barras XP (rank + nível). Estética: fundo dark gradient, borda neon na cor do rank, corner accents, scan line animada, glitch periódico.
-3. **Missões de Hoje** — barra de progresso + contador (X/Y) + lista de hábitos clicáveis (marca como completo direto daqui)
-4. **Rastreio Semanal** — LineChart Seg→Dom. Dados em `profile.weeklyHistory[]` (atualizado em `toggleHabit`; mantém últimos 7 dias)
-5. **Fidelidade com Hábitos** — PieChart donut com cores neon. Calcula % por streak de cada hábito. Estética tech igual ao popup de missão bônus.
-6. **Radar + Atributos** — StatRadar lado a lado com lista de stats + Total Power
-7. **Mensagem do Sistema** — quote diária aleatória
+---
 
-**Nível**: derivado de `Math.floor(profile.currentXp / 100) + 1` (não salvo, calculado on-the-fly)
-**Removidos na v1.1**: World Ranking card, Analytics/View Report button, Gym Tracker, Daily Quests.
+## Aba PAINEL (Dashboard)
+1. **Saudação dinâmica** — "Saudação, CAÇADOR [Nome]" com variação por hora
+2. **Card de perfil neon** — avatar, badge rank hexagonal, nome editável, gold, 2 barras XP (rank + nível)
+3. **Missões de Hoje** — barra de progresso + lista de hábitos clicáveis (Ambient Glow Pulse)
+4. **Rastreio Semanal** — `AreaChart` com gradient fill. Eixo Y em % (`completed / habits.length × 100`)
+5. **Fidelidade com Hábitos** — PieChart donut neon. `ResponsiveContainer 140×140`, `outerRadius=48`, `innerRadius=30`
+6. **Radar + Atributos** — StatRadar + lista de stats + Total Power (Shimmer)
+7. **Mensagem do Sistema** — quote diária aleatória (Ambient Glow Pulse)
 
-### Rastreio Semanal — v1.4
-- Usa `AreaChart` + `Area` (não mais `LineChart` + `Line`) com gradient fill via `<defs><linearGradient id="weeklyGradient">`
-- Eixo Y fixo `domain={[0, 100]}` — escala em percentual
-- `chartData` retorna `{ day, pct }` onde `pct = Math.min(100, Math.round((completed / habits.length) * 100))`
-- Tooltip mostra `${v}%`
-
-### Fidelidade com Hábitos — v1.4
-- `ResponsiveContainer width={140} height={140}` com `PieChart margin={{ top:10, right:10, bottom:10, left:10 }}`
-- `outerRadius={48}` e `innerRadius={30}` — reduzido para o `drop-shadow` não ser cortado pelo viewport SVG
-
-## O que NÃO fazer — efeitos visuais
-- Não aplicar o mesmo efeito em dois cards adjacentes — sempre variar
-- Não usar `overflow: hidden` em cards com `drop-shadow` — o glow é cortado
-- Não usar `drop-shadow` em `Cell` do Recharts sem aumentar o container e adicionar `margin` ao `PieChart`
-- Não usar `LineChart`/`Line` para o Rastreio Semanal — foi substituído por `AreaChart`/`Area` (v1.4)
+---
 
 ## O que NÃO fazer
-- Não adicionar campo `type: 'good' | 'bad'` em Habit — foi removido intencionalmente
-- Não criar sistema de ProcrastinationItem — foi substituído por criação direta de Chefões
-- Não recriar as seções removidas do Dashboard (World Ranking, Gym Tracker, Daily Quests)
-- Não tornar XP/Gold de Boss Fight editável pelo usuário
-- Não usar `setNewTaskType` — estado removido
-- Não commitar `node_modules`, `.env.local` ou arquivos de build
-- Não tornar a retenção do Undying Will superior a 50% (cap intencional de balanceamento)
-- Não recriar sistema de Dungeon / capítulos — removido intencionalmente (v1.2). Será reimplementado do zero no futuro
-- Não recriar `renderLifestyleControl`, `renderShadowReview`, `renderReportModal`, `renderUploadModal` — todos removidos em v1.2
-- `ViewState` não inclui mais 'DUNGEON_MAP', 'ACTIVE_DUNGEON', 'LIFESTYLE', 'SHADOW_REVIEW'
-- Não usar `font-mono` em labels uppercase, títulos, botões de interface — usar `font-garet` (v1.3)
-- Não usar JetBrains Mono — removida em v1.3 (substituída por Garet + Roboto Mono, ambas self-hosted)
+- Não usar `profile.level` ou `profile.requiredXp` — campos removidos. Usar `getLevelFromXp(profile.currentXp)`.
+- Não usar `getNextRank`, `getXpProgress`, `getNextRankXp`, `RANK_THRESHOLDS` — removidos em v1.4.1.
+- Não tornar XP/Gold de Boss Fight fixo ou editável pelo usuário — é híbrido (mérito + RNG × rank).
+- Não aplicar o mesmo efeito neon em dois cards adjacentes — sempre variar.
+- Não usar `overflow: hidden` em cards com `drop-shadow` — o glow é cortado.
+- Não usar `drop-shadow` em `Cell` do Recharts sem aumentar container e adicionar `margin` ao `PieChart`.
+- Não usar `LineChart`/`Line` para Rastreio Semanal — substituído por `AreaChart`/`Area` (v1.4).
+- Não adicionar campo `type: 'good' | 'bad'` em Habit — removido intencionalmente.
+- Não criar sistema de ProcrastinationItem — substituído por criação direta de Chefões.
+- Não recriar seções removidas do Dashboard (World Ranking, Gym Tracker, Daily Quests).
+- Não recriar sistema de Dungeon / capítulos — removido em v1.2, será reimplementado do zero.
+- Não tornar a retenção do Undying Will superior a 50% (cap intencional de balanceamento).
+- Não usar `font-mono` em labels uppercase, títulos, botões — usar `font-garet` (v1.3).
+- Não usar JetBrains Mono — removida em v1.3.
+- `ViewState` não inclui 'DUNGEON_MAP', 'ACTIVE_DUNGEON', 'LIFESTYLE', 'SHADOW_REVIEW'.
