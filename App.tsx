@@ -135,6 +135,9 @@ function applyDailyReset(gs: GameState): { state: GameState; hadStreakBreak: boo
   };
 }
 
+const randomBetween = (min: number, max: number): number =>
+  Math.floor(Math.random() * (max - min + 1)) + min;
+
 // --- Level Up Overlay ---
 const PARTICLE_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
 
@@ -741,13 +744,15 @@ const App: React.FC = () => {
           if (s.status === 'Em Missão') {
             const success = Math.random() * 100 < (s.missionChance ?? 50);
             if (success) {
-              const xpR = 50; const goldR = 60;
-              resolutions.push({ type: 'victory', name: s.name, xp: xpR, gold: goldR });
-              addedXp += xpR; addedGold += goldR;
-              return { ...s, xp: s.xp + 30, returnTime: undefined, missionChance: undefined, status: 'Pronta' as ShadowStatus };
+              const baseMissionXp = s.missionRewardXP ?? 50;
+              const goldR = s.missionRewardGold ?? 60;
+              const xpForHunter = Math.floor(baseMissionXp * getRankMultiplier(p.rank));
+              resolutions.push({ type: 'victory', name: s.name, xp: xpForHunter, gold: goldR });
+              addedXp += xpForHunter; addedGold += goldR;
+              return { ...s, xp: s.xp + baseMissionXp, returnTime: undefined, missionChance: undefined, missionRewardXP: undefined, missionRewardGold: undefined, status: 'Pronta' as ShadowStatus };
             } else {
               resolutions.push({ type: 'defeat', name: s.name });
-              return { ...s, returnTime: now + 7200000, missionChance: undefined, status: 'Regenerando' as ShadowStatus };
+              return { ...s, returnTime: now + 7200000, missionChance: undefined, missionRewardXP: undefined, missionRewardGold: undefined, status: 'Regenerando' as ShadowStatus };
             }
           }
 
@@ -1010,7 +1015,7 @@ const App: React.FC = () => {
           id: `boss-ai-${Date.now()}`,
           title: suggestion.title,
           description: suggestion.description,
-          xpReward: Math.floor(Math.random() * 151) + 150,
+          xpReward: Math.floor(((suggestion.dueDays * randomBetween(5, 10)) + (suggestion.subTasks.length * randomBetween(40, 60)) + randomBetween(50, 199)) * getRankMultiplier(profile.rank)),
           goldReward: Math.floor(Math.random() * 41) + 60,
           startDate: now.toISOString(),
           dueDate: due.toISOString(),
@@ -1290,9 +1295,11 @@ ${gameContext}`;
     setHabits(prev => {
       const updated = prev.map(h => {
         if (h.id === id && !h.isCompleted) {
-          addXp(30);
+          const streakBonus = Math.min(2.0, 1 + h.streak * 0.05);
+          const xpGained = Math.floor(30 * streakBonus * getRankMultiplier(profile.rank));
+          addXp(xpGained);
           addGold(20);
-          showNotification(t.notifications.protocolAdhered, `${h.title} (+30 XP)`, 'shield');
+          showNotification(t.notifications.protocolAdhered, `${h.title} (+${xpGained} XP)`, 'shield');
           // Record daily completion for weekly tracking chart
           const historyDate = toDateStr(new Date());
           setProfile(pp => {
@@ -1503,7 +1510,13 @@ ${gameContext}`;
 
   const createBoss = () => {
     if (!newBossTitle.trim()) return;
-    const xpReward = Math.floor(Math.random() * 151) + 150;
+    const today = new Date();
+    const dueDate = newBossDueDate ? new Date(newBossDueDate) : new Date(today.getTime() + 7 * 86400000);
+    const diasDePrazo = Math.max(1, Math.round((dueDate.getTime() - today.getTime()) / 86400000));
+    const baseXp = (diasDePrazo * randomBetween(5, 10))
+      + (newBossSubTasks.length * randomBetween(40, 60))
+      + randomBetween(50, 199);
+    const xpReward = Math.floor(baseXp * getRankMultiplier(profile.rank));
     const goldReward = Math.floor(Math.random() * 41) + 60;
     const boss: BossFight = {
       id: `boss-${Date.now()}`,
@@ -1668,7 +1681,7 @@ ${gameContext}`;
       ...prev,
       shadows: (prev.shadows ?? []).map(s =>
         selectedIds.includes(s.id)
-          ? { ...s, status: 'Em Missão' as ShadowStatus, returnTime, missionChance: chance }
+          ? { ...s, status: 'Em Missão' as ShadowStatus, returnTime, missionChance: chance, missionRewardXP: mission.rewardXP, missionRewardGold: mission.rewardGold }
           : s
       ),
     }));

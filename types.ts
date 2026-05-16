@@ -100,6 +100,8 @@ export interface Shadow {
   status: ShadowStatus;
   returnTime?: number;
   missionChance?: number;
+  missionRewardXP?: number;
+  missionRewardGold?: number;
 }
 
 export interface ShadowMission {
