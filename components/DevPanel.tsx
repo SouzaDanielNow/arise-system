@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { HunterRank, HunterProfile } from '../types';
-import { RANK_COLORS, RANK_THRESHOLDS } from '../constants';
+import { RANK_COLORS, RANK_LEVEL_THRESHOLDS } from '../constants';
 
 interface DevPanelProps {
   profile: HunterProfile;
@@ -123,7 +123,7 @@ const DevPanel: React.FC<DevPanelProps> = ({
               })}
             </div>
             <p className="text-[10px] text-slate-600 font-mono mt-2">
-              E=0 D=750 C=2250 B=5250 A=7000 S=15k SS=30k SSS=60k NAC=120k MON=250k
+              E=Nv1 D=Nv20 C=Nv40 B=Nv60 A=Nv80 S=Nv100 SS=Nv120 SSS=Nv140 NAC=Nv160 MON=Nv180
             </p>
           </section>
 

@@ -23,9 +23,7 @@ export interface CustomStat {
 export interface HunterProfile {
   name: string;
   rank: HunterRank;
-  level: number;
   currentXp: number;
-  requiredXp: number;
   customStats: CustomStat[];
   streakDays: number;
   lastLoginDate: string;

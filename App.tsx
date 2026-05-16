@@ -19,8 +19,9 @@ import {
   Shadow, ShadowRank, ShadowRole, ShadowStatus, ShadowMission
 } from './types';
 import {
-  RANK_THRESHOLDS, INITIAL_REWARDS,
-  INITIAL_HABITS, getNextRank, getNextRankXp, getXpProgress,
+  INITIAL_REWARDS,
+  INITIAL_HABITS, getLevelFromXp, getRankFromLevel, getXpForLevel,
+  RANK_LEVEL_THRESHOLDS, getRankMultiplier,
   STAT_COLOR_PALETTE, RANK_COLORS, SHADOW_RANK_COLORS, extractShadow, generateDailyMissions
 } from './constants';
 import StatRadar from './components/StatRadar';
@@ -479,9 +480,7 @@ const App: React.FC = () => {
   const [profile, setProfile] = useState<HunterProfile>({
     name: 'Jin-Woo',
     rank: HunterRank.E,
-    level: 1,
     currentXp: 0,
-    requiredXp: 500,
     customStats: t.defaultStats,
     streakDays: 5,
     lastLoginDate: new Date().toISOString(),
@@ -762,9 +761,10 @@ const App: React.FC = () => {
 
         const newXp = p.currentXp + addedXp;
         const newGold = p.gold + addedGold;
-        const newRank = getNextRank(newXp);
-        const didLevelUp = newRank !== p.rank;
-        if (didLevelUp) setTimeout(() => setLevelUpRank(newRank), 500);
+        const newLevel = getLevelFromXp(newXp).level;
+        const newRank = getRankFromLevel(newLevel);
+        const didRankUp = newRank !== p.rank;
+        if (didRankUp) setTimeout(() => setLevelUpRank(newRank), 500);
 
         return { ...p, shadows: newShadows, currentXp: newXp, gold: newGold, rank: newRank };
       });
@@ -802,17 +802,26 @@ const App: React.FC = () => {
   const addXp = (amount: number, statId?: string) => {
     setProfile(prev => {
       const newXp = prev.currentXp + amount;
-      const newRank = getNextRank(newXp);
-      const didLevelUp = newRank !== prev.rank;
+      const oldLevel = getLevelFromXp(prev.currentXp).level;
+      const newLevelInfo = getLevelFromXp(newXp);
+      const newRank = getRankFromLevel(newLevelInfo.level);
+      const didLevelUp = newLevelInfo.level > oldLevel;
+      const didRankUp = newRank !== prev.rank;
       const newCustomStats = prev.customStats.map(s =>
         statId && s.id === statId ? { ...s, value: s.value + 1 } : s
       );
 
-      if (didLevelUp) {
+      if (didRankUp) {
         setTimeout(() => {
           showNotification(t.notifications.rankUp(newRank), t.notifications.rankUpSub, 'levelup');
           setLevelUpRank(newRank);
         }, 500);
+      } else if (didLevelUp) {
+        setTimeout(() => showNotification(
+          `NÍVEL ${newLevelInfo.level}!`,
+          '+4 Pontos de Atributo desbloqueados',
+          'levelup'
+        ), 300);
       }
 
       return {
@@ -872,7 +881,7 @@ const App: React.FC = () => {
   const isAdmin = session?.user?.email === 'dany_ops@hotmail.com';
 
   const handleForceRank = (rank: HunterRank) => {
-    const xp = RANK_THRESHOLDS[rank];
+    const xp = getXpForLevel(RANK_LEVEL_THRESHOLDS[rank]);
     setProfile(prev => ({ ...prev, rank, currentXp: xp }));
   };
 
@@ -1058,7 +1067,7 @@ const App: React.FC = () => {
 
       const gameContext = [
         `=== HUNTER PROFILE ===`,
-        `Name: ${p.name} | Rank: ${p.rank} | Level: ${p.level}`,
+        `Name: ${p.name} | Rank: ${p.rank} | Level: ${getLevelFromXp(p.currentXp).level}`,
         `XP: ${p.currentXp} | Gold: ${p.gold} | Streak: ${p.streakDays} days`,
         `Total Power: ${totalPower} | Streak Protection: ${protection}%`,
         `Stats: ${p.customStats.map(s => `${s.name}=${s.value}`).join(', ')}`,
@@ -1685,9 +1694,12 @@ ${gameContext}`;
     const hour = new Date().getHours();
     const greetingWord = hour < 12 ? t.dashboard.goodMorning : hour < 18 ? t.dashboard.goodAfternoon : t.dashboard.goodEvening;
     const rankColor = RANK_COLORS[profile.rank];
-    const level = Math.floor(profile.currentXp / 100) + 1;
-    const levelXpPct = profile.currentXp % 100;
-    const rankXpPct = getXpProgress(profile.currentXp, profile.rank);
+    const { level, xpIntoLevel, xpForNextLevel } = getLevelFromXp(profile.currentXp);
+    const levelXpPct = Math.round((xpIntoLevel / xpForNextLevel) * 100);
+    const rankMinLevel = RANK_LEVEL_THRESHOLDS[profile.rank];
+    const rankXpPct = profile.rank === 'MONARCA'
+      ? 100
+      : Math.round(((level - rankMinLevel) / 20) * 100);
 
     const todayHabits = habits.filter(h => isTodayActive(h) && h.repeatType !== 'oneTime');
     const completedToday = todayHabits.filter(h => h.isCompleted).length;
@@ -1876,8 +1888,8 @@ ${gameContext}`;
               </div>
               <div>
                 <div className="flex justify-between items-center text-[9px] font-garet tracking-[0.2em] uppercase mb-1.5">
-                  <span style={{ color: 'rgba(147,197,253,0.55)' }}>{t.dashboard.levelProgress}</span>
-                  <span style={{ color: '#93c5fd', textShadow: '0 0 8px rgba(147,197,253,0.7)' }}>{levelXpPct}%</span>
+                  <span style={{ color: 'rgba(147,197,253,0.55)' }}>{t.dashboard.levelProgress} {level}</span>
+                  <span style={{ color: '#93c5fd', textShadow: '0 0 8px rgba(147,197,253,0.7)' }}>{xpIntoLevel}/{xpForNextLevel} XP</span>
                 </div>
                 <div
                   className="h-1.5 rounded-sm overflow-hidden"
@@ -2381,7 +2393,7 @@ ${gameContext}`;
                       {profile.rank}-RANK
                     </span>
                     <span className="text-[10px] text-slate-500 font-mono">
-                      {t.identity.level} {profile.level}
+                      {t.identity.level} {getLevelFromXp(profile.currentXp).level}
                     </span>
                   </div>
                 </div>
@@ -2394,36 +2406,35 @@ ${gameContext}`;
                 </div>
               </div>
 
-              {/* XP bar */}
-              <div>
-                <div className="flex justify-between text-[10px] font-mono mb-1.5">
-                  <span className="text-slate-500 tracking-widest uppercase">{t.identity.xpProgress}</span>
-                  <span style={{ color: rankColor }}>
-                    {getNextRankXp(profile.rank) !== null
-                      ? `${profile.currentXp} / ${getNextRankXp(profile.rank)} XP`
-                      : t.identity.xpMax}
-                  </span>
-                </div>
-                <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden relative">
-                  <div
-                    className="absolute inset-0 opacity-10"
-                    style={{
-                      backgroundImage:
-                        'repeating-linear-gradient(90deg, transparent, transparent 7px, rgba(255,255,255,0.06) 7px, rgba(255,255,255,0.06) 8px)',
-                    }}
-                  />
-                  <div
-                    className="h-full rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
-                    style={{
-                      width: `${getXpProgress(profile.currentXp, profile.rank)}%`,
-                      background: `linear-gradient(90deg, ${rankColor}70, ${rankColor})`,
-                      boxShadow: `0 0 10px ${rankColor}70`,
-                    }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent animate-pulse" />
+              {/* XP bar (progresso dentro do nível atual) */}
+              {(() => {
+                const { level: idLevel, xpIntoLevel: idXpIn, xpForNextLevel: idXpNext } = getLevelFromXp(profile.currentXp);
+                const idLevelPct = Math.round((idXpIn / idXpNext) * 100);
+                return (
+                  <div>
+                    <div className="flex justify-between text-[10px] font-mono mb-1.5">
+                      <span className="text-slate-500 tracking-widest uppercase">{t.identity.xpProgress} — NV. {idLevel}</span>
+                      <span style={{ color: rankColor }}>{idXpIn} / {idXpNext} XP</span>
+                    </div>
+                    <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden relative">
+                      <div
+                        className="absolute inset-0 opacity-10"
+                        style={{ backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 7px, rgba(255,255,255,0.06) 7px, rgba(255,255,255,0.06) 8px)' }}
+                      />
+                      <div
+                        className="h-full rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
+                        style={{
+                          width: `${idLevelPct}%`,
+                          background: `linear-gradient(90deg, ${rankColor}70, ${rankColor})`,
+                          boxShadow: `0 0 10px ${rankColor}70`,
+                        }}
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent animate-pulse" />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
             </div>
           </motion.div>
         </motion.div>

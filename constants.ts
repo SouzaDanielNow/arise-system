@@ -18,18 +18,75 @@ export const STAT_COLOR_PALETTE = [
   '#3b82f6', '#10b981', '#f97316', '#ec4899',
 ];
 
-export const RANK_THRESHOLDS = {
-  [HunterRank.E]: 0,
-  [HunterRank.D]: 750,
-  [HunterRank.C]: 2250,
-  [HunterRank.B]: 5250,
-  [HunterRank.A]: 7000,
-  [HunterRank.S]: 15000,
-  [HunterRank.SS]: 30000,
-  [HunterRank.SSS]: 60000,
-  [HunterRank.NACIONAL]: 120000,
-  [HunterRank.MONARCA]: 250000,
+// ── Nível → Rank (cada rank abrange 20 níveis) ───────────────────────────────
+export const RANK_LEVEL_THRESHOLDS: Record<HunterRank, number> = {
+  [HunterRank.E]:        1,
+  [HunterRank.D]:       20,
+  [HunterRank.C]:       40,
+  [HunterRank.B]:       60,
+  [HunterRank.A]:       80,
+  [HunterRank.S]:      100,
+  [HunterRank.SS]:     120,
+  [HunterRank.SSS]:    140,
+  [HunterRank.NACIONAL]:160,
+  [HunterRank.MONARCA]: 180,
 };
+
+// ── XP necessário para avançar do nível `lv` para o próximo ─────────────────
+export const xpForLevel = (lv: number): number =>
+  Math.floor(200 + Math.pow(lv, 2) * 3);
+
+// ── Decompõe XP total em { level, xpIntoLevel, xpForNextLevel } ─────────────
+export function getLevelFromXp(totalXp: number): { level: number; xpIntoLevel: number; xpForNextLevel: number } {
+  let level = 1;
+  let remaining = totalXp;
+  while (true) {
+    const needed = xpForLevel(level);
+    if (remaining < needed) break;
+    remaining -= needed;
+    level++;
+  }
+  return { level, xpIntoLevel: remaining, xpForNextLevel: xpForLevel(level) };
+}
+
+// ── XP total acumulado necessário para CHEGAR ao nível `targetLevel` ─────────
+export function getXpForLevel(targetLevel: number): number {
+  let total = 0;
+  for (let l = 1; l < targetLevel; l++) total += xpForLevel(l);
+  return total;
+}
+
+// ── Rank derivado do nível ────────────────────────────────────────────────────
+export function getRankFromLevel(level: number): HunterRank {
+  if (level >= 180) return HunterRank.MONARCA;
+  if (level >= 160) return HunterRank.NACIONAL;
+  if (level >= 140) return HunterRank.SSS;
+  if (level >= 120) return HunterRank.SS;
+  if (level >= 100) return HunterRank.S;
+  if (level >= 80)  return HunterRank.A;
+  if (level >= 60)  return HunterRank.B;
+  if (level >= 40)  return HunterRank.C;
+  if (level >= 20)  return HunterRank.D;
+  return HunterRank.E;
+}
+
+// ── Multiplicador de recompensa por rank (preparação Etapa 2) ─────────────────
+export const RANK_MULTIPLIERS: Record<HunterRank, number> = {
+  [HunterRank.E]:        1.0,
+  [HunterRank.D]:        1.2,
+  [HunterRank.C]:        1.5,
+  [HunterRank.B]:        2.0,
+  [HunterRank.A]:        3.0,
+  [HunterRank.S]:        5.0,
+  [HunterRank.SS]:       7.0,
+  [HunterRank.SSS]:     10.0,
+  [HunterRank.NACIONAL]:15.0,
+  [HunterRank.MONARCA]: 25.0,
+};
+
+export function getRankMultiplier(rank: HunterRank): number {
+  return RANK_MULTIPLIERS[rank];
+}
 
 export const GYM_TARGET_DAYS = [0, 1, 2, 4, 5];
 
@@ -60,36 +117,6 @@ export const SYSTEM_QUOTES: SystemQuote[] = [
 ];
 
 
-export const getNextRank = (xp: number): HunterRank => {
-  if (xp >= RANK_THRESHOLDS[HunterRank.MONARCA]) return HunterRank.MONARCA;
-  if (xp >= RANK_THRESHOLDS[HunterRank.NACIONAL]) return HunterRank.NACIONAL;
-  if (xp >= RANK_THRESHOLDS[HunterRank.SSS]) return HunterRank.SSS;
-  if (xp >= RANK_THRESHOLDS[HunterRank.SS]) return HunterRank.SS;
-  if (xp >= RANK_THRESHOLDS[HunterRank.S]) return HunterRank.S;
-  if (xp >= RANK_THRESHOLDS[HunterRank.A]) return HunterRank.A;
-  if (xp >= RANK_THRESHOLDS[HunterRank.B]) return HunterRank.B;
-  if (xp >= RANK_THRESHOLDS[HunterRank.C]) return HunterRank.C;
-  if (xp >= RANK_THRESHOLDS[HunterRank.D]) return HunterRank.D;
-  return HunterRank.E;
-};
-
-export const getNextRankXp = (rank: HunterRank): number | null => {
-  const ranks = Object.values(HunterRank);
-  const idx = ranks.indexOf(rank);
-  if (idx >= ranks.length - 1) return null;
-  return RANK_THRESHOLDS[ranks[idx + 1]];
-};
-
-export const getXpProgress = (currentXp: number, rank: HunterRank): number => {
-  const currentThreshold = RANK_THRESHOLDS[rank];
-  const ranks = Object.values(HunterRank);
-  const currentIndex = ranks.indexOf(rank);
-  if (currentIndex >= ranks.length - 1) return 100;
-  const nextThreshold = RANK_THRESHOLDS[ranks[currentIndex + 1]];
-  const denominator = nextThreshold - currentThreshold;
-  if (denominator <= 0) return 100;
-  return Math.min(100, Math.max(0, ((currentXp - currentThreshold) / denominator) * 100));
-};
 
 // ── Shadow Army ──────────────────────────────────────────────────────────────
 
