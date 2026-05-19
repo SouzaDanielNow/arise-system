@@ -244,22 +244,22 @@ export interface LootEntry {
 
 export const LOOT_POOL: LootEntry[] = [
   // Auto-consumível: Gold (sem multiplicador)
-  { id: 'coins-bag',       name: 'Saco de Moedas',                    icon: '💰', rarity: 'common',    weight: 200, kind: { tag: 'gold', amount:  30  }, desc: '+30 Gold'  },
-  { id: 'gold-nugget',     name: 'Pepita de Ouro',                    icon: '🪙', rarity: 'common',    weight: 150, kind: { tag: 'gold', amount:  60  }, desc: '+60 Gold'  },
-  { id: 'gold-bar',        name: 'Barra de Ouro',                     icon: '🏅', rarity: 'rare',      weight:  80, kind: { tag: 'gold', amount: 120  }, desc: '+120 Gold' },
-  { id: 'treasure-chest',  name: 'Baú do Tesouro',                    icon: '🎁', rarity: 'rare',      weight:  30, kind: { tag: 'gold', amount: 250  }, desc: '+250 Gold' },
+  { id: 'coins-bag',       name: 'Saco de Moedas',                    icon: '/icons/saco-ouro.png',               rarity: 'common',    weight: 200, kind: { tag: 'gold', amount:  30  }, desc: '+30 Gold'  },
+  { id: 'gold-nugget',     name: 'Pepita de Ouro',                    icon: '/icons/pepita-ouro.png',             rarity: 'common',    weight: 150, kind: { tag: 'gold', amount:  60  }, desc: '+60 Gold'  },
+  { id: 'gold-bar',        name: 'Barra de Ouro',                     icon: '/icons/barra-ouro.png',              rarity: 'rare',      weight:  80, kind: { tag: 'gold', amount: 120  }, desc: '+120 Gold' },
+  { id: 'treasure-chest',  name: 'Baú do Tesouro',                    icon: '/icons/bau-tesouro.png',             rarity: 'rare',      weight:  30, kind: { tag: 'gold', amount: 250  }, desc: '+250 Gold' },
   // Auto-consumível: XP (com multiplicador de rank)
-  { id: 'mana-pill',       name: 'Pílula de Mana',                    icon: '💊', rarity: 'common',    weight: 180, kind: { tag: 'xp',   base:   30  }, desc: '30 XP × rank' },
-  { id: 'essence-crystal', name: 'Cristal de Essência',               icon: '🔮', rarity: 'common',    weight: 130, kind: { tag: 'xp',   base:   60  }, desc: '60 XP × rank' },
-  { id: 'star-fragment',   name: 'Fragmento de Estrela',              icon: '⭐', rarity: 'epic',      weight:  60, kind: { tag: 'xp',   base:  120  }, desc: '120 XP × rank' },
-  { id: 'boss-core',       name: 'Núcleo de Vida do Boss',            icon: '💠', rarity: 'legendary', weight:  15, kind: { tag: 'xp',   base:  250  }, desc: '250 XP × rank' },
+  { id: 'mana-pill',       name: 'Pílula de Mana',                    icon: '/icons/pilula-mana.png',             rarity: 'common',    weight: 180, kind: { tag: 'xp',   base:   30  }, desc: '30 XP × rank' },
+  { id: 'essence-crystal', name: 'Cristal de Essência',               icon: '/icons/cristal-essencia.png',        rarity: 'common',    weight: 130, kind: { tag: 'xp',   base:   60  }, desc: '60 XP × rank' },
+  { id: 'star-fragment',   name: 'Fragmento de Estrela',              icon: '/icons/fragmento-estrela.png',       rarity: 'epic',      weight:  60, kind: { tag: 'xp',   base:  120  }, desc: '120 XP × rank' },
+  { id: 'boss-core',       name: 'Núcleo de Vida do Boss',            icon: '/icons/nucleo-vida-boss.png',        rarity: 'legendary', weight:  15, kind: { tag: 'xp',   base:  250  }, desc: '250 XP × rank' },
   // Físico (vai para o Cofre)
-  { id: 'item-potion',     name: 'Poção de Vitalidade das Sombras',   icon: '🧪', rarity: 'common',    weight:  70, kind: { tag: 'physical', itemId: 'potion-vitality'   }, desc: 'Item de Cofre' },
-  { id: 'item-scroll',     name: 'Pergaminho da Prosperidade',        icon: '📜', rarity: 'rare',      weight:  40, kind: { tag: 'physical', itemId: 'scroll-prosperity'  }, desc: 'Item de Cofre' },
-  { id: 'item-key',        name: 'Chave de Masmorra Dimensional',     icon: '🗝️', rarity: 'rare',      weight:  30, kind: { tag: 'physical', itemId: 'key-dungeon'        }, desc: 'Item de Cofre' },
-  { id: 'item-stone',      name: 'Pedra de Proteção da Ofensiva',     icon: '💎', rarity: 'epic',      weight:   8, kind: { tag: 'physical', itemId: 'stone-offense'      }, desc: 'Item de Cofre' },
-  { id: 'item-elixir',     name: 'Elixir da Ascensão',                icon: '⚗️', rarity: 'epic',      weight:   5, kind: { tag: 'physical', itemId: 'elixir-ascension'   }, desc: 'Item de Cofre' },
-  { id: 'item-crown',      name: 'Coroa das Sombras',                 icon: '👑', rarity: 'legendary', weight:   2, kind: { tag: 'physical', itemId: 'crown-shadows'      }, desc: 'Item de Cofre' },
+  { id: 'item-potion',     name: 'Poção de Vitalidade das Sombras',   icon: '/icons/pocao-vitalidade.png',        rarity: 'common',    weight:  70, kind: { tag: 'physical', itemId: 'potion-vitality'   }, desc: 'Item de Cofre' },
+  { id: 'item-scroll',     name: 'Pergaminho da Prosperidade',        icon: '/icons/pergaminho-prosperidade.png', rarity: 'rare',      weight:  40, kind: { tag: 'physical', itemId: 'scroll-prosperity'  }, desc: 'Item de Cofre' },
+  { id: 'item-key',        name: 'Chave de Masmorra Dimensional',     icon: '/icons/chave-dungeon.png',           rarity: 'rare',      weight:  30, kind: { tag: 'physical', itemId: 'key-dungeon'        }, desc: 'Item de Cofre' },
+  { id: 'item-stone',      name: 'Pedra de Proteção da Ofensiva',     icon: '/icons/pedra-protecao.png',          rarity: 'epic',      weight:   8, kind: { tag: 'physical', itemId: 'stone-offense'      }, desc: 'Item de Cofre' },
+  { id: 'item-elixir',     name: 'Elixir da Ascensão',                icon: '/icons/elixir.png',                  rarity: 'epic',      weight:   5, kind: { tag: 'physical', itemId: 'elixir-ascension'   }, desc: 'Item de Cofre' },
+  { id: 'item-crown',      name: 'Coroa das Sombras',                 icon: '/icons/coroa-sombras.png',           rarity: 'legendary', weight:   2, kind: { tag: 'physical', itemId: 'crown-shadows'      }, desc: 'Item de Cofre' },
 ];
 
 export function rollLoot(): LootEntry {

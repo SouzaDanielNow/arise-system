@@ -145,11 +145,11 @@ const DailyRewardModal: React.FC<Props> = ({ rank, onClaim }) => {
 
                     {/* Icon */}
                     <motion.div
-                      className="text-4xl my-0.5"
+                      className="my-0.5"
                       animate={{ scale: [1, 1.12, 1] }}
                       transition={{ duration: 0.6, repeat: 2 }}
                     >
-                      {loot.icon}
+                      <img src={loot.icon} alt={loot.name} className="w-12 h-12 object-contain" />
                     </motion.div>
 
                     {/* Name */}

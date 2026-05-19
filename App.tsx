@@ -2967,7 +2967,7 @@ ${gameContext}`;
                         border: `1px solid ${RARITY_COLORS[item.rarity]}25`,
                       }}
                     >
-                      <span className="text-xl shrink-0">{item.icon}</span>
+                      <img src={item.icon} alt={item.name} className="w-8 h-8 object-contain shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
                           <span
