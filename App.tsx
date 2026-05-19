@@ -990,7 +990,6 @@ const App: React.FC = () => {
 
       if (didRankUp) {
         setTimeout(() => {
-          showNotification(t.notifications.rankUp(newRank), t.notifications.rankUpSub, 'levelup');
           const lvInfo: LevelUpInfo = { oldLevel, newLevel: newLevelInfo.level, newRank, didRankUp: true };
           enqueueAnim({ kind: 'levelup', info: lvInfo });
           enqueueAnim({ kind: 'rankup', info: lvInfo });
@@ -1043,7 +1042,6 @@ const App: React.FC = () => {
       mana: `💠 Injeção de Mana — +${Math.floor(multiplier * 100)} XP & +50 Gold`,
       chest: `👑 Baú do Monarca — +${Math.floor(multiplier * 50)} Gold`,
     };
-    showNotification('RECOMPENSA DIÁRIA', msgs[type], 'quest');
   };
 
   const distributeStat = (statId: string) => {
@@ -2192,10 +2190,10 @@ ${gameContext}`;
                 todayHabits.map(habit => (
                   <button
                     key={habit.id}
-                    onClick={() => !habit.isCompleted && toggleHabit(habit.id)}
+                    onClick={() => toggleHabit(habit.id)}
                     className={`w-full flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition-all ${
                       habit.isCompleted
-                        ? 'bg-green-500/10 border-green-500/20 cursor-default'
+                        ? 'bg-green-500/10 border-green-500/20 hover:border-red-500/30 hover:bg-red-500/5 active:scale-[0.99]'
                         : 'bg-slate-900/60 border-slate-700/60 hover:border-system-blue/50 hover:bg-slate-800/80 active:scale-[0.99]'
                     }`}
                   >
@@ -3755,11 +3753,10 @@ ${gameContext}`;
                         </button>
                       )}
                       <button
-                        onClick={() => !habit.isCompleted && toggleHabit(habit.id)}
-                        disabled={habit.isCompleted}
+                        onClick={() => toggleHabit(habit.id)}
                         className={`w-8 h-8 rounded border flex items-center justify-center transition-all
                           ${habit.isCompleted
-                            ? 'bg-system-blue/20 border-system-blue/50 text-system-blue'
+                            ? 'bg-system-blue/20 border-system-blue/50 text-system-blue hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-400'
                             : 'bg-slate-950 border-slate-700 hover:border-system-blue hover:text-system-blue text-slate-500'}
                         `}
                       >
