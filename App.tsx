@@ -30,6 +30,7 @@ import { useLanguage } from './i18n/LanguageContext';
 import { supabase } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
 import DevPanel from './components/DevPanel';
+import DailyRewardModal, { DailyRewardType } from './components/DailyRewardModal';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 
 
@@ -141,29 +142,34 @@ const randomBetween = (min: number, max: number): number =>
 // --- Level Up Overlay ---
 const PARTICLE_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
 
-const LevelUpOverlay: React.FC<{ rank: HunterRank; onDone: () => void }> = ({ rank, onDone }) => {
-  const color = RANK_COLORS[rank];
+type LevelUpInfo = { oldLevel: number; newLevel: number; newRank: HunterRank; didRankUp: boolean };
+
+const LevelUpOverlay: React.FC<{ info: LevelUpInfo; onDone: () => void }> = ({ info, onDone }) => {
+  const { oldLevel, newLevel, newRank, didRankUp } = info;
+  const color = RANK_COLORS[newRank];
+  const duration = didRankUp ? 4500 : 3000;
 
   useEffect(() => {
-    const timer = setTimeout(onDone, 3500);
+    const timer = setTimeout(onDone, duration);
     return () => clearTimeout(timer);
-  }, [onDone]);
+  }, [onDone, duration]);
 
   return (
     <motion.div
-      className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none overflow-hidden"
+      className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden"
+      style={{ pointerEvents: didRankUp ? 'auto' : 'none' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Radial glow background */}
+      {/* Radial glow */}
       <motion.div
         className="absolute inset-0"
-        style={{ background: `radial-gradient(ellipse at center, ${color}55 0%, transparent 70%)` }}
+        style={{ background: `radial-gradient(ellipse at center, ${color}44 0%, transparent 70%)` }}
         initial={{ opacity: 0 }}
         animate={{ opacity: [0, 1, 0.7, 0] }}
-        transition={{ duration: 3.5, times: [0, 0.15, 0.6, 1] }}
+        transition={{ duration: duration / 1000, times: [0, 0.15, 0.6, 1] }}
       />
 
       {/* Particles */}
@@ -173,34 +179,59 @@ const LevelUpOverlay: React.FC<{ rank: HunterRank; onDone: () => void }> = ({ ra
           className="absolute w-2 h-2 rounded-full"
           style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}`, left: '50%', top: '50%', marginLeft: -4, marginTop: -4 }}
           initial={{ x: 0, y: 0, opacity: 1, scale: 1.5 }}
-          animate={{
-            x: Math.cos((angle * Math.PI) / 180) * 260,
-            y: Math.sin((angle * Math.PI) / 180) * 260,
-            opacity: 0,
-            scale: 0,
-          }}
-          transition={{ duration: 1.8, delay: 0.15, ease: 'easeOut' }}
+          animate={{ x: Math.cos((angle * Math.PI) / 180) * (didRankUp ? 320 : 220), y: Math.sin((angle * Math.PI) / 180) * (didRankUp ? 320 : 220), opacity: 0, scale: 0 }}
+          transition={{ duration: 2, delay: 0.15, ease: 'easeOut' }}
         />
       ))}
 
-      {/* Main text */}
+      {/* Content */}
       <motion.div
-        className="text-center relative z-10 select-none"
+        className="text-center relative z-10 select-none px-6"
         initial={{ scale: 0.2, opacity: 0 }}
-        animate={{ scale: [0.2, 1.3, 1, 1, 1], opacity: [0, 1, 1, 1, 0] }}
-        transition={{ duration: 3.5, times: [0, 0.2, 0.35, 0.7, 1] }}
+        animate={{ scale: [0.2, 1.15, 1, 1, 1], opacity: [0, 1, 1, 1, 0] }}
+        transition={{ duration: duration / 1000, times: [0, 0.18, 0.3, 0.7, 1] }}
       >
-        <div className="text-xs font-garet tracking-[0.5em] mb-3" style={{ color }}>
-          ⚔ RANK UP ⚔
+        {/* Level up */}
+        <div className="text-xs font-garet tracking-[0.5em] mb-4 text-white/50">
+          {didRankUp ? '⚔ RANK UP ⚔' : '— NÍVEL AUMENTOU —'}
         </div>
-        <div
-          className="text-8xl font-black font-garet"
-          style={{ color, textShadow: `0 0 40px ${color}, 0 0 80px ${color}88` }}
-        >
-          {rank}
+        <div className="flex items-center justify-center gap-4 mb-4">
+          <span className="text-5xl font-black font-garet text-white/40">{oldLevel}</span>
+          <span className="text-3xl font-garet" style={{ color }}>→</span>
+          <span className="text-7xl font-black font-garet" style={{ color, textShadow: `0 0 30px ${color}, 0 0 60px ${color}88` }}>
+            {newLevel}
+          </span>
         </div>
-        <div className="text-white font-garet text-sm tracking-[0.4em] mt-3 opacity-70">
-          RANK ACHIEVED
+
+        {/* Rank badge — only shown on rank up */}
+        {didRankUp && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="mt-2"
+          >
+            <div className="text-[10px] font-garet tracking-[0.5em] text-white/50 mb-2">NOVO RANK ALCANÇADO</div>
+            <div
+              className="text-6xl font-black font-garet"
+              style={{ color, textShadow: `0 0 40px ${color}, 0 0 80px ${color}88` }}
+            >
+              {newRank}
+            </div>
+            <motion.div
+              className="mt-3 text-xs font-garet tracking-[0.4em]"
+              style={{ color }}
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+            >
+              RANK {newRank} ATINGIDO
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Stat points hint */}
+        <div className="mt-4 text-[10px] font-mono text-white/30 tracking-widest">
+          +4 PONTOS DE ATRIBUTO DISPONÍVEIS
         </div>
       </motion.div>
     </motion.div>
@@ -570,8 +601,9 @@ const App: React.FC = () => {
   const [voiceSuggestions, setVoiceSuggestions] = useState<VoiceSuggestion[]>([]);
 
   // Visual effects state
-  const [levelUpRank, setLevelUpRank] = useState<HunterRank | null>(null);
+  const [levelUpInfo, setLevelUpInfo] = useState<LevelUpInfo | null>(null);
   const [shadowExtracted, setShadowExtracted] = useState<Shadow | null>(null);
+  const [showDailyRewardModal, setShowDailyRewardModal] = useState(false);
   const [showBossFlash, setShowBossFlash] = useState(false);
   const shakeControls = useAnimation();
 
@@ -705,6 +737,22 @@ const App: React.FC = () => {
   useEffect(() => { profileRef.current = profile; }, [profile]);
   useEffect(() => { habitsRef.current = habits; }, [habits]);
 
+  // Daily reward — trigger modal when all today's habits are done
+  useEffect(() => {
+    const today = toDateStr(new Date());
+    if (profile.lastDailyRewardClaimedDate === today) return;
+    const todayH = habits.filter(x => {
+      const day = new Date().getDay();
+      if (x.repeatType === 'daily') return true;
+      if (x.repeatType === 'weekdays') return day >= 1 && day <= 5;
+      if (x.repeatType === 'custom') return (x.repeatDays || []).includes(day);
+      return false;
+    });
+    if (todayH.length > 0 && todayH.every(x => x.isCompleted)) {
+      setShowDailyRewardModal(true);
+    }
+  }, [habits, profile.lastDailyRewardClaimedDate]);
+
   // Shadow time engine — checks every 60s and on window focus
   useEffect(() => {
     const resolve = () => {
@@ -764,12 +812,15 @@ const App: React.FC = () => {
           return s;
         });
 
+        const oldLevel = getLevelFromXp(p.currentXp).level;
         const newXp = p.currentXp + addedXp;
         const newGold = p.gold + addedGold;
         const newLevel = getLevelFromXp(newXp).level;
         const newRank = getRankFromLevel(newLevel);
         const didRankUp = newRank !== p.rank;
-        if (didRankUp) setTimeout(() => setLevelUpRank(newRank), 500);
+        const didLevelUp = newLevel > oldLevel;
+        if (didRankUp) setTimeout(() => setLevelUpInfo({ oldLevel, newLevel, newRank, didRankUp: true }), 500);
+        else if (didLevelUp) setTimeout(() => setLevelUpInfo({ oldLevel, newLevel, newRank, didRankUp: false }), 300);
 
         return { ...p, shadows: newShadows, currentXp: newXp, gold: newGold, rank: newRank };
       });
@@ -819,14 +870,10 @@ const App: React.FC = () => {
       if (didRankUp) {
         setTimeout(() => {
           showNotification(t.notifications.rankUp(newRank), t.notifications.rankUpSub, 'levelup');
-          setLevelUpRank(newRank);
+          setLevelUpInfo({ oldLevel, newLevel: newLevelInfo.level, newRank, didRankUp: true });
         }, 500);
       } else if (didLevelUp) {
-        setTimeout(() => showNotification(
-          `NÍVEL ${newLevelInfo.level}!`,
-          '+4 Pontos de Atributo desbloqueados',
-          'levelup'
-        ), 300);
+        setTimeout(() => setLevelUpInfo({ oldLevel, newLevel: newLevelInfo.level, newRank, didRankUp: false }), 300);
       }
 
       return {
@@ -841,6 +888,36 @@ const App: React.FC = () => {
 
   const addGold = (amount: number) => {
     setProfile(prev => ({ ...prev, gold: prev.gold + amount }));
+  };
+
+  const claimDailyReward = (type: DailyRewardType) => {
+    const today = toDateStr(new Date());
+    const multiplier = getRankMultiplier(profile.rank);
+    setProfile(prev => {
+      let updated = { ...prev, lastDailyRewardClaimedDate: today };
+      if (type === 'stat') {
+        updated = {
+          ...updated,
+          availableStatPoints: (updated.availableStatPoints ?? 0) + 1,
+          gold: updated.gold + 100,
+        };
+      } else if (type === 'mana') {
+        updated = { ...updated, gold: updated.gold + 50 };
+      } else if (type === 'chest') {
+        updated = { ...updated, gold: updated.gold + Math.floor(multiplier * 50) };
+      }
+      return updated;
+    });
+    if (type === 'mana') {
+      addXp(Math.floor(multiplier * 100));
+    }
+    setShowDailyRewardModal(false);
+    const msgs: Record<DailyRewardType, string> = {
+      stat: '⚡ Bênção do Sistema — +1 Atributo & +100 Gold',
+      mana: `💠 Injeção de Mana — +${Math.floor(multiplier * 100)} XP & +50 Gold`,
+      chest: `👑 Baú do Monarca — +${Math.floor(multiplier * 50)} Gold`,
+    };
+    showNotification('RECOMPENSA DIÁRIA', msgs[type], 'quest');
   };
 
   const distributeStat = (statId: string) => {
@@ -1438,6 +1515,11 @@ ${gameContext}`;
     if (habit.repeatType === 'weekdays') return day >= 1 && day <= 5;
     if (habit.repeatType === 'custom') return (habit.repeatDays || []).includes(day);
     return true;
+  };
+
+  const checkDailyQuestCompletion = (h: Habit[]): boolean => {
+    const todayH = h.filter(x => isTodayActive(x) && x.repeatType !== 'oneTime');
+    return todayH.length > 0 && todayH.every(x => x.isCompleted);
   };
 
   const getRepeatLabel = (habit: Habit): string => {
@@ -3910,8 +3992,15 @@ ${gameContext}`;
 
       {/* Level Up overlay */}
       <AnimatePresence>
-        {levelUpRank && (
-          <LevelUpOverlay rank={levelUpRank} onDone={() => setLevelUpRank(null)} />
+        {levelUpInfo && (
+          <LevelUpOverlay info={levelUpInfo} onDone={() => setLevelUpInfo(null)} />
+        )}
+      </AnimatePresence>
+
+      {/* Daily Reward Modal */}
+      <AnimatePresence>
+        {showDailyRewardModal && (
+          <DailyRewardModal rank={profile.rank} onClaim={claimDailyReward} />
         )}
       </AnimatePresence>
 

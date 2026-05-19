@@ -33,6 +33,7 @@ export interface HunterProfile {
   avatarUrl?: string;
   availableStatPoints?: number;
   lastCompletionDate?: string;
+  lastDailyRewardClaimedDate?: string;
   weeklyHistory?: { date: string; completed: number }[];
 }
 
