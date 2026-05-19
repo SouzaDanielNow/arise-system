@@ -820,9 +820,15 @@ const App: React.FC = () => {
     setActiveAnim(next);
   }, [activeAnim, animQueue]);
 
-  const enqueueAnim = (ev: AnimEvent) => setAnimQueue(q => [...q, ev]);
+  const enqueueAnim = useCallback((ev: AnimEvent) => {
+    setAnimQueue(q => {
+      // Deduplicate: skip if the same kind is already the last item in queue
+      if (q.length > 0 && q[q.length - 1].kind === ev.kind) return q;
+      return [...q, ev];
+    });
+  }, []);
 
-  const dismissActiveAnim = () => setActiveAnim(null);
+  const dismissActiveAnim = useCallback(() => setActiveAnim(null), []);
 
   // Dynamic rank color CSS variable
   useEffect(() => {
@@ -915,6 +921,7 @@ const App: React.FC = () => {
         const newRank = getRankFromLevel(newLevel);
         const didRankUp = newRank !== p.rank;
         const didLevelUp = newLevel > oldLevel;
+
         if (didRankUp) {
           setTimeout(() => {
             const lvInfo: LevelUpInfo = { oldLevel, newLevel, newRank, didRankUp: true };
@@ -961,38 +968,38 @@ const App: React.FC = () => {
   }));
 
   const addXp = (amount: number, statId?: string) => {
-    setProfile(prev => {
-      const newXp = prev.currentXp + amount;
-      const oldLevel = getLevelFromXp(prev.currentXp).level;
-      const newLevelInfo = getLevelFromXp(newXp);
-      const newRank = getRankFromLevel(newLevelInfo.level);
-      const didLevelUp = newLevelInfo.level > oldLevel;
-      const didRankUp = newRank !== prev.rank;
-      const newCustomStats = prev.customStats.map(s =>
+    // Compute level/rank transition BEFORE setProfile to avoid side effects inside updater
+    // (React Strict Mode runs updaters twice — setTimeout inside updater would fire 2x)
+    const snapshot = profileRef.current;
+    const oldXp = snapshot.currentXp;
+    const newXp = oldXp + amount;
+    const oldLevel = getLevelFromXp(oldXp).level;
+    const newLevelInfo = getLevelFromXp(newXp);
+    const newRank = getRankFromLevel(newLevelInfo.level);
+    const didLevelUp = newLevelInfo.level > oldLevel;
+    const didRankUp = newRank !== snapshot.rank;
+
+    setProfile(prev => ({
+      ...prev,
+      currentXp: prev.currentXp + amount,
+      rank: getRankFromLevel(getLevelFromXp(prev.currentXp + amount).level),
+      customStats: prev.customStats.map(s =>
         statId && s.id === statId ? { ...s, value: s.value + 1 } : s
-      );
+      ),
+      availableStatPoints: (prev.availableStatPoints ?? 0) + (didLevelUp ? 4 : 0),
+    }));
 
-      if (didRankUp) {
-        setTimeout(() => {
-          const lvInfo: LevelUpInfo = { oldLevel, newLevel: newLevelInfo.level, newRank, didRankUp: true };
-          enqueueAnim({ kind: 'levelup', info: lvInfo });
-          enqueueAnim({ kind: 'rankup', info: lvInfo });
-        }, 500);
-      } else if (didLevelUp) {
-        setTimeout(() => {
-          const lvInfo: LevelUpInfo = { oldLevel, newLevel: newLevelInfo.level, newRank, didRankUp: false };
-          enqueueAnim({ kind: 'levelup', info: lvInfo });
-        }, 300);
-      }
-
-      return {
-        ...prev,
-        currentXp: newXp,
-        rank: newRank,
-        customStats: newCustomStats,
-        availableStatPoints: (prev.availableStatPoints ?? 0) + (didLevelUp ? 4 : 0),
-      };
-    });
+    if (didRankUp) {
+      setTimeout(() => {
+        const lvInfo: LevelUpInfo = { oldLevel, newLevel: newLevelInfo.level, newRank, didRankUp: true };
+        enqueueAnim({ kind: 'levelup', info: lvInfo });
+        enqueueAnim({ kind: 'rankup', info: lvInfo });
+      }, 500);
+    } else if (didLevelUp) {
+      setTimeout(() => {
+        enqueueAnim({ kind: 'levelup', info: { oldLevel, newLevel: newLevelInfo.level, newRank, didRankUp: false } });
+      }, 300);
+    }
   };
 
   const addGold = (amount: number) => {
