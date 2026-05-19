@@ -229,12 +229,6 @@ const RankUpOverlay: React.FC<{ info: LevelUpInfo; onDone: () => void }> = ({ in
   const { oldLevel, newLevel, newRank } = info;
   const color = RANK_COLORS[newRank];
 
-  const RANK_ICONS: Record<HunterRank, string> = {
-    [HunterRank.E]: '🪨', [HunterRank.D]: '🗡️', [HunterRank.C]: '⚔️', [HunterRank.B]: '🛡️',
-    [HunterRank.A]: '🌟', [HunterRank.S]: '⚡', [HunterRank.SS]: '🔥', [HunterRank.SSS]: '💥',
-    [HunterRank.NACIONAL]: '👑', [HunterRank.MONARCA]: '🌑',
-  };
-
   return (
     <motion.div
       className="fixed inset-0 z-[102] flex flex-col items-center justify-center overflow-hidden"
@@ -281,16 +275,6 @@ const RankUpOverlay: React.FC<{ info: LevelUpInfo; onDone: () => void }> = ({ in
         >
           ⚔ RANK UP ALCANÇADO ⚔
         </motion.p>
-
-        {/* Big rank icon */}
-        <motion.div
-          className="text-8xl mb-6"
-          initial={{ scale: 0, rotate: -15 }}
-          animate={{ scale: [0, 1.3, 1], rotate: [-15, 5, 0] }}
-          transition={{ duration: 0.7, delay: 0.3, ease: 'backOut' }}
-        >
-          {RANK_ICONS[newRank]}
-        </motion.div>
 
         {/* Level transition */}
         <div className="flex items-center gap-4 mb-4">
