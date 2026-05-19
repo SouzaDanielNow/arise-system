@@ -11,6 +11,7 @@ interface DevPanelProps {
   onAddStatPoints: (points: number) => void;
   onForceRank: (rank: HunterRank) => void;
   onSetStatValue: (statId: string, value: number) => void;
+  onTriggerDailyReward: () => void;
 }
 
 const RANKS = Object.values(HunterRank);
@@ -47,6 +48,7 @@ const DevPanel: React.FC<DevPanelProps> = ({
   onAddStatPoints,
   onForceRank,
   onSetStatValue,
+  onTriggerDailyReward,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [xpAmt, setXpAmt] = useState('1000');
@@ -165,6 +167,18 @@ const DevPanel: React.FC<DevPanelProps> = ({
                 btn(`+${amt}`, () => onAddStatPoints(amt), '#a855f7')
               )}
             </div>
+          </section>
+
+          {/* ── Daily Reward ── */}
+          <section>
+            <p className="text-[10px] font-mono text-slate-500 tracking-[0.3em] mb-2">— DAILY REWARD —</p>
+            <button
+              onClick={onTriggerDailyReward}
+              className="px-4 py-2 rounded border font-mono text-xs font-bold transition-all hover:opacity-75 active:scale-95"
+              style={{ borderColor: '#facc15', color: '#facc15', backgroundColor: '#facc1518' }}
+            >
+              ABRIR CARTAS
+            </button>
           </section>
 
           {/* ── Force Rank ── */}

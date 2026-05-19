@@ -4116,6 +4116,7 @@ ${gameContext}`;
           onAddGold={addGold}
           onAddStreak={(days) => setProfile(prev => ({ ...prev, streakDays: Math.max(0, prev.streakDays + days) }))}
           onAddStatPoints={(pts) => setProfile(prev => ({ ...prev, availableStatPoints: (prev.availableStatPoints ?? 0) + pts }))}
+          onTriggerDailyReward={() => enqueueAnim({ kind: 'daily' })}
           onForceRank={handleForceRank}
           onSetStatValue={handleSetStatValue}
         />
