@@ -1484,73 +1484,70 @@ ${gameContext}`;
   };
 
   const toggleHabit = (id: string) => {
-    setHabits(prev => {
-      const target = prev.find(h => h.id === id);
-      if (!target) return prev;
+    // Read current state snapshot — keeps all side effects OUTSIDE updaters
+    const target = habits.find(h => h.id === id);
+    if (!target) return;
 
-      // --- UNCHECK: rollback XP, gold, streak ---
-      if (target.isCompleted) {
-        const prevStreak = Math.max(0, target.streak - 1);
-        const streakBonus = Math.min(2.0, 1 + prevStreak * 0.05);
-        const xpLost = Math.floor(30 * streakBonus * getRankMultiplier(profile.rank));
-        setProfile(pp => {
-          const newXp = Math.max(0, pp.currentXp - xpLost);
-          const newRank = getRankFromLevel(getLevelFromXp(newXp).level);
-          return {
-            ...pp,
-            currentXp: newXp,
-            rank: newRank,
-            gold: Math.max(0, pp.gold - 20),
-          };
-        });
-        showNotification('Protocolo desmarcado', `${target.title} (-${xpLost} XP)`, 'warning');
-        const isRecurring = target.repeatType !== 'oneTime';
-        return prev.map(h => h.id === id ? { ...h, isCompleted: false, streak: isRecurring ? prevStreak : h.streak } : h);
-      }
-
-      // --- CHECK: grant XP, gold, streak ---
-      const updated = prev.map(h => {
-        if (h.id !== id) return h;
-        const streakBonus = Math.min(2.0, 1 + h.streak * 0.05);
-        const xpGained = Math.floor(30 * streakBonus * getRankMultiplier(profile.rank));
-        addXp(xpGained);
-        addGold(20);
-        showNotification(t.notifications.protocolAdhered, `${h.title} (+${xpGained} XP)`, 'shield');
-        // Record daily completion for weekly tracking chart
-        const historyDate = toDateStr(new Date());
-        setProfile(pp => {
-          const hist = pp.weeklyHistory ?? [];
-          const existing = hist.find(e => e.date === historyDate);
-          const newHist = existing
-            ? hist.map(e => e.date === historyDate ? { ...e, completed: e.completed + 1 } : e)
-            : [...hist, { date: historyDate, completed: 1 }];
-          const cutoffStr = toDateStr(new Date(Date.now() - 6 * 86400000));
-          return { ...pp, weeklyHistory: newHist.filter(e => e.date >= cutoffStr) };
-        });
-        // Monarch's Blessing — reduce all active shadow timers by 30 minutes
-        const BLESSING_MS = 1800000;
-        setProfile(pp => {
-          const activeShadows = (pp.shadows ?? []).filter(
-            s => s.returnTime && (s.status === 'Em Missão' || s.status === 'Treinando' || s.status === 'Regenerando')
-          );
-          if (activeShadows.length === 0) return pp;
-          setTimeout(() => showNotification(t.notifications.monarchBlessing, t.notifications.monarchBlessingSub, 'shield'), 300);
-          return {
-            ...pp,
-            shadows: (pp.shadows ?? []).map(s =>
-              s.returnTime && (s.status === 'Em Missão' || s.status === 'Treinando' || s.status === 'Regenerando')
-                ? { ...s, returnTime: Math.max(Date.now(), s.returnTime - BLESSING_MS) }
-                : s
-            ),
-          };
-        });
-        const isRecurring = h.repeatType !== 'oneTime';
-        return { ...h, isCompleted: true, streak: isRecurring ? h.streak + 1 : h.streak };
+    // --- UNCHECK: rollback XP, gold, streak ---
+    if (target.isCompleted) {
+      const prevStreak = Math.max(0, target.streak - 1);
+      const streakBonus = Math.min(2.0, 1 + prevStreak * 0.05);
+      const xpLost = Math.floor(30 * streakBonus * getRankMultiplier(profile.rank));
+      setProfile(pp => {
+        const newXp = Math.max(0, pp.currentXp - xpLost);
+        return { ...pp, currentXp: newXp, rank: getRankFromLevel(getLevelFromXp(newXp).level), gold: Math.max(0, pp.gold - 20) };
       });
+      const isRecurring = target.repeatType !== 'oneTime';
+      setHabits(prev => prev.map(h => h.id === id ? { ...h, isCompleted: false, streak: isRecurring ? prevStreak : h.streak } : h));
+      showNotification('Protocolo desmarcado', `${target.title}  ·  −${xpLost} XP`, 'warning');
+      return;
+    }
 
-      // Check if all recurring habits active today are now completed → global streak +1
-      const todayStr = toDateStr(new Date());
-      const dow = new Date().getDay();
+    // --- CHECK: grant XP, gold, streak ---
+    const streakBonus = Math.min(2.0, 1 + target.streak * 0.05);
+    const xpGained = Math.floor(30 * streakBonus * getRankMultiplier(profile.rank));
+
+    // XP & gold (side effects outside updater — no Strict Mode double-fire)
+    addXp(xpGained);
+    addGold(20);
+
+    showNotification(t.notifications.protocolAdhered, `${target.title} (+${xpGained} XP)`, 'shield');
+
+    // Weekly history
+    const historyDate = toDateStr(new Date());
+    setProfile(pp => {
+      const hist = pp.weeklyHistory ?? [];
+      const existing = hist.find(e => e.date === historyDate);
+      const newHist = existing
+        ? hist.map(e => e.date === historyDate ? { ...e, completed: e.completed + 1 } : e)
+        : [...hist, { date: historyDate, completed: 1 }];
+      const cutoffStr = toDateStr(new Date(Date.now() - 6 * 86400000));
+      return { ...pp, weeklyHistory: newHist.filter(e => e.date >= cutoffStr) };
+    });
+
+    // Monarch's Blessing — reduce active shadow timers by 30 min (check outside updater)
+    const BLESSING_MS = 1800000;
+    const hasActiveShadows = (profile.shadows ?? []).some(
+      s => s.returnTime && (s.status === 'Em Missão' || s.status === 'Treinando' || s.status === 'Regenerando')
+    );
+    if (hasActiveShadows) {
+      setTimeout(() => showNotification(t.notifications.monarchBlessing, t.notifications.monarchBlessingSub, 'shield'), 300);
+      setProfile(pp => ({
+        ...pp,
+        shadows: (pp.shadows ?? []).map(s =>
+          s.returnTime && (s.status === 'Em Missão' || s.status === 'Treinando' || s.status === 'Regenerando')
+            ? { ...s, returnTime: Math.max(Date.now(), s.returnTime - BLESSING_MS) }
+            : s
+        ),
+      }));
+    }
+
+    // Update habit state + check global streak
+    const isRecurring = target.repeatType !== 'oneTime';
+    const todayStr = toDateStr(new Date());
+    const dow = new Date().getDay();
+    setHabits(prev => {
+      const updated = prev.map(h => h.id === id ? { ...h, isCompleted: true, streak: isRecurring ? h.streak + 1 : h.streak } : h);
       const recurringToday = updated.filter(h => {
         if (h.repeatType === 'oneTime') return false;
         if (h.repeatType === 'daily') return true;
@@ -1558,9 +1555,7 @@ ${gameContext}`;
         if (h.repeatType === 'custom') return (h.repeatDays ?? []).includes(dow);
         return false;
       });
-      const allDone = recurringToday.length > 0 && recurringToday.every(h => h.isCompleted);
-
-      if (allDone) {
+      if (recurringToday.length > 0 && recurringToday.every(h => h.isCompleted)) {
         setProfile(pp => {
           if (pp.lastCompletionDate === todayStr) return pp;
           const newStreak = pp.streakDays + 1;
@@ -1568,7 +1563,6 @@ ${gameContext}`;
           return { ...pp, streakDays: newStreak, lastCompletionDate: todayStr };
         });
       }
-
       return updated;
     });
   };
