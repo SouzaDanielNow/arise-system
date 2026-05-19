@@ -1,4 +1,4 @@
-# CLAUDE.md — ARISE SYSTEM v1.4.2
+# CLAUDE.md — ARISE SYSTEM v1.4.3
 
 ## Stack
 React 19 + TypeScript + Vite + TailwindCSS + Recharts + Lucide React + Google Gemini Live API + Supabase
@@ -115,7 +115,7 @@ components/
 
 ---
 
-## Sistemas de Recompensa — v1.4.2
+## Sistemas de Recompensa — v1.4.3
 
 ### Hábitos (Habit)
 - Campo `type` NÃO existe. Todas as missões são produtivas.
@@ -157,6 +157,27 @@ components/
 ### Quests do sistema (inline, opcionais)
 - dq-1: "Complete 1 Dungeon Run" (+100 XP) | dq-2: "Review a Shadow" (+50 XP)
 - NÃO penalizam streak. Aparecem na aba MISSIONS com badge OPCIONAL (âmbar).
+
+### Recompensa Diária — Quest Diária (v1.4.3)
+- `lastDailyRewardClaimedDate?: string` em HunterProfile — guarda data da última reivindicação
+- `useEffect` em App.tsx observa `habits` — quando todos os hábitos do dia (não `oneTime`) estão completos e a recompensa ainda não foi reivindicada hoje, `setShowDailyRewardModal(true)`
+- `components/DailyRewardModal.tsx` — 3 cartas flip com AnimatePresence, cantos decorativos, botão REIVINDICAR após escolha
+  - Tipos: `'stat' | 'mana' | 'chest'` (exportado como `DailyRewardType`)
+  - Clique em carta: sorteia tipo aleatório e revela, bloqueia as demais
+  - O tipo escolhido é aleatório (surpresa), não determinístico por posição
+- `claimDailyReward(type)` em App.tsx:
+  - `stat`: +1 `availableStatPoints` + +100 Gold
+  - `mana`: +`Math.floor(multiplier × 100)` XP (via `addXp`) + +50 Gold
+  - `chest`: +`Math.floor(multiplier × 50)` Gold
+  - Salva `lastDailyRewardClaimedDate = today`, fecha modal, dispara notificação `'quest'`
+
+### Level Up Overlay — v1.4.3
+- `LevelUpInfo = { oldLevel, newLevel, newRank, didRankUp }` — tipo em módulo nível em App.tsx
+- `LevelUpOverlay` recebe `info: LevelUpInfo` e `onDone: () => void`
+- Exibe `Nv. {oldLevel} → Nv. {newLevel}` sempre
+- Se `didRankUp`: seção adicional com nome e cor do novo rank, duração 4500ms; caso contrário 3000ms
+- `addXp` detecta level up comparando nível antes/depois e chama `setLevelUpInfo`
+- Retorno de sombra também detecta level up e dispara o overlay
 
 ---
 
