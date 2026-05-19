@@ -1,4 +1,4 @@
-import { HunterRank, RewardItem, Habit, SystemQuote, Shadow, ShadowRank, ShadowRole, ShadowMission } from './types';
+import { HunterRank, RewardItem, Habit, SystemQuote, Shadow, ShadowRank, ShadowRole, ShadowMission, InventoryItem } from './types';
 
 export const RANK_COLORS: Record<HunterRank, string> = {
   [HunterRank.E]: '#9ca3af',
@@ -194,4 +194,98 @@ export function generateDailyMissions(): ShadowMission[] {
     ...m,
     id: `sm-${Date.now()}-${i}`,
   }));
+}
+
+// ── Rarity ────────────────────────────────────────────────────────────────────
+
+export const RARITY_COLORS: Record<InventoryItem['rarity'], string> = {
+  common:    '#9ca3af',
+  rare:      '#3b82f6',
+  epic:      '#8b5cf6',
+  legendary: '#f59e0b',
+};
+
+export const RARITY_LABELS: Record<InventoryItem['rarity'], string> = {
+  common:    'COMUM',
+  rare:      'RARO',
+  epic:      'ÉPICO',
+  legendary: 'LENDÁRIO',
+};
+
+// ── Catálogo de Itens Físicos (vai para o Cofre) ──────────────────────────────
+
+type PhysicalTemplate = Omit<InventoryItem, 'quantity'>;
+
+export const PHYSICAL_ITEMS: PhysicalTemplate[] = [
+  { id: 'potion-vitality',  name: 'Poção de Vitalidade das Sombras', icon: '🧪', type: 'consumable', rarity: 'common',    effect: 'Recupera energia das sombras.' },
+  { id: 'scroll-prosperity',name: 'Pergaminho da Prosperidade',       icon: '📜', type: 'consumable', rarity: 'rare',      effect: 'Aumenta recompensas temporariamente.', maxStack: 3 },
+  { id: 'key-dungeon',      name: 'Chave de Masmorra Dimensional',    icon: '🗝️', type: 'consumable', rarity: 'rare',      effect: 'Abre portais de masmorra especial.', maxStack: 2 },
+  { id: 'stone-offense',    name: 'Pedra de Proteção da Ofensiva',    icon: '💎', type: 'passive',    rarity: 'epic',      effect: 'Escudo que converte dano em força.', maxStack: 1 },
+  { id: 'elixir-ascension', name: 'Elixir da Ascensão',               icon: '⚗️', type: 'consumable', rarity: 'epic',      effect: 'Acelera drasticamente a progressão.', maxStack: 1 },
+  { id: 'crown-shadows',    name: 'Coroa das Sombras',                icon: '👑', type: 'passive',    rarity: 'legendary', effect: 'O símbolo do Monarca. Poder incomparável.', maxStack: 1 },
+];
+
+// ── Loot Pool (cartas diárias) ────────────────────────────────────────────────
+
+export type LootKind =
+  | { tag: 'gold';     amount: number }
+  | { tag: 'xp';       base: number   }
+  | { tag: 'physical'; itemId: string };
+
+export interface LootEntry {
+  id: string;
+  name: string;
+  icon: string;
+  rarity: InventoryItem['rarity'];
+  weight: number;
+  kind: LootKind;
+  desc: string;
+}
+
+export const LOOT_POOL: LootEntry[] = [
+  // Auto-consumível: Gold (sem multiplicador)
+  { id: 'coins-bag',       name: 'Saco de Moedas',                    icon: '💰', rarity: 'common',    weight: 200, kind: { tag: 'gold', amount:  30  }, desc: '+30 Gold'  },
+  { id: 'gold-nugget',     name: 'Pepita de Ouro',                    icon: '🪙', rarity: 'common',    weight: 150, kind: { tag: 'gold', amount:  60  }, desc: '+60 Gold'  },
+  { id: 'gold-bar',        name: 'Barra de Ouro',                     icon: '🏅', rarity: 'rare',      weight:  80, kind: { tag: 'gold', amount: 120  }, desc: '+120 Gold' },
+  { id: 'treasure-chest',  name: 'Baú do Tesouro',                    icon: '🎁', rarity: 'rare',      weight:  30, kind: { tag: 'gold', amount: 250  }, desc: '+250 Gold' },
+  // Auto-consumível: XP (com multiplicador de rank)
+  { id: 'mana-pill',       name: 'Pílula de Mana',                    icon: '💊', rarity: 'common',    weight: 180, kind: { tag: 'xp',   base:   30  }, desc: '30 XP × rank' },
+  { id: 'essence-crystal', name: 'Cristal de Essência',               icon: '🔮', rarity: 'common',    weight: 130, kind: { tag: 'xp',   base:   60  }, desc: '60 XP × rank' },
+  { id: 'star-fragment',   name: 'Fragmento de Estrela',              icon: '⭐', rarity: 'epic',      weight:  60, kind: { tag: 'xp',   base:  120  }, desc: '120 XP × rank' },
+  { id: 'boss-core',       name: 'Núcleo de Vida do Boss',            icon: '💠', rarity: 'legendary', weight:  15, kind: { tag: 'xp',   base:  250  }, desc: '250 XP × rank' },
+  // Físico (vai para o Cofre)
+  { id: 'item-potion',     name: 'Poção de Vitalidade das Sombras',   icon: '🧪', rarity: 'common',    weight:  70, kind: { tag: 'physical', itemId: 'potion-vitality'   }, desc: 'Item de Cofre' },
+  { id: 'item-scroll',     name: 'Pergaminho da Prosperidade',        icon: '📜', rarity: 'rare',      weight:  40, kind: { tag: 'physical', itemId: 'scroll-prosperity'  }, desc: 'Item de Cofre' },
+  { id: 'item-key',        name: 'Chave de Masmorra Dimensional',     icon: '🗝️', rarity: 'rare',      weight:  30, kind: { tag: 'physical', itemId: 'key-dungeon'        }, desc: 'Item de Cofre' },
+  { id: 'item-stone',      name: 'Pedra de Proteção da Ofensiva',     icon: '💎', rarity: 'epic',      weight:   8, kind: { tag: 'physical', itemId: 'stone-offense'      }, desc: 'Item de Cofre' },
+  { id: 'item-elixir',     name: 'Elixir da Ascensão',                icon: '⚗️', rarity: 'epic',      weight:   5, kind: { tag: 'physical', itemId: 'elixir-ascension'   }, desc: 'Item de Cofre' },
+  { id: 'item-crown',      name: 'Coroa das Sombras',                 icon: '👑', rarity: 'legendary', weight:   2, kind: { tag: 'physical', itemId: 'crown-shadows'      }, desc: 'Item de Cofre' },
+];
+
+export function rollLoot(): LootEntry {
+  const total = LOOT_POOL.reduce((sum, e) => sum + e.weight, 0);
+  let rand = Math.random() * total;
+  for (const entry of LOOT_POOL) {
+    rand -= entry.weight;
+    if (rand <= 0) return entry;
+  }
+  return LOOT_POOL[0];
+}
+
+// ── Boss Rank Calculator ──────────────────────────────────────────────────────
+
+export const RANK_ORDER: HunterRank[] = [
+  HunterRank.E, HunterRank.D, HunterRank.C, HunterRank.B, HunterRank.A,
+  HunterRank.S, HunterRank.SS, HunterRank.SSS, HunterRank.NACIONAL, HunterRank.MONARCA,
+];
+
+export function calculateBossRank(
+  playerRankIndex: number,
+  daysDeadline: number,
+  subtaskCount: number,
+): HunterRank {
+  const maxIndex = RANK_ORDER.length - 1;
+  if (daysDeadline >= 60 && subtaskCount >= 1) return RANK_ORDER[Math.min(playerRankIndex + 2, maxIndex)];
+  if (daysDeadline >= 21 && subtaskCount >= 1) return RANK_ORDER[Math.min(playerRankIndex + 1, maxIndex)];
+  return RANK_ORDER[Math.min(playerRankIndex, maxIndex)];
 }

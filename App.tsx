@@ -22,7 +22,8 @@ import {
   INITIAL_REWARDS,
   INITIAL_HABITS, getLevelFromXp, getRankFromLevel, getXpForLevel,
   RANK_LEVEL_THRESHOLDS, getRankMultiplier,
-  STAT_COLOR_PALETTE, RANK_COLORS, SHADOW_RANK_COLORS, extractShadow, generateDailyMissions
+  STAT_COLOR_PALETTE, RANK_COLORS, SHADOW_RANK_COLORS, extractShadow, generateDailyMissions,
+  LootEntry, PHYSICAL_ITEMS, RARITY_COLORS, RARITY_LABELS,
 } from './constants';
 import StatRadar from './components/StatRadar';
 import SystemNotification, { NotificationType } from './components/SystemNotification';
@@ -30,7 +31,7 @@ import { useLanguage } from './i18n/LanguageContext';
 import { supabase } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
 import DevPanel from './components/DevPanel';
-import DailyRewardModal, { DailyRewardType } from './components/DailyRewardModal';
+import DailyRewardModal from './components/DailyRewardModal';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 
 
@@ -1006,33 +1007,60 @@ const App: React.FC = () => {
     setProfile(prev => ({ ...prev, gold: prev.gold + amount }));
   };
 
-  const claimDailyReward = (type: DailyRewardType) => {
+  const claimDailyReward = (loot: LootEntry) => {
     const today = toDateStr(new Date());
     const multiplier = getRankMultiplier(profile.rank);
-    setProfile(prev => {
-      let updated = { ...prev, lastDailyRewardClaimedDate: today };
-      if (type === 'stat') {
-        updated = {
-          ...updated,
-          availableStatPoints: (updated.availableStatPoints ?? 0) + 1,
-          gold: updated.gold + 100,
-        };
-      } else if (type === 'mana') {
-        updated = { ...updated, gold: updated.gold + 50 };
-      } else if (type === 'chest') {
-        updated = { ...updated, gold: updated.gold + Math.floor(multiplier * 50) };
+
+    if (loot.kind.tag === 'gold') {
+      addGold(loot.kind.amount);
+      setProfile(prev => ({ ...prev, lastDailyRewardClaimedDate: today }));
+      showNotification(`+${loot.kind.amount} Gold`, loot.name, 'quest');
+    } else if (loot.kind.tag === 'xp') {
+      const xpGain = Math.floor(loot.kind.base * multiplier);
+      setProfile(prev => ({ ...prev, lastDailyRewardClaimedDate: today }));
+      addXp(xpGain);
+      showNotification(`+${xpGain} XP`, loot.name, 'quest');
+    } else if (loot.kind.tag === 'physical') {
+      const itemId = loot.kind.itemId;
+      const template = PHYSICAL_ITEMS.find(p => p.id === itemId);
+      const inventory = profile.inventory ?? [];
+      const existing = inventory.find(i => i.id === itemId);
+      const maxStack = template?.maxStack ?? 99;
+      const currentQty = existing?.quantity ?? 0;
+
+      if (currentQty < maxStack) {
+        setProfile(prev => {
+          const inv = prev.inventory ?? [];
+          const has = inv.find(i => i.id === itemId);
+          let newInv;
+          if (has) {
+            newInv = inv.map(i => i.id === itemId ? { ...i, quantity: i.quantity + 1 } : i);
+          } else if (template) {
+            newInv = [...inv, {
+              id: template.id,
+              name: template.name,
+              icon: loot.icon,
+              type: 'consumable' as const,
+              rarity: loot.rarity,
+              effect: template.effect,
+              quantity: 1,
+              maxStack: template.maxStack,
+            }];
+          } else {
+            newInv = inv;
+          }
+          return { ...prev, lastDailyRewardClaimedDate: today, inventory: newInv };
+        });
+        showNotification(loot.name, template?.effect ?? '', 'quest');
+      } else {
+        // maxStack reached — fallback: +30 Gold (Saco de Moedas)
+        addGold(30);
+        setProfile(prev => ({ ...prev, lastDailyRewardClaimedDate: today }));
+        showNotification('+30 Gold — Saco de Moedas', 'Cofre cheio, ouro compensado', 'warning');
       }
-      return updated;
-    });
-    if (type === 'mana') {
-      addXp(Math.floor(multiplier * 100));
     }
+
     dismissActiveAnim();
-    const msgs: Record<DailyRewardType, string> = {
-      stat: '⚡ Bênção do Sistema — +1 Atributo & +100 Gold',
-      mana: `💠 Injeção de Mana — +${Math.floor(multiplier * 100)} XP & +50 Gold`,
-      chest: `👑 Baú do Monarca — +${Math.floor(multiplier * 50)} Gold`,
-    };
   };
 
   const distributeStat = (statId: string) => {
@@ -2896,6 +2924,83 @@ ${gameContext}`;
               <span className="text-purple-600">{t.identity.daysRetained(retainedDays)}</span>
             </div>
           </motion.div>
+        </motion.div>
+
+        {/* ── CARD 4: Cofre do Sistema ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.3 }}
+        >
+          <div
+            className="relative rounded-2xl p-5"
+            style={{
+              background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+              border: '1px solid rgba(250,204,21,0.18)',
+              boxShadow: '0 0 22px rgba(250,204,21,0.04)',
+            }}
+          >
+            <p className="text-[9px] font-garet text-yellow-500/50 tracking-widest uppercase mb-1">
+              INVENTÁRIO
+            </p>
+            <h3 className="text-sm font-garet font-bold text-yellow-300 mb-4">
+              Cofre do Sistema
+            </h3>
+
+            {(() => {
+              const items = (profile.inventory ?? []).filter(i => i.quantity > 0);
+              if (items.length === 0) {
+                return (
+                  <p className="text-[11px] font-mono text-slate-600 text-center py-4">
+                    Nenhum item no cofre
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-2">
+                  {items.map(item => (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+                      style={{
+                        background: `${RARITY_COLORS[item.rarity]}08`,
+                        border: `1px solid ${RARITY_COLORS[item.rarity]}25`,
+                      }}
+                    >
+                      <span className="text-xl shrink-0">{item.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span
+                            className="text-[8px] font-garet tracking-widest border rounded-sm px-1 py-0.5"
+                            style={{ color: RARITY_COLORS[item.rarity], borderColor: `${RARITY_COLORS[item.rarity]}40` }}
+                          >
+                            {RARITY_LABELS[item.rarity]}
+                          </span>
+                          <span className="text-[11px] font-garet font-bold truncate" style={{ color: RARITY_COLORS[item.rarity] }}>
+                            {item.name}
+                          </span>
+                        </div>
+                        <p className="text-[10px] font-mono text-slate-400 truncate">{item.effect}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] font-mono text-slate-500">×{item.quantity}</span>
+                        <button
+                          onClick={() => showNotification(item.name, 'Em breve: uso de itens do cofre', 'info')}
+                          className="text-[9px] font-garet tracking-widest border rounded px-2 py-1 transition-colors"
+                          style={{
+                            color: RARITY_COLORS[item.rarity],
+                            borderColor: `${RARITY_COLORS[item.rarity]}40`,
+                          }}
+                        >
+                          USAR
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
         </motion.div>
 
       </div>

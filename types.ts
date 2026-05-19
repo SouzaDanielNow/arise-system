@@ -35,6 +35,7 @@ export interface HunterProfile {
   lastCompletionDate?: string;
   lastDailyRewardClaimedDate?: string;
   weeklyHistory?: { date: string; completed: number }[];
+  inventory?: InventoryItem[];
 }
 
 
@@ -84,6 +85,17 @@ export interface RewardItem {
   cost: number;
   description: string;
   icon: string;
+}
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  icon: string;
+  type: 'consumable' | 'passive';
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  effect: string;
+  quantity: number;
+  maxStack?: number;
 }
 
 export type ShadowRank = 'Infantaria' | 'Elite' | 'Cavaleiro' | 'Comandante';
