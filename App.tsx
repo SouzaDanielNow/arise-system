@@ -4015,6 +4015,8 @@ ${gameContext}`;
           onAddXp={(amt) => addXp(amt)}
           onResetXp={() => setProfile(prev => ({ ...prev, currentXp: 0, rank: HunterRank.E }))}
           onAddGold={addGold}
+          onAddStreak={(days) => setProfile(prev => ({ ...prev, streakDays: Math.max(0, prev.streakDays + days) }))}
+          onAddStatPoints={(pts) => setProfile(prev => ({ ...prev, availableStatPoints: (prev.availableStatPoints ?? 0) + pts }))}
           onForceRank={handleForceRank}
           onSetStatValue={handleSetStatValue}
         />
