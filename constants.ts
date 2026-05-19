@@ -217,12 +217,12 @@ export const RARITY_LABELS: Record<InventoryItem['rarity'], string> = {
 type PhysicalTemplate = Omit<InventoryItem, 'quantity'>;
 
 export const PHYSICAL_ITEMS: PhysicalTemplate[] = [
-  { id: 'potion-vitality',  name: 'Poção de Vitalidade das Sombras', icon: '🧪', type: 'consumable', rarity: 'common',    effect: 'Recupera energia das sombras.' },
-  { id: 'scroll-prosperity',name: 'Pergaminho da Prosperidade',       icon: '📜', type: 'consumable', rarity: 'rare',      effect: 'Aumenta recompensas temporariamente.', maxStack: 3 },
-  { id: 'key-dungeon',      name: 'Chave de Masmorra Dimensional',    icon: '🗝️', type: 'consumable', rarity: 'rare',      effect: 'Abre portais de masmorra especial.', maxStack: 2 },
-  { id: 'stone-offense',    name: 'Pedra de Proteção da Ofensiva',    icon: '💎', type: 'passive',    rarity: 'epic',      effect: 'Escudo que converte dano em força.', maxStack: 1 },
-  { id: 'elixir-ascension', name: 'Elixir da Ascensão',               icon: '⚗️', type: 'consumable', rarity: 'epic',      effect: 'Acelera drasticamente a progressão.', maxStack: 1 },
-  { id: 'crown-shadows',    name: 'Coroa das Sombras',                icon: '👑', type: 'passive',    rarity: 'legendary', effect: 'O símbolo do Monarca. Poder incomparável.', maxStack: 1 },
+  { id: 'potion-vitality',  name: 'Poção de Vitalidade das Sombras', icon: '/icons/pocao-vitalidade.png',        type: 'consumable', rarity: 'common',    effect: 'Recupera energia das sombras.' },
+  { id: 'scroll-prosperity',name: 'Pergaminho da Prosperidade',       icon: '/icons/pergaminho-prosperidade.png', type: 'consumable', rarity: 'rare',      effect: 'Aumenta recompensas temporariamente.', maxStack: 3 },
+  { id: 'key-dungeon',      name: 'Chave de Masmorra Dimensional',    icon: '/icons/chave-dungeon.png',           type: 'consumable', rarity: 'rare',      effect: 'Abre portais de masmorra especial.', maxStack: 2 },
+  { id: 'stone-offense',    name: 'Pedra de Proteção da Ofensiva',    icon: '/icons/pedra-protecao.png',          type: 'passive',    rarity: 'epic',      effect: 'Escudo que converte dano em força.', maxStack: 1 },
+  { id: 'elixir-ascension', name: 'Elixir da Ascensão',               icon: '/icons/elixir.png',                  type: 'consumable', rarity: 'epic',      effect: 'Acelera drasticamente a progressão.', maxStack: 1 },
+  { id: 'crown-shadows',    name: 'Coroa das Sombras',                icon: '/icons/coroa-sombras.png',           type: 'passive',    rarity: 'legendary', effect: 'O símbolo do Monarca. Poder incomparável.', maxStack: 1 },
 ];
 
 // ── Loot Pool (cartas diárias) ────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { HunterRank, HunterProfile } from '../types';
-import { RANK_COLORS, RANK_LEVEL_THRESHOLDS } from '../constants';
+import { RANK_COLORS, RANK_LEVEL_THRESHOLDS, PHYSICAL_ITEMS, RARITY_COLORS } from '../constants';
 
 interface DevPanelProps {
   profile: HunterProfile;
@@ -12,6 +12,7 @@ interface DevPanelProps {
   onForceRank: (rank: HunterRank) => void;
   onSetStatValue: (statId: string, value: number) => void;
   onTriggerDailyReward: () => void;
+  onAddInventoryItem: (itemId: string) => void;
 }
 
 const RANKS = Object.values(HunterRank);
@@ -49,6 +50,7 @@ const DevPanel: React.FC<DevPanelProps> = ({
   onForceRank,
   onSetStatValue,
   onTriggerDailyReward,
+  onAddInventoryItem,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [xpAmt, setXpAmt] = useState('1000');
@@ -179,6 +181,39 @@ const DevPanel: React.FC<DevPanelProps> = ({
             >
               ABRIR CARTAS
             </button>
+          </section>
+
+          {/* ── Inventory ── */}
+          <section>
+            <p className="text-[10px] font-mono text-slate-500 tracking-[0.3em] mb-2">— ADICIONAR AO COFRE —</p>
+            <div className="space-y-1.5">
+              {PHYSICAL_ITEMS.map(item => {
+                const color = RARITY_COLORS[item.rarity];
+                const inInventory = (profile.inventory ?? []).find(i => i.id === item.id);
+                const qty = inInventory?.quantity ?? 0;
+                const maxStack = item.maxStack ?? 99;
+                const full = qty >= maxStack;
+                return (
+                  <div key={item.id} className="flex items-center gap-2">
+                    <img src={item.icon} alt={item.name} className="w-6 h-6 object-contain shrink-0" />
+                    <span className="flex-1 font-mono text-[11px] truncate" style={{ color }}>
+                      {item.name}
+                    </span>
+                    <span className="font-mono text-[10px] text-slate-500 w-10 text-right shrink-0">
+                      {qty}/{maxStack}
+                    </span>
+                    <button
+                      onClick={() => !full && onAddInventoryItem(item.id)}
+                      disabled={full}
+                      className="px-2 py-1 rounded border font-mono text-[10px] font-bold transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                      style={{ borderColor: color, color, backgroundColor: `${color}18` }}
+                    >
+                      ADD
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </section>
 
           {/* ── Force Rank ── */}

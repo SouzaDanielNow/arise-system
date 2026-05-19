@@ -4117,6 +4117,20 @@ ${gameContext}`;
           onAddStreak={(days) => setProfile(prev => ({ ...prev, streakDays: Math.max(0, prev.streakDays + days) }))}
           onAddStatPoints={(pts) => setProfile(prev => ({ ...prev, availableStatPoints: (prev.availableStatPoints ?? 0) + pts }))}
           onTriggerDailyReward={() => enqueueAnim({ kind: 'daily' })}
+          onAddInventoryItem={(itemId) => {
+            const template = PHYSICAL_ITEMS.find(p => p.id === itemId);
+            if (!template) return;
+            setProfile(prev => {
+              const inv = prev.inventory ?? [];
+              const has = inv.find(i => i.id === itemId);
+              const maxStack = template.maxStack ?? 99;
+              if (has && has.quantity >= maxStack) return prev;
+              const newInv = has
+                ? inv.map(i => i.id === itemId ? { ...i, quantity: i.quantity + 1 } : i)
+                : [...inv, { id: template.id, name: template.name, icon: template.icon, type: template.type, rarity: template.rarity, effect: template.effect, quantity: 1, maxStack: template.maxStack }];
+              return { ...prev, inventory: newInv };
+            });
+          }}
           onForceRank={handleForceRank}
           onSetStatValue={handleSetStatValue}
         />
