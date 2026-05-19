@@ -139,100 +139,198 @@ function applyDailyReset(gs: GameState): { state: GameState; hadStreakBreak: boo
 const randomBetween = (min: number, max: number): number =>
   Math.floor(Math.random() * (max - min + 1)) + min;
 
-// --- Level Up Overlay ---
+// --- Animation Overlays ---
 const PARTICLE_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
 
 type LevelUpInfo = { oldLevel: number; newLevel: number; newRank: HunterRank; didRankUp: boolean };
 
+// Level Up Overlay — cyan theme, auto-dismiss after 3s
 const LevelUpOverlay: React.FC<{ info: LevelUpInfo; onDone: () => void }> = ({ info, onDone }) => {
-  const { oldLevel, newLevel, newRank, didRankUp } = info;
-  const color = RANK_COLORS[newRank];
-  const duration = didRankUp ? 4500 : 3000;
+  const { oldLevel, newLevel } = info;
+  const CYAN = '#22d3ee';
 
   useEffect(() => {
-    const timer = setTimeout(onDone, duration);
+    const timer = setTimeout(onDone, 3000);
     return () => clearTimeout(timer);
-  }, [onDone, duration]);
+  }, [onDone]);
 
   return (
     <motion.div
-      className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden"
-      style={{ pointerEvents: didRankUp ? 'auto' : 'none' }}
+      className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden pointer-events-none"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
     >
+      {/* Backdrop */}
+      <motion.div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0, 1, 1, 0] }}
+        transition={{ duration: 3, times: [0, 0.1, 0.7, 1] }}
+      />
+
       {/* Radial glow */}
       <motion.div
         className="absolute inset-0"
-        style={{ background: `radial-gradient(ellipse at center, ${color}44 0%, transparent 70%)` }}
+        style={{ background: `radial-gradient(ellipse at center, ${CYAN}33 0%, transparent 65%)` }}
         initial={{ opacity: 0 }}
-        animate={{ opacity: [0, 1, 0.7, 0] }}
-        transition={{ duration: duration / 1000, times: [0, 0.15, 0.6, 1] }}
+        animate={{ opacity: [0, 1, 0.6, 0] }}
+        transition={{ duration: 3, times: [0, 0.15, 0.65, 1] }}
       />
 
       {/* Particles */}
       {PARTICLE_ANGLES.map((angle, i) => (
         <motion.div
           key={i}
-          className="absolute w-2 h-2 rounded-full"
-          style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}`, left: '50%', top: '50%', marginLeft: -4, marginTop: -4 }}
-          initial={{ x: 0, y: 0, opacity: 1, scale: 1.5 }}
-          animate={{ x: Math.cos((angle * Math.PI) / 180) * (didRankUp ? 320 : 220), y: Math.sin((angle * Math.PI) / 180) * (didRankUp ? 320 : 220), opacity: 0, scale: 0 }}
-          transition={{ duration: 2, delay: 0.15, ease: 'easeOut' }}
+          className="absolute w-1.5 h-1.5 rounded-full"
+          style={{ backgroundColor: CYAN, boxShadow: `0 0 6px ${CYAN}`, left: '50%', top: '50%', marginLeft: -3, marginTop: -3 }}
+          initial={{ x: 0, y: 0, opacity: 1 }}
+          animate={{ x: Math.cos((angle * Math.PI) / 180) * 200, y: Math.sin((angle * Math.PI) / 180) * 200, opacity: 0 }}
+          transition={{ duration: 1.8, delay: 0.1, ease: 'easeOut' }}
         />
       ))}
 
       {/* Content */}
       <motion.div
         className="text-center relative z-10 select-none px-6"
-        initial={{ scale: 0.2, opacity: 0 }}
-        animate={{ scale: [0.2, 1.15, 1, 1, 1], opacity: [0, 1, 1, 1, 0] }}
-        transition={{ duration: duration / 1000, times: [0, 0.18, 0.3, 0.7, 1] }}
+        initial={{ scale: 0.3, opacity: 0 }}
+        animate={{ scale: [0.3, 1.1, 1, 1, 1], opacity: [0, 1, 1, 1, 0] }}
+        transition={{ duration: 3, times: [0, 0.15, 0.25, 0.7, 1] }}
       >
-        {/* Level up */}
-        <div className="text-xs font-garet tracking-[0.5em] mb-4 text-white/50">
-          {didRankUp ? '⚔ RANK UP ⚔' : '— NÍVEL AUMENTOU —'}
-        </div>
-        <div className="flex items-center justify-center gap-4 mb-4">
-          <span className="text-5xl font-black font-garet text-white/40">{oldLevel}</span>
-          <span className="text-3xl font-garet" style={{ color }}>→</span>
-          <span className="text-7xl font-black font-garet" style={{ color, textShadow: `0 0 30px ${color}, 0 0 60px ${color}88` }}>
+        <p className="text-[10px] font-garet tracking-[0.6em] mb-5 text-white/40">— NÍVEL AUMENTOU —</p>
+
+        <div className="flex items-center justify-center gap-5 mb-5">
+          <span className="text-4xl font-black font-garet text-white/30">{oldLevel}</span>
+          <span className="text-2xl font-garet" style={{ color: CYAN }}>→</span>
+          <span
+            className="text-7xl font-black font-garet"
+            style={{ color: CYAN, textShadow: `0 0 25px ${CYAN}, 0 0 55px ${CYAN}66` }}
+          >
             {newLevel}
           </span>
         </div>
 
-        {/* Rank badge — only shown on rank up */}
-        {didRankUp && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="mt-2"
-          >
-            <div className="text-[10px] font-garet tracking-[0.5em] text-white/50 mb-2">NOVO RANK ALCANÇADO</div>
-            <div
-              className="text-6xl font-black font-garet"
-              style={{ color, textShadow: `0 0 40px ${color}, 0 0 80px ${color}88` }}
-            >
-              {newRank}
-            </div>
-            <motion.div
-              className="mt-3 text-xs font-garet tracking-[0.4em]"
-              style={{ color }}
-              animate={{ opacity: [0.4, 1, 0.4] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            >
-              RANK {newRank} ATINGIDO
-            </motion.div>
-          </motion.div>
-        )}
+        <motion.p
+          className="text-xs font-mono tracking-widest"
+          style={{ color: CYAN }}
+          animate={{ opacity: [0.3, 1, 0.3] }}
+          transition={{ duration: 1.4, repeat: Infinity }}
+        >
+          +4 PONTOS DE ATRIBUTO DESBLOQUEADOS
+        </motion.p>
+      </motion.div>
+    </motion.div>
+  );
+};
 
-        {/* Stat points hint */}
-        <div className="mt-4 text-[10px] font-mono text-white/30 tracking-widest">
-          +4 PONTOS DE ATRIBUTO DISPONÍVEIS
+// Rank Up Overlay — fullscreen epic, rank color theme, manual dismiss
+const RankUpOverlay: React.FC<{ info: LevelUpInfo; onDone: () => void }> = ({ info, onDone }) => {
+  const { oldLevel, newLevel, newRank } = info;
+  const color = RANK_COLORS[newRank];
+
+  const RANK_ICONS: Record<HunterRank, string> = {
+    [HunterRank.E]: '🪨', [HunterRank.D]: '🗡️', [HunterRank.C]: '⚔️', [HunterRank.B]: '🛡️',
+    [HunterRank.A]: '🌟', [HunterRank.S]: '⚡', [HunterRank.SS]: '🔥', [HunterRank.SSS]: '💥',
+    [HunterRank.NACIONAL]: '👑', [HunterRank.MONARCA]: '🌑',
+  };
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-[102] flex flex-col items-center justify-center overflow-hidden"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.4 }}
+    >
+      {/* Fullscreen dark backdrop */}
+      <div className="absolute inset-0 bg-black/85 backdrop-blur-xl" />
+
+      {/* Ambient radial glow */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: `radial-gradient(ellipse at center, ${color}22 0%, transparent 60%)` }}
+        animate={{ opacity: [0.5, 1, 0.5] }}
+        transition={{ duration: 2.5, repeat: Infinity }}
+      />
+
+      {/* Particles burst */}
+      {PARTICLE_ANGLES.map((angle, i) => (
+        <motion.div
+          key={i}
+          className="absolute w-2 h-2 rounded-full pointer-events-none"
+          style={{ backgroundColor: color, boxShadow: `0 0 10px ${color}`, left: '50%', top: '50%', marginLeft: -4, marginTop: -4 }}
+          initial={{ x: 0, y: 0, opacity: 1, scale: 2 }}
+          animate={{ x: Math.cos((angle * Math.PI) / 180) * 380, y: Math.sin((angle * Math.PI) / 180) * 380, opacity: 0, scale: 0 }}
+          transition={{ duration: 2.2, delay: 0.2, ease: 'easeOut' }}
+        />
+      ))}
+
+      {/* Content — scale-up from center */}
+      <motion.div
+        className="relative z-10 flex flex-col items-center text-center px-8 select-none"
+        initial={{ scale: 0.1, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.6, ease: [0.16, 1.3, 0.5, 1] }}
+      >
+        {/* Header label */}
+        <motion.p
+          className="text-[10px] font-garet tracking-[0.7em] text-white/40 mb-6"
+          animate={{ opacity: [0.4, 1, 0.4] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        >
+          ⚔ RANK UP ALCANÇADO ⚔
+        </motion.p>
+
+        {/* Big rank icon */}
+        <motion.div
+          className="text-8xl mb-6"
+          initial={{ scale: 0, rotate: -15 }}
+          animate={{ scale: [0, 1.3, 1], rotate: [-15, 5, 0] }}
+          transition={{ duration: 0.7, delay: 0.3, ease: 'backOut' }}
+        >
+          {RANK_ICONS[newRank]}
+        </motion.div>
+
+        {/* Level transition */}
+        <div className="flex items-center gap-4 mb-4">
+          <span className="text-3xl font-black font-garet text-white/30">{oldLevel}</span>
+          <span className="text-xl font-garet" style={{ color }}>→</span>
+          <span className="text-5xl font-black font-garet" style={{ color, textShadow: `0 0 20px ${color}` }}>
+            {newLevel}
+          </span>
         </div>
+
+        {/* New rank name */}
+        <motion.div
+          className="text-8xl font-black font-garet mb-3"
+          style={{ color, textShadow: `0 0 40px ${color}, 0 0 90px ${color}66` }}
+          animate={{ textShadow: [`0 0 40px ${color}, 0 0 80px ${color}44`, `0 0 60px ${color}, 0 0 120px ${color}88`, `0 0 40px ${color}, 0 0 80px ${color}44`] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        >
+          {newRank}
+        </motion.div>
+
+        <p className="text-xs font-mono text-white/40 tracking-widest mb-10">+4 PONTOS DE ATRIBUTO DESBLOQUEADOS</p>
+
+        {/* Dismiss button */}
+        <motion.button
+          className="px-12 py-3 rounded border-2 font-garet text-sm tracking-[0.4em] font-bold"
+          style={{
+            borderColor: color,
+            color,
+            background: `${color}18`,
+            boxShadow: `0 0 30px ${color}55`,
+          }}
+          onClick={onDone}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+          whileHover={{ scale: 1.05, boxShadow: `0 0 45px ${color}88` }}
+          whileTap={{ scale: 0.97 }}
+        >
+          DESPERTAR
+        </motion.button>
       </motion.div>
     </motion.div>
   );
@@ -601,9 +699,10 @@ const App: React.FC = () => {
   const [voiceSuggestions, setVoiceSuggestions] = useState<VoiceSuggestion[]>([]);
 
   // Visual effects state
-  const [levelUpInfo, setLevelUpInfo] = useState<LevelUpInfo | null>(null);
+  type AnimEvent = { kind: 'daily' } | { kind: 'levelup'; info: LevelUpInfo } | { kind: 'rankup'; info: LevelUpInfo };
+  const [animQueue, setAnimQueue] = useState<AnimEvent[]>([]);
+  const [activeAnim, setActiveAnim] = useState<AnimEvent | null>(null);
   const [shadowExtracted, setShadowExtracted] = useState<Shadow | null>(null);
-  const [showDailyRewardModal, setShowDailyRewardModal] = useState(false);
   const [showBossFlash, setShowBossFlash] = useState(false);
   const shakeControls = useAnimation();
 
@@ -728,6 +827,19 @@ const App: React.FC = () => {
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [profile, habits, bossFights]);
 
+  // Animation queue — dequeue next when nothing is active
+  useEffect(() => {
+    if (activeAnim !== null) return;
+    if (animQueue.length === 0) return;
+    const [next, ...rest] = animQueue;
+    setAnimQueue(rest);
+    setActiveAnim(next);
+  }, [activeAnim, animQueue]);
+
+  const enqueueAnim = (ev: AnimEvent) => setAnimQueue(q => [...q, ev]);
+
+  const dismissActiveAnim = () => setActiveAnim(null);
+
   // Dynamic rank color CSS variable
   useEffect(() => {
     document.documentElement.style.setProperty('--rank-color', RANK_COLORS[profile.rank]);
@@ -741,15 +853,15 @@ const App: React.FC = () => {
   useEffect(() => {
     const today = toDateStr(new Date());
     if (profile.lastDailyRewardClaimedDate === today) return;
+    const day = new Date().getDay();
     const todayH = habits.filter(x => {
-      const day = new Date().getDay();
       if (x.repeatType === 'daily') return true;
       if (x.repeatType === 'weekdays') return day >= 1 && day <= 5;
       if (x.repeatType === 'custom') return (x.repeatDays || []).includes(day);
       return false;
     });
     if (todayH.length > 0 && todayH.every(x => x.isCompleted)) {
-      setShowDailyRewardModal(true);
+      enqueueAnim({ kind: 'daily' });
     }
   }, [habits, profile.lastDailyRewardClaimedDate]);
 
@@ -819,8 +931,17 @@ const App: React.FC = () => {
         const newRank = getRankFromLevel(newLevel);
         const didRankUp = newRank !== p.rank;
         const didLevelUp = newLevel > oldLevel;
-        if (didRankUp) setTimeout(() => setLevelUpInfo({ oldLevel, newLevel, newRank, didRankUp: true }), 500);
-        else if (didLevelUp) setTimeout(() => setLevelUpInfo({ oldLevel, newLevel, newRank, didRankUp: false }), 300);
+        if (didRankUp) {
+          setTimeout(() => {
+            const lvInfo: LevelUpInfo = { oldLevel, newLevel, newRank, didRankUp: true };
+            enqueueAnim({ kind: 'levelup', info: lvInfo });
+            enqueueAnim({ kind: 'rankup', info: lvInfo });
+          }, 500);
+        } else if (didLevelUp) {
+          setTimeout(() => {
+            enqueueAnim({ kind: 'levelup', info: { oldLevel, newLevel, newRank, didRankUp: false } });
+          }, 300);
+        }
 
         return { ...p, shadows: newShadows, currentXp: newXp, gold: newGold, rank: newRank };
       });
@@ -870,10 +991,15 @@ const App: React.FC = () => {
       if (didRankUp) {
         setTimeout(() => {
           showNotification(t.notifications.rankUp(newRank), t.notifications.rankUpSub, 'levelup');
-          setLevelUpInfo({ oldLevel, newLevel: newLevelInfo.level, newRank, didRankUp: true });
+          const lvInfo: LevelUpInfo = { oldLevel, newLevel: newLevelInfo.level, newRank, didRankUp: true };
+          enqueueAnim({ kind: 'levelup', info: lvInfo });
+          enqueueAnim({ kind: 'rankup', info: lvInfo });
         }, 500);
       } else if (didLevelUp) {
-        setTimeout(() => setLevelUpInfo({ oldLevel, newLevel: newLevelInfo.level, newRank, didRankUp: false }), 300);
+        setTimeout(() => {
+          const lvInfo: LevelUpInfo = { oldLevel, newLevel: newLevelInfo.level, newRank, didRankUp: false };
+          enqueueAnim({ kind: 'levelup', info: lvInfo });
+        }, 300);
       }
 
       return {
@@ -911,7 +1037,7 @@ const App: React.FC = () => {
     if (type === 'mana') {
       addXp(Math.floor(multiplier * 100));
     }
-    setShowDailyRewardModal(false);
+    dismissActiveAnim();
     const msgs: Record<DailyRewardType, string> = {
       stat: '⚡ Bênção do Sistema — +1 Atributo & +100 Gold',
       mana: `💠 Injeção de Mana — +${Math.floor(multiplier * 100)} XP & +50 Gold`,
@@ -1370,45 +1496,67 @@ ${gameContext}`;
 
   const toggleHabit = (id: string) => {
     setHabits(prev => {
+      const target = prev.find(h => h.id === id);
+      if (!target) return prev;
+
+      // --- UNCHECK: rollback XP, gold, streak ---
+      if (target.isCompleted) {
+        const prevStreak = Math.max(0, target.streak - 1);
+        const streakBonus = Math.min(2.0, 1 + prevStreak * 0.05);
+        const xpLost = Math.floor(30 * streakBonus * getRankMultiplier(profile.rank));
+        setProfile(pp => {
+          const newXp = Math.max(0, pp.currentXp - xpLost);
+          const newRank = getRankFromLevel(getLevelFromXp(newXp).level);
+          return {
+            ...pp,
+            currentXp: newXp,
+            rank: newRank,
+            gold: Math.max(0, pp.gold - 20),
+          };
+        });
+        showNotification('Protocolo desmarcado', `${target.title} (-${xpLost} XP)`, 'warning');
+        const isRecurring = target.repeatType !== 'oneTime';
+        return prev.map(h => h.id === id ? { ...h, isCompleted: false, streak: isRecurring ? prevStreak : h.streak } : h);
+      }
+
+      // --- CHECK: grant XP, gold, streak ---
       const updated = prev.map(h => {
-        if (h.id === id && !h.isCompleted) {
-          const streakBonus = Math.min(2.0, 1 + h.streak * 0.05);
-          const xpGained = Math.floor(30 * streakBonus * getRankMultiplier(profile.rank));
-          addXp(xpGained);
-          addGold(20);
-          showNotification(t.notifications.protocolAdhered, `${h.title} (+${xpGained} XP)`, 'shield');
-          // Record daily completion for weekly tracking chart
-          const historyDate = toDateStr(new Date());
-          setProfile(pp => {
-            const hist = pp.weeklyHistory ?? [];
-            const existing = hist.find(e => e.date === historyDate);
-            const updated = existing
-              ? hist.map(e => e.date === historyDate ? { ...e, completed: e.completed + 1 } : e)
-              : [...hist, { date: historyDate, completed: 1 }];
-            const cutoffStr = toDateStr(new Date(Date.now() - 6 * 86400000));
-            return { ...pp, weeklyHistory: updated.filter(e => e.date >= cutoffStr) };
-          });
-          // Monarch's Blessing — reduce all active shadow timers by 30 minutes
-          const BLESSING_MS = 1800000;
-          setProfile(pp => {
-            const activeShadows = (pp.shadows ?? []).filter(
-              s => s.returnTime && (s.status === 'Em Missão' || s.status === 'Treinando' || s.status === 'Regenerando')
-            );
-            if (activeShadows.length === 0) return pp;
-            setTimeout(() => showNotification(t.notifications.monarchBlessing, t.notifications.monarchBlessingSub, 'shield'), 300);
-            return {
-              ...pp,
-              shadows: (pp.shadows ?? []).map(s =>
-                s.returnTime && (s.status === 'Em Missão' || s.status === 'Treinando' || s.status === 'Regenerando')
-                  ? { ...s, returnTime: Math.max(Date.now(), s.returnTime - BLESSING_MS) }
-                  : s
-              ),
-            };
-          });
-          const isRecurring = h.repeatType !== 'oneTime';
-          return { ...h, isCompleted: true, streak: isRecurring ? h.streak + 1 : h.streak };
-        }
-        return h;
+        if (h.id !== id) return h;
+        const streakBonus = Math.min(2.0, 1 + h.streak * 0.05);
+        const xpGained = Math.floor(30 * streakBonus * getRankMultiplier(profile.rank));
+        addXp(xpGained);
+        addGold(20);
+        showNotification(t.notifications.protocolAdhered, `${h.title} (+${xpGained} XP)`, 'shield');
+        // Record daily completion for weekly tracking chart
+        const historyDate = toDateStr(new Date());
+        setProfile(pp => {
+          const hist = pp.weeklyHistory ?? [];
+          const existing = hist.find(e => e.date === historyDate);
+          const newHist = existing
+            ? hist.map(e => e.date === historyDate ? { ...e, completed: e.completed + 1 } : e)
+            : [...hist, { date: historyDate, completed: 1 }];
+          const cutoffStr = toDateStr(new Date(Date.now() - 6 * 86400000));
+          return { ...pp, weeklyHistory: newHist.filter(e => e.date >= cutoffStr) };
+        });
+        // Monarch's Blessing — reduce all active shadow timers by 30 minutes
+        const BLESSING_MS = 1800000;
+        setProfile(pp => {
+          const activeShadows = (pp.shadows ?? []).filter(
+            s => s.returnTime && (s.status === 'Em Missão' || s.status === 'Treinando' || s.status === 'Regenerando')
+          );
+          if (activeShadows.length === 0) return pp;
+          setTimeout(() => showNotification(t.notifications.monarchBlessing, t.notifications.monarchBlessingSub, 'shield'), 300);
+          return {
+            ...pp,
+            shadows: (pp.shadows ?? []).map(s =>
+              s.returnTime && (s.status === 'Em Missão' || s.status === 'Treinando' || s.status === 'Regenerando')
+                ? { ...s, returnTime: Math.max(Date.now(), s.returnTime - BLESSING_MS) }
+                : s
+            ),
+          };
+        });
+        const isRecurring = h.repeatType !== 'oneTime';
+        return { ...h, isCompleted: true, streak: isRecurring ? h.streak + 1 : h.streak };
       });
 
       // Check if all recurring habits active today are now completed → global streak +1
@@ -1425,7 +1573,7 @@ ${gameContext}`;
 
       if (allDone) {
         setProfile(pp => {
-          if (pp.lastCompletionDate === todayStr) return pp; // already counted today
+          if (pp.lastCompletionDate === todayStr) return pp;
           const newStreak = pp.streakDays + 1;
           setTimeout(() => showNotification(t.notifications.dayComplete, t.notifications.dayCompleteSub(newStreak), 'levelup'), 200);
           return { ...pp, streakDays: newStreak, lastCompletionDate: todayStr };
@@ -3990,17 +4138,16 @@ ${gameContext}`;
         )}
       </AnimatePresence>
 
-      {/* Level Up overlay */}
-      <AnimatePresence>
-        {levelUpInfo && (
-          <LevelUpOverlay info={levelUpInfo} onDone={() => setLevelUpInfo(null)} />
+      {/* Animation queue — one overlay at a time, in order: daily → levelup → rankup */}
+      <AnimatePresence mode="wait">
+        {activeAnim?.kind === 'daily' && (
+          <DailyRewardModal key="daily" rank={profile.rank} onClaim={claimDailyReward} />
         )}
-      </AnimatePresence>
-
-      {/* Daily Reward Modal */}
-      <AnimatePresence>
-        {showDailyRewardModal && (
-          <DailyRewardModal rank={profile.rank} onClaim={claimDailyReward} />
+        {activeAnim?.kind === 'levelup' && (
+          <LevelUpOverlay key="levelup" info={(activeAnim as { kind: 'levelup'; info: LevelUpInfo }).info} onDone={dismissActiveAnim} />
+        )}
+        {activeAnim?.kind === 'rankup' && (
+          <RankUpOverlay key="rankup" info={(activeAnim as { kind: 'rankup'; info: LevelUpInfo }).info} onDone={dismissActiveAnim} />
         )}
       </AnimatePresence>
 
