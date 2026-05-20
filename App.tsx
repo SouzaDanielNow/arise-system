@@ -24,6 +24,7 @@ import {
   RANK_LEVEL_THRESHOLDS, getRankMultiplier,
   STAT_COLOR_PALETTE, RANK_COLORS, SHADOW_RANK_COLORS, extractShadow, generateDailyMissions,
   LootEntry, PHYSICAL_ITEMS, RARITY_COLORS, RARITY_LABELS,
+  addShadowXp, migrateShadows, useShadowCrown, calculateBossRank, RANK_ORDER,
 } from './constants';
 import StatRadar from './components/StatRadar';
 import SystemNotification, { NotificationType } from './components/SystemNotification';
@@ -688,6 +689,7 @@ const App: React.FC = () => {
   const [animQueue, setAnimQueue] = useState<AnimEvent[]>([]);
   const [activeAnim, setActiveAnim] = useState<AnimEvent | null>(null);
   const [shadowExtracted, setShadowExtracted] = useState<Shadow | null>(null);
+  const [crownPickerOpen, setCrownPickerOpen] = useState(false);
   const [showBossFlash, setShowBossFlash] = useState(false);
   const shakeControls = useAnimation();
 
@@ -723,6 +725,7 @@ const App: React.FC = () => {
       if (data?.profile_data?.profile) {
         const rawGs = data.profile_data as GameState;
         const { state: gs, hadStreakBreak, retainedDays } = applyDailyReset(rawGs);
+        gs.profile.shadows = migrateShadows(gs.profile.shadows ?? []);
         setProfile(gs.profile);
         setHabits(gs.habits);
         setBossFights(gs.bossFights ?? []);
@@ -883,13 +886,8 @@ const App: React.FC = () => {
 
           if (s.status === 'Treinando') {
             resolutions.push({ type: 'trained', name: s.name });
-            const gained = 100;
-            const xpAfter = s.xp + gained;
-            const needed = s.level * 100;
-            if (xpAfter >= needed) {
-              return { ...s, xp: xpAfter - needed, level: s.level + 1, basePower: s.basePower + 5, returnTime: undefined, status: 'Pronta' as ShadowStatus };
-            }
-            return { ...s, xp: xpAfter, returnTime: undefined, status: 'Pronta' as ShadowStatus };
+            const trained = addShadowXp(s, 100);
+            return { ...trained, returnTime: undefined, status: 'Pronta' as ShadowStatus };
           }
 
           if (s.status === 'Em Missão') {
@@ -900,7 +898,8 @@ const App: React.FC = () => {
               const xpForHunter = Math.floor(baseMissionXp * getRankMultiplier(p.rank));
               resolutions.push({ type: 'victory', name: s.name, xp: xpForHunter, gold: goldR });
               addedXp += xpForHunter; addedGold += goldR;
-              return { ...s, xp: s.xp + baseMissionXp, returnTime: undefined, missionChance: undefined, missionRewardXP: undefined, missionRewardGold: undefined, status: 'Pronta' as ShadowStatus };
+              const afterMission = addShadowXp(s, baseMissionXp);
+              return { ...afterMission, returnTime: undefined, missionChance: undefined, missionRewardXP: undefined, missionRewardGold: undefined, status: 'Pronta' as ShadowStatus };
             } else {
               resolutions.push({ type: 'defeat', name: s.name });
               return { ...s, returnTime: now + 7200000, missionChance: undefined, missionRewardXP: undefined, missionRewardGold: undefined, status: 'Regenerando' as ShadowStatus };
@@ -1231,6 +1230,9 @@ const App: React.FC = () => {
       } else if (suggestion.type === 'boss') {
         const now = new Date();
         const due = new Date(now.getTime() + suggestion.dueDays * 86400000);
+        const aiPlayerRankIndex = RANK_ORDER.indexOf(profile.rank);
+        const aiBossHunterRank = calculateBossRank(aiPlayerRankIndex, suggestion.dueDays, suggestion.subTasks.length);
+        const AI_SHADOW_RANK_CAP: Record<string, import('./types').ShadowRank> = { E:'E', D:'D', C:'C', B:'B', A:'A', S:'S', SS:'S', SSS:'S', NACIONAL:'S', MONARCA:'S' };
         const newBoss: BossFight = {
           id: `boss-ai-${Date.now()}`,
           title: suggestion.title,
@@ -1240,6 +1242,7 @@ const App: React.FC = () => {
           startDate: now.toISOString(),
           dueDate: due.toISOString(),
           progress: 0,
+          bossRank: AI_SHADOW_RANK_CAP[aiBossHunterRank],
           subTasks: suggestion.subTasks.map((s, i) => ({
             id: `st-ai-${Date.now()}-${i}`,
             title: s,
@@ -1759,6 +1762,10 @@ ${gameContext}`;
       + randomBetween(50, 199);
     const xpReward = Math.floor(baseXp * getRankMultiplier(profile.rank));
     const goldReward = Math.floor(Math.random() * 41) + 60;
+    const playerRankIndex = RANK_ORDER.indexOf(profile.rank);
+    const bossHunterRank = calculateBossRank(playerRankIndex, diasDePrazo, newBossSubTasks.length);
+    const SHADOW_RANK_CAP: Record<string, import('./types').ShadowRank> = { E:'E', D:'D', C:'C', B:'B', A:'A', S:'S', SS:'S', SSS:'S', NACIONAL:'S', MONARCA:'S' };
+    const bossRank = SHADOW_RANK_CAP[bossHunterRank];
     const boss: BossFight = {
       id: `boss-${Date.now()}`,
       title: newBossTitle.trim(),
@@ -1772,6 +1779,7 @@ ${gameContext}`;
       history: [{ id: `h-${Date.now()}`, timestamp: new Date().toISOString(), action: 'started' }],
       status: 'active',
       failPenalty: 'loseStreak',
+      bossRank,
     };
     setBossFights(prev => [...prev, boss]);
     setNewBossTitle('');
@@ -1875,7 +1883,7 @@ ${gameContext}`;
     addGold(boss.goldReward);
     showNotification(t.notifications.bossDefeated, t.notifications.bossDefeatedSub(boss.title, boss.xpReward, boss.goldReward), 'levelup');
     setBossFights(prev => prev.map(b => b.id === bossId ? { ...b, status: 'completed' } : b));
-    const newShadow = extractShadow();
+    const newShadow = extractShadow(boss.bossRank ?? 'E');
     setProfile(prev => ({
       ...prev,
       shadows: [...(prev.shadows ?? []), newShadow],
@@ -2985,7 +2993,13 @@ ${gameContext}`;
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-[10px] font-mono text-slate-500">×{item.quantity}</span>
                         <button
-                          onClick={() => showNotification(item.name, 'Em breve: uso de itens do cofre', 'info')}
+                          onClick={() => {
+                            if (item.id === 'crown-shadows') {
+                              setCrownPickerOpen(true);
+                            } else {
+                              showNotification(item.name, 'Em breve: uso de itens do cofre', 'info');
+                            }
+                          }}
                           className="text-[9px] font-garet tracking-widest border rounded px-2 py-1 transition-colors"
                           style={{
                             color: RARITY_COLORS[item.rarity],
@@ -4259,6 +4273,61 @@ ${gameContext}`;
       <AnimatePresence>
         {shadowExtracted && (
           <ShadowExtractionOverlay shadow={shadowExtracted} onDone={() => setShadowExtracted(null)} />
+        )}
+      </AnimatePresence>
+
+      {/* Crown of Shadows — shadow picker modal */}
+      <AnimatePresence>
+        {crownPickerOpen && (
+          <motion.div
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="w-full max-w-sm rounded-2xl p-5 space-y-4"
+              style={{ background: 'linear-gradient(160deg,rgba(10,4,40,0.99),rgba(6,3,28,0.99))', border: '1px solid rgba(245,158,11,0.4)', boxShadow: '0 0 40px rgba(245,158,11,0.15)' }}
+              initial={{ scale: 0.9, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0 }}
+            >
+              <div>
+                <p className="text-[9px] font-garet tracking-widest text-yellow-500/60 uppercase mb-1">Coroa das Sombras</p>
+                <h3 className="text-sm font-garet font-bold text-yellow-300">Escolha a Sombra a Despertar</h3>
+                <p className="text-[10px] font-mono text-slate-500 mt-1">A sombra escolhida ascende ao Rank S e ganha +100 de Poder.</p>
+              </div>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {(profile.shadows ?? []).filter(s => s.rank !== 'S' || !s.isCommander).map(s => {
+                  const col = SHADOW_RANK_COLORS[s.rank];
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => {
+                        const updated = useShadowCrown(s.id, profile);
+                        if (updated) {
+                          setProfile(updated);
+                          showNotification(`${s.name} DESPERTOU`, `Rank S · isCommander · +100 Poder`, 'levelup');
+                        }
+                        setCrownPickerOpen(false);
+                      }}
+                      className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all hover:opacity-80 active:scale-98"
+                      style={{ background: `${col}10`, border: `1px solid ${col}30` }}
+                    >
+                      <span className="font-mono text-xs font-bold px-1.5 py-0.5 rounded" style={{ color: col, background: `${col}20` }}>{s.rank}</span>
+                      <span className="flex-1 font-garet text-xs text-white">{s.name}</span>
+                      <span className="font-mono text-[10px] text-slate-500">Nv.{s.level} · ⚡{s.basePower}</span>
+                    </button>
+                  );
+                })}
+                {(profile.shadows ?? []).filter(s => s.rank !== 'S' || !s.isCommander).length === 0 && (
+                  <p className="text-[11px] font-mono text-slate-600 text-center py-4">Nenhuma sombra elegível</p>
+                )}
+              </div>
+              <button
+                onClick={() => setCrownPickerOpen(false)}
+                className="w-full py-2 rounded border border-slate-700 text-slate-400 font-mono text-xs hover:text-white transition-colors"
+              >
+                CANCELAR
+              </button>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

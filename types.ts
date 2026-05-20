@@ -77,6 +77,7 @@ export interface BossFight {
   history: BossHistoryEntry[];
   status: 'active' | 'completed' | 'failed';
   failPenalty: 'loseStreak';
+  bossRank?: ShadowRank;
 }
 
 export interface RewardItem {
@@ -98,7 +99,7 @@ export interface InventoryItem {
   maxStack?: number;
 }
 
-export type ShadowRank = 'Infantaria' | 'Elite' | 'Cavaleiro' | 'Comandante';
+export type ShadowRank = 'E' | 'D' | 'C' | 'B' | 'A' | 'S';
 export type ShadowRole = 'Tank' | 'Guerreiro' | 'Assassino' | 'Mago';
 export type ShadowStatus = 'Pronta' | 'Em Missão' | 'Treinando' | 'Regenerando';
 
@@ -115,6 +116,7 @@ export interface Shadow {
   missionChance?: number;
   missionRewardXP?: number;
   missionRewardGold?: number;
+  isCommander?: boolean;
 }
 
 export interface ShadowMission {

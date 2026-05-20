@@ -1,4 +1,4 @@
-import { HunterRank, RewardItem, Habit, SystemQuote, Shadow, ShadowRank, ShadowRole, ShadowMission, InventoryItem } from './types';
+import { HunterRank, HunterProfile, RewardItem, Habit, SystemQuote, Shadow, ShadowRank, ShadowRole, ShadowMission, InventoryItem } from './types';
 
 export const RANK_COLORS: Record<HunterRank, string> = {
   [HunterRank.E]: '#9ca3af',
@@ -121,34 +121,46 @@ export const SYSTEM_QUOTES: SystemQuote[] = [
 // ── Shadow Army ──────────────────────────────────────────────────────────────
 
 export const SHADOW_RANK_COLORS: Record<ShadowRank, string> = {
-  Infantaria: '#64748b',
-  Elite:      '#10b981',
-  Cavaleiro:  '#3b82f6',
-  Comandante: '#f59e0b',
+  E: '#9ca3af',
+  D: '#10b981',
+  C: '#3b82f6',
+  B: '#8b5cf6',
+  A: '#ec4899',
+  S: '#facc15',
 };
 
 const SHADOW_NAMES: Record<ShadowRank, string[]> = {
-  Infantaria: ['Soldado Orc', 'Goblin Guerreiro', 'Espectro Menor', 'Zumbi Orc', 'Lobo das Trevas', 'Esqueleto Armado', 'Verme das Sombras'],
-  Elite:      ['Lobo das Sombras', 'Cavaleiro Morto', 'Espectro Élite', 'Gargoyle Negro', 'Golem de Sombra', 'Arqueiro Espectral'],
-  Cavaleiro:  ['Cavaleiro das Sombras', 'Lich Menor', 'Berserker Espectral', 'Dragão das Sombras', 'Guardião Negro'],
-  Comandante: ['Igris', 'Beru', 'Iron', 'Bellion', 'Greed', 'Kaisel', 'Tusk'],
+  E: ['Soldado Orc', 'Goblin Guerreiro', 'Espectro Menor', 'Zumbi Orc', 'Lobo das Trevas', 'Esqueleto Armado', 'Verme das Sombras'],
+  D: ['Lobo das Sombras', 'Cavaleiro Morto', 'Espectro Élite', 'Gargoyle Negro', 'Golem de Sombra', 'Arqueiro Espectral'],
+  C: ['Cavaleiro das Sombras', 'Lich Menor', 'Berserker Espectral', 'Dragão das Sombras', 'Guardião Negro'],
+  B: ['Cavaleiro Sombrio', 'Golem de Cristal Negro', 'Wyvern das Sombras', 'Fantasma do Abismo', 'Titã Espectral'],
+  A: ['Igris', 'Iron', 'Tusk', 'Greed', 'Kaisel'],
+  S: ['Beru', 'Bellion', 'Antares', 'Kamish', 'Ashborn'],
 };
 
 const SHADOW_ROLES: ShadowRole[] = ['Tank', 'Guerreiro', 'Assassino', 'Mago'];
 
 const SHADOW_POWER_RANGES: Record<ShadowRank, [number, number]> = {
-  Infantaria: [5, 10],
-  Elite:      [15, 30],
-  Cavaleiro:  [40, 70],
-  Comandante: [100, 150],
+  E: [5,   15],
+  D: [15,  30],
+  C: [30,  50],
+  B: [50,  80],
+  A: [80,  120],
+  S: [120, 200],
 };
 
-export function extractShadow(): Shadow {
+export function extractShadow(bossRank: ShadowRank): Shadow {
   const roll = Math.random() * 100;
-  const rank: ShadowRank =
-    roll < 70  ? 'Infantaria' :
-    roll < 90  ? 'Elite'      :
-    roll < 99  ? 'Cavaleiro'  : 'Comandante';
+  let rank: ShadowRank;
+  switch (bossRank) {
+    case 'E': rank = roll < 90 ? 'E' : 'D'; break;
+    case 'D': rank = roll < 50 ? 'E' : roll < 90 ? 'D' : 'C'; break;
+    case 'C': rank = roll < 50 ? 'D' : roll < 90 ? 'C' : 'B'; break;
+    case 'B': rank = roll < 50 ? 'C' : roll < 90 ? 'B' : 'A'; break;
+    case 'A': rank = roll < 50 ? 'B' : roll < 90 ? 'A' : 'S'; break;
+    case 'S': rank = roll < 50 ? 'A' : 'S'; break;
+    default:  rank = 'E';
+  }
 
   const role = SHADOW_ROLES[Math.floor(Math.random() * 4)];
   const [min, max] = SHADOW_POWER_RANGES[rank];
@@ -165,6 +177,45 @@ export function extractShadow(): Shadow {
     role,
     basePower,
     status: 'Pronta',
+  };
+}
+
+export function addShadowXp(shadow: Shadow, amount: number): Shadow {
+  let s = { ...shadow, xp: shadow.xp + amount };
+  while (s.xp >= s.level * 100) {
+    s = { ...s, xp: s.xp - s.level * 100, level: s.level + 1, basePower: s.basePower + 5 };
+  }
+  return s;
+}
+
+export function migrateShadows(shadows: Shadow[]): Shadow[] {
+  const MAP: Record<string, ShadowRank> = {
+    Infantaria: 'E',
+    Elite:      'C',
+    Cavaleiro:  'A',
+    Comandante: 'S',
+  };
+  return shadows.map(s => {
+    const mapped = MAP[s.rank as string];
+    return mapped ? { ...s, rank: mapped } : s;
+  });
+}
+
+export function useShadowCrown(shadowId: string, profile: HunterProfile): HunterProfile | null {
+  const crownItem = (profile.inventory ?? []).find(i => i.id === 'crown-shadows' && i.quantity > 0);
+  if (!crownItem) return null;
+  if (!(profile.shadows ?? []).find(s => s.id === shadowId)) return null;
+
+  return {
+    ...profile,
+    shadows: (profile.shadows ?? []).map(s =>
+      s.id === shadowId
+        ? { ...s, rank: 'S' as ShadowRank, isCommander: true, basePower: s.basePower + 100 }
+        : s
+    ),
+    inventory: (profile.inventory ?? [])
+      .map(i => i.id === 'crown-shadows' ? { ...i, quantity: i.quantity - 1 } : i)
+      .filter(i => i.quantity > 0),
   };
 }
 
