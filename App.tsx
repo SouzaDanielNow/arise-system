@@ -627,6 +627,7 @@ const App: React.FC = () => {
   const [newBossSubTasks, setNewBossSubTasks] = useState<BossSubTask[]>([]);
   const [newBossSubInput, setNewBossSubInput] = useState('');
   const [confirmCancelBossId, setConfirmCancelBossId] = useState<string | null>(null);
+  const [isDimensionalKeyLoading, setIsDimensionalKeyLoading] = useState(false);
   const [bossNewSubInputs, setBossNewSubInputs] = useState<Record<string, string>>({});
   const [expandedBossIds, setExpandedBossIds] = useState<Set<string>>(new Set());
   const [editingSubTaskId, setEditingSubTaskId] = useState<string | null>(null);
@@ -1791,6 +1792,97 @@ ${gameContext}`;
     showNotification(t.notifications.bossActivated, t.notifications.bossActivatedSub, 'warning');
   };
 
+  const generateDimensionalDungeon = async () => {
+    const oracle = profile.oracleData;
+    if (!oracle?.mainQuest?.trim() || !oracle?.currentWeakness?.trim() || !oracle?.monthlyFocus?.trim()) {
+      showNotification('Pilares Incompletos', 'Preencha os 3 Pilares do Caçador na aba Identidade antes de abrir o Portão.', 'warning');
+      return;
+    }
+    const hasKey = (profile.inventory ?? []).find(i => i.id === 'key-dungeon' && i.quantity > 0);
+    if (!hasKey) {
+      showNotification('Sem Chave', 'Você não possui uma Chave de Masmorra Dimensional.', 'warning');
+      return;
+    }
+
+    setIsDimensionalKeyLoading(true);
+    showNotification('Portão se Abrindo...', 'O Sistema está gerando sua Masmorra Dimensional.', 'processing');
+
+    // Consume key immediately
+    setProfile(prev => ({
+      ...prev,
+      inventory: (prev.inventory ?? [])
+        .map(i => i.id === 'key-dungeon' ? { ...i, quantity: i.quantity - 1 } : i)
+        .filter(i => i.quantity > 0),
+    }));
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const systemInstruction = `Você é o 'Sistema' de Solo Leveling, uma entidade fria e calculista que guia o crescimento do Caçador. Responda APENAS com JSON válido, sem markdown, sem texto adicional.`;
+      const userPrompt = `Baseado no perfil do Caçador:
+- Objetivo Principal: ${oracle.mainQuest}
+- Fraqueza Atual: ${oracle.currentWeakness}
+- Foco do Mês: ${oracle.monthlyFocus}
+
+Gere uma MASMORRA DIMENSIONAL (um Chefão). Retorne APENAS um JSON no formato:
+{
+  "bossName": "Nome épico e ameaçador relacionado à fraqueza",
+  "rank": "A",
+  "deadlineDays": 7,
+  "subtasks": ["3 a 5 tarefas diárias ou passos específicos e acionáveis para combater a fraqueza"]
+}
+O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas para combater a fraqueza do caçador.`;
+
+      const result = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: userPrompt,
+        config: { systemInstruction },
+      });
+
+      const raw = result.text ?? '';
+      const jsonStr = raw.replace(/```json|```/g, '').trim();
+      const data = JSON.parse(jsonStr) as {
+        bossName: string;
+        rank: string;
+        deadlineDays: number;
+        subtasks: string[];
+      };
+
+      const SHADOW_RANK_CAP: Record<string, import('./types').ShadowRank> = { E:'E', D:'D', C:'C', B:'B', A:'A', S:'S' };
+      const bossRank: import('./types').ShadowRank = SHADOW_RANK_CAP[data.rank] ?? 'A';
+      const days = Math.max(1, Math.min(90, data.deadlineDays ?? 7));
+      const dueDate = new Date(Date.now() + days * 86400000);
+      const subTaskObjs: BossSubTask[] = (data.subtasks ?? []).slice(0, 5).map((s, i) => ({
+        id: `dst-${Date.now()}-${i}`,
+        title: s,
+        completed: false,
+      }));
+
+      const baseXp = (days * randomBetween(5, 10)) + (subTaskObjs.length * randomBetween(40, 60)) + randomBetween(50, 199);
+      const dungeonBoss: BossFight = {
+        id: `boss-dim-${Date.now()}`,
+        title: data.bossName,
+        description: `[Masmorra Dimensional] Fraqueza: ${oracle.currentWeakness}`,
+        xpReward: Math.floor(baseXp * getRankMultiplier(profile.rank)),
+        goldReward: Math.floor(Math.random() * 41) + 100,
+        startDate: new Date().toISOString().split('T')[0],
+        dueDate: dueDate.toISOString(),
+        progress: 0,
+        subTasks: subTaskObjs,
+        history: [{ id: `h-${Date.now()}`, timestamp: new Date().toISOString(), action: 'started' }],
+        status: 'active',
+        failPenalty: 'loseStreak',
+        bossRank,
+      };
+
+      setBossFights(prev => [...prev, dungeonBoss]);
+      showNotification('UM PORTÃO DIMENSIONAL SE ABRIU!', `${data.bossName} — Rank ${bossRank} aguarda você.`, 'levelup');
+    } catch {
+      showNotification('Falha na Conexão', 'O Sistema não conseguiu gerar a Masmorra. Tente novamente.', 'warning');
+    } finally {
+      setIsDimensionalKeyLoading(false);
+    }
+  };
+
   const toggleBossSubTask = (bossId: string, subTaskId: string) => {
     setBossFights(prev => prev.map(boss => {
       if (boss.id !== bossId) return boss;
@@ -2934,7 +3026,94 @@ ${gameContext}`;
           </motion.div>
         </motion.div>
 
-        {/* ── CARD 4: Cofre do Sistema ── */}
+        {/* ── CARD 4: Os Pilares do Caçador ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.3 }}
+        >
+          <div
+            className="relative rounded-2xl p-5 space-y-4"
+            style={{
+              background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
+              border: `1px solid ${rankColor}25`,
+              boxShadow: `0 0 22px ${rankColor}06`,
+            }}
+          >
+            {/* Header */}
+            <div>
+              <p className="text-[9px] font-garet tracking-widest uppercase mb-1" style={{ color: `${rankColor}80` }}>
+                PERFIL ESTRATÉGICO
+              </p>
+              <h3 className="text-sm font-garet font-bold" style={{ color: rankColor }}>
+                Os Pilares do Caçador
+              </h3>
+              <p className="text-[10px] font-mono text-slate-500 mt-1">
+                Dados usados pelo Oráculo para gerar Masmorras Dimensionais.
+              </p>
+            </div>
+
+            {/* mainQuest */}
+            <div>
+              <label className="text-[9px] font-garet tracking-widest text-slate-500 uppercase block mb-1.5">
+                Objetivo Principal
+              </label>
+              <textarea
+                rows={2}
+                value={profile.oracleData?.mainQuest ?? ''}
+                onChange={e => setProfile(prev => ({ ...prev, oracleData: { ...prev.oracleData ?? { mainQuest: '', currentWeakness: '', monthlyFocus: '' }, mainQuest: e.target.value } }))}
+                placeholder="Ex: Construir uma renda passiva de R$10k até dezembro..."
+                className="w-full bg-slate-900/60 border border-slate-700/60 rounded-lg p-2.5 font-mono text-xs text-slate-200 outline-none resize-none placeholder:text-slate-600 focus:border-opacity-100 transition-colors"
+                style={{ focusBorderColor: rankColor } as React.CSSProperties}
+                onFocus={e => (e.target.style.borderColor = `${rankColor}60`)}
+                onBlur={e => (e.target.style.borderColor = 'rgba(51,65,85,0.6)')}
+              />
+            </div>
+
+            {/* currentWeakness */}
+            <div>
+              <label className="text-[9px] font-garet tracking-widest text-slate-500 uppercase block mb-1.5">
+                Fraqueza Atual
+              </label>
+              <textarea
+                rows={2}
+                value={profile.oracleData?.currentWeakness ?? ''}
+                onChange={e => setProfile(prev => ({ ...prev, oracleData: { ...prev.oracleData ?? { mainQuest: '', currentWeakness: '', monthlyFocus: '' }, currentWeakness: e.target.value } }))}
+                placeholder="Ex: Procrastinação em tarefas que exigem foco profundo..."
+                className="w-full bg-slate-900/60 border border-slate-700/60 rounded-lg p-2.5 font-mono text-xs text-slate-200 outline-none resize-none placeholder:text-slate-600 transition-colors"
+                onFocus={e => (e.target.style.borderColor = `${rankColor}60`)}
+                onBlur={e => (e.target.style.borderColor = 'rgba(51,65,85,0.6)')}
+              />
+            </div>
+
+            {/* monthlyFocus */}
+            <div>
+              <label className="text-[9px] font-garet tracking-widest text-slate-500 uppercase block mb-1.5">
+                Foco do Mês
+              </label>
+              <textarea
+                rows={2}
+                value={profile.oracleData?.monthlyFocus ?? ''}
+                onChange={e => setProfile(prev => ({ ...prev, oracleData: { ...prev.oracleData ?? { mainQuest: '', currentWeakness: '', monthlyFocus: '' }, monthlyFocus: e.target.value } }))}
+                placeholder="Ex: Lançar a versão beta do meu produto antes do dia 30..."
+                className="w-full bg-slate-900/60 border border-slate-700/60 rounded-lg p-2.5 font-mono text-xs text-slate-200 outline-none resize-none placeholder:text-slate-600 transition-colors"
+                onFocus={e => (e.target.style.borderColor = `${rankColor}60`)}
+                onBlur={e => (e.target.style.borderColor = 'rgba(51,65,85,0.6)')}
+              />
+            </div>
+
+            {/* Sync button */}
+            <button
+              onClick={() => showNotification('Pilares Sincronizados', 'Dados salvos no Sistema.', 'quest')}
+              className="w-full py-2.5 rounded-lg border font-garet text-xs font-bold tracking-widest transition-all hover:opacity-80 active:scale-98"
+              style={{ borderColor: `${rankColor}50`, color: rankColor, background: `${rankColor}10` }}
+            >
+              SINCRONIZAR COM O SISTEMA
+            </button>
+          </div>
+        </motion.div>
+
+        {/* ── CARD 5: Cofre do Sistema ── */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
@@ -2996,6 +3175,8 @@ ${gameContext}`;
                           onClick={() => {
                             if (item.id === 'crown-shadows') {
                               setCrownPickerOpen(true);
+                            } else if (item.id === 'key-dungeon') {
+                              generateDimensionalDungeon();
                             } else {
                               showNotification(item.name, 'Em breve: uso de itens do cofre', 'info');
                             }

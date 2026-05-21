@@ -36,6 +36,11 @@ export interface HunterProfile {
   lastDailyRewardClaimedDate?: string;
   weeklyHistory?: { date: string; completed: number }[];
   inventory?: InventoryItem[];
+  oracleData?: {
+    mainQuest: string;
+    currentWeakness: string;
+    monthlyFocus: string;
+  };
 }
 
 
