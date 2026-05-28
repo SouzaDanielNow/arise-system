@@ -66,8 +66,8 @@
             },
             colors: {
               system: {
-                blue: '#3b82f6',
-                glow: '#60a5fa',
+                blue: 'rgb(var(--rank-rgb))',
+                glow: 'rgb(var(--rank-rgb))',
                 dark: '#020617',
                 panel: '#0f172a',
                 border: '#1e293b'
@@ -123,6 +123,10 @@
       }
       :root {
         --rank-color: #9ca3af;
+        --rank-color-10: #9ca3af1a;
+        --rank-color-30: #9ca3af4d;
+        --rank-color-60: #9ca3af99;
+        --rank-rgb: 156, 163, 175;
         transition: --rank-color 1s ease;
       }
       body {
@@ -134,13 +138,37 @@
         width: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #0f172a; 
+        background: #0f172a;
       }
       ::-webkit-scrollbar-thumb {
-        background: #3b82f6; 
+        background: var(--rank-color);
+        transition: background 1s ease;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #60a5fa; 
+        background: var(--rank-color);
+        filter: brightness(1.3);
+      }
+
+      /* Star field animation */
+      @keyframes animStar {
+        from { transform: translateY(0px); }
+        to   { transform: translateY(-2000px); }
+      }
+
+      /* Aurora background orbs */
+      @keyframes aurora-drift-1 {
+        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.13; }
+        33%       { transform: translate(-4%, 6%) scale(1.08); opacity: 0.20; }
+        66%       { transform: translate(3%, -3%) scale(0.95); opacity: 0.10; }
+      }
+      @keyframes aurora-drift-2 {
+        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.09; }
+        50%       { transform: translate(5%, 4%) scale(1.12); opacity: 0.15; }
+      }
+      @keyframes aurora-drift-3 {
+        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.11; }
+        40%       { transform: translate(-6%, -4%) scale(1.05); opacity: 0.17; }
+        80%       { transform: translate(2%, 5%) scale(0.92); opacity: 0.07; }
       }
     </style>
 </head>

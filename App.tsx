@@ -36,6 +36,21 @@ import DailyRewardModal from './components/DailyRewardModal';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 
 
+// --- Star Field Generation (runs once at module load) ---
+function generateStarShadows(count: number, size: number): string {
+  const s: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const x = Math.floor(Math.random() * 2000);
+    const y = Math.floor(Math.random() * 2000);
+    const opacity = size === 1 ? 0.6 + Math.random() * 0.4 : 0.7 + Math.random() * 0.3;
+    s.push(`${x}px ${y}px rgba(255,255,255,${opacity.toFixed(2)})`);
+  }
+  return s.join(', ');
+}
+const STAR_SHADOWS_S = generateStarShadows(700, 1);
+const STAR_SHADOWS_M = generateStarShadows(200, 2);
+const STAR_SHADOWS_L = generateStarShadows(100, 3);
+
 // --- Audio Helper Functions ---
 function createBlob(data: Float32Array): GenAIBlob {
   const l = data.length;
@@ -835,9 +850,18 @@ const App: React.FC = () => {
 
   const dismissActiveAnim = useCallback(() => setActiveAnim(null), []);
 
-  // Dynamic rank color CSS variable
+  // Dynamic rank color CSS variables
   useEffect(() => {
-    document.documentElement.style.setProperty('--rank-color', RANK_COLORS[profile.rank]);
+    const root = document.documentElement;
+    const color = RANK_COLORS[profile.rank];
+    root.style.setProperty('--rank-color', color);
+    root.style.setProperty('--rank-color-10', color + '1a');
+    root.style.setProperty('--rank-color-30', color + '4d');
+    root.style.setProperty('--rank-color-60', color + '99');
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    root.style.setProperty('--rank-rgb', `${r}, ${g}, ${b}`);
   }, [profile.rank]);
 
   // Keep refs in sync for stale-closure-safe callbacks
@@ -2194,23 +2218,6 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
                     </div>
                   </div>
                 )}
-                <motion.p
-                  className="text-[9px] font-garet tracking-[0.35em] uppercase mt-1"
-                  animate={{ opacity: [0.35, 0.65, 0.35] }}
-                  transition={{ repeat: Infinity, duration: 3.5 }}
-                  style={{ color: `${rankColor}` }}
-                >
-                  {t.dashboard.navigatorSystem}
-                </motion.p>
-                <div className="flex items-center gap-1.5 mt-2.5">
-                  <Coins size={11} style={{ color: '#facc15', filter: 'drop-shadow(0 0 5px #facc15aa)' }} />
-                  <span
-                    className="text-sm font-black tracking-wider"
-                    style={{ color: '#facc15', textShadow: '0 0 10px rgba(250,204,21,0.55)' }}
-                  >
-                    {profile.gold.toLocaleString()}
-                  </span>
-                </div>
               </div>
             </div>
 
@@ -2220,26 +2227,8 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
               style={{ background: `linear-gradient(90deg, transparent, ${rankColor}40, transparent)` }}
             />
 
-            {/* XP Bars */}
-            <div className="space-y-3">
-              <div>
-                <div className="flex justify-between items-center text-[9px] font-garet tracking-[0.2em] uppercase mb-1.5">
-                  <span style={{ color: `${rankColor}99` }}>{t.dashboard.rankProgress}</span>
-                  <span style={{ color: rankColor, textShadow: `0 0 8px ${rankColor}` }}>{Math.round(rankXpPct)}%</span>
-                </div>
-                <div
-                  className="h-1.5 rounded-sm overflow-hidden"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${rankColor}18` }}
-                >
-                  <motion.div
-                    className="h-full rounded-sm"
-                    style={{ background: `linear-gradient(90deg, ${rankColor}70, ${rankColor})`, boxShadow: `0 0 10px ${rankColor}` }}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${rankXpPct}%` }}
-                    transition={{ duration: 1.2, ease: 'easeOut' }}
-                  />
-                </div>
-              </div>
+            {/* XP Bar */}
+            <div>
               <div>
                 <div className="flex justify-between items-center text-[9px] font-garet tracking-[0.2em] uppercase mb-1.5">
                   <span style={{ color: 'rgba(147,197,253,0.55)' }}>{t.dashboard.levelProgress} {level}</span>
@@ -2267,14 +2256,14 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
           className="relative overflow-hidden"
           style={{
             background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
-            border: '1px solid rgba(59,130,246,0.22)',
+            border: '1px solid rgba(var(--rank-rgb),0.22)',
             borderRadius: '12px',
           }}
           animate={{
             boxShadow: [
-              '0 0 20px rgba(59,130,246,0.05)',
-              '0 0 45px rgba(59,130,246,0.18)',
-              '0 0 20px rgba(59,130,246,0.05)',
+              '0 0 20px rgba(var(--rank-rgb),0.05)',
+              '0 0 45px rgba(var(--rank-rgb),0.18)',
+              '0 0 20px rgba(var(--rank-rgb),0.05)',
             ],
           }}
           transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
@@ -2333,15 +2322,15 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
           className="relative overflow-hidden"
           style={{
             background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
-            border: '1px solid rgba(59,130,246,0.22)',
-            boxShadow: '0 0 0 1px rgba(59,130,246,0.05), inset 0 0 20px rgba(59,130,246,0.03)',
+            border: '1px solid rgba(var(--rank-rgb),0.22)',
+            boxShadow: '0 0 0 1px rgba(var(--rank-rgb),0.05), inset 0 0 20px rgba(var(--rank-rgb),0.03)',
             borderRadius: '12px',
           }}
         >
           {/* Data beam — vertical stripe sweeping left → right */}
           <motion.div
             className="absolute top-0 bottom-0 w-px pointer-events-none z-10"
-            style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(59,130,246,0.55) 50%, transparent 100%)' }}
+            style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(var(--rank-rgb),0.55) 50%, transparent 100%)' }}
             animate={{ left: ['-2%', '102%'] }}
             transition={{ repeat: Infinity, duration: 4, ease: 'linear', repeatDelay: 3 }}
           />
@@ -2365,7 +2354,7 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
                 />
                 <YAxis hide domain={[0, 100]} />
                 <Tooltip
-                  contentStyle={{ background: 'rgba(3,6,22,0.97)', border: '1px solid rgba(59,130,246,0.35)', borderRadius: 8, fontFamily: 'monospace', fontSize: 11 }}
+                  contentStyle={{ background: 'rgba(3,6,22,0.97)', border: '1px solid rgba(var(--rank-rgb),0.35)', borderRadius: 8, fontFamily: 'monospace', fontSize: 11 }}
                   labelStyle={{ color: '#64748b' }}
                   itemStyle={{ color: '#3b82f6' }}
                   formatter={(v: number) => [`${v}%`, '']}
@@ -2389,8 +2378,8 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
           className="relative overflow-hidden font-mono"
           style={{
             background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
-            border: '1px solid rgba(59,130,246,0.30)',
-            boxShadow: '0 0 0 1px rgba(59,130,246,0.07), 0 0 30px rgba(59,130,246,0.08), inset 0 0 20px rgba(59,130,246,0.04)',
+            border: '1px solid rgba(var(--rank-rgb),0.30)',
+            boxShadow: '0 0 0 1px rgba(var(--rank-rgb),0.07), 0 0 30px rgba(var(--rank-rgb),0.08), inset 0 0 20px rgba(var(--rank-rgb),0.04)',
             borderRadius: '12px',
           }}
         >
@@ -2401,7 +2390,7 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
           {/* Slow scan line */}
           <motion.div
             className="absolute left-0 right-0 h-px pointer-events-none z-10"
-            style={{ background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.4), transparent)' }}
+            style={{ background: 'linear-gradient(90deg, transparent, rgba(var(--rank-rgb),0.4), transparent)' }}
             animate={{ top: ['0%', '100%', '0%'] }}
             transition={{ repeat: Infinity, duration: 7, ease: 'linear' }}
           />
@@ -2447,7 +2436,7 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
                       <Tooltip
                         contentStyle={{
                           background: 'rgba(3,6,22,0.97)',
-                          border: '1px solid rgba(59,130,246,0.35)',
+                          border: '1px solid rgba(var(--rank-rgb),0.35)',
                           borderRadius: 6,
                           fontFamily: 'monospace',
                           fontSize: 11,
@@ -2489,8 +2478,8 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
             className="relative overflow-hidden p-4"
             style={{
               background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
-              border: '1px solid rgba(59,130,246,0.25)',
-              boxShadow: '0 0 0 1px rgba(59,130,246,0.05), inset 0 0 22px rgba(59,130,246,0.04)',
+              border: '1px solid rgba(var(--rank-rgb),0.25)',
+              boxShadow: '0 0 0 1px rgba(var(--rank-rgb),0.05), inset 0 0 22px rgba(var(--rank-rgb),0.04)',
               borderRadius: '12px',
             }}
           >
@@ -2504,7 +2493,7 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
               <motion.div
                 key={i}
                 className={`absolute w-3 h-3 ${cls}`}
-                style={{ borderColor: 'rgba(59,130,246,0.7)' }}
+                style={{ borderColor: 'rgba(var(--rank-rgb),0.7)' }}
                 animate={{ opacity: [0.2, 1, 0.2] }}
                 transition={{ repeat: Infinity, duration: 2.4, delay: i * 0.5, ease: 'easeInOut' }}
               />
@@ -2520,8 +2509,8 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
             className="relative overflow-hidden p-4 flex flex-col justify-between"
             style={{
               background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
-              border: '1px solid rgba(59,130,246,0.22)',
-              boxShadow: '0 0 0 1px rgba(59,130,246,0.04), inset 0 0 18px rgba(59,130,246,0.03)',
+              border: '1px solid rgba(var(--rank-rgb),0.22)',
+              boxShadow: '0 0 0 1px rgba(var(--rank-rgb),0.04), inset 0 0 18px rgba(var(--rank-rgb),0.03)',
               borderRadius: '12px',
             }}
           >
@@ -2554,7 +2543,7 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
               </span>
               <motion.span
                 className="text-lg font-bold text-system-blue"
-                animate={{ textShadow: ['0 0 6px rgba(59,130,246,0.4)', '0 0 18px rgba(59,130,246,0.9)', '0 0 6px rgba(59,130,246,0.4)'] }}
+                animate={{ textShadow: ['0 0 6px rgba(var(--rank-rgb),0.4)', '0 0 18px rgba(var(--rank-rgb),0.9)', '0 0 6px rgba(var(--rank-rgb),0.4)'] }}
                 transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
               >
                 {totalPower}
@@ -2568,14 +2557,14 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
           className="relative overflow-hidden"
           style={{
             background: 'linear-gradient(135deg, rgba(6,12,40,0.99) 0%, rgba(8,6,30,0.99) 60%, rgba(3,6,22,0.99) 100%)',
-            border: '1px solid rgba(59,130,246,0.22)',
+            border: '1px solid rgba(var(--rank-rgb),0.22)',
             borderRadius: '12px',
           }}
           animate={{
             boxShadow: [
-              '0 0 16px rgba(59,130,246,0.04), inset 0 0 24px rgba(59,130,246,0.03)',
-              '0 0 36px rgba(59,130,246,0.11), inset 0 0 40px rgba(59,130,246,0.06)',
-              '0 0 16px rgba(59,130,246,0.04), inset 0 0 24px rgba(59,130,246,0.03)',
+              '0 0 16px rgba(var(--rank-rgb),0.04), inset 0 0 24px rgba(var(--rank-rgb),0.03)',
+              '0 0 36px rgba(var(--rank-rgb),0.11), inset 0 0 40px rgba(var(--rank-rgb),0.06)',
+              '0 0 16px rgba(var(--rank-rgb),0.04), inset 0 0 24px rgba(var(--rank-rgb),0.03)',
             ],
           }}
           transition={{ repeat: Infinity, duration: 5, ease: 'easeInOut' }}
@@ -2803,14 +2792,14 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
             className="relative rounded-2xl overflow-hidden"
             style={{
               background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
-              border: '1px solid rgba(59,130,246,0.25)',
-              boxShadow: '0 0 0 1px rgba(59,130,246,0.06), inset 0 0 22px rgba(59,130,246,0.04)',
+              border: '1px solid rgba(var(--rank-rgb),0.25)',
+              boxShadow: '0 0 0 1px rgba(var(--rank-rgb),0.06), inset 0 0 22px rgba(var(--rank-rgb),0.04)',
             }}
           >
             {/* Data beam — varre esq→dir */}
             <motion.div
               className="absolute top-0 bottom-0 w-px pointer-events-none z-10"
-              style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(59,130,246,0.5) 50%, transparent 100%)' }}
+              style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(var(--rank-rgb),0.5) 50%, transparent 100%)' }}
               animate={{ left: ['-2%', '102%'] }}
               transition={{ repeat: Infinity, duration: 5, ease: 'linear', repeatDelay: 4 }}
             />
@@ -3967,12 +3956,12 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
                         ? '1px solid rgba(30,41,59,0.50)'
                         : habit.isCompleted
                           ? '1px solid rgba(34,197,94,0.25)'
-                          : '1px solid rgba(59,130,246,0.25)',
+                          : '1px solid rgba(var(--rank-rgb),0.25)',
                       boxShadow: !active
                         ? 'none'
                         : habit.isCompleted
                           ? 'inset 3px 0 0 rgba(34,197,94,0.50)'
-                          : 'inset 3px 0 0 rgba(59,130,246,0.50)',
+                          : 'inset 3px 0 0 rgba(var(--rank-rgb),0.50)',
                       opacity: !active ? 0.45 : 1,
                     }}
                   >
@@ -4136,8 +4125,8 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
             className="space-y-3 p-4 rounded-xl"
             style={{
               background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
-              border: '1px solid rgba(59,130,246,0.15)',
-              boxShadow: '0 0 0 1px rgba(59,130,246,0.04), inset 0 0 20px rgba(59,130,246,0.03)',
+              border: '1px solid rgba(var(--rank-rgb),0.15)',
+              boxShadow: '0 0 0 1px rgba(var(--rank-rgb),0.04), inset 0 0 20px rgba(var(--rank-rgb),0.03)',
             }}
           >
             <h3 className="text-slate-500 font-garet text-sm font-bold flex items-center gap-2 border-b border-slate-700/40 pb-2">
@@ -4191,16 +4180,16 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
         className="p-4 rounded-lg relative overflow-hidden"
         style={{
           background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
-          border: '1px solid rgba(59,130,246,0.28)',
-          boxShadow: '0 0 14px rgba(59,130,246,0.07)',
+          border: '1px solid rgba(var(--rank-rgb),0.28)',
+          boxShadow: '0 0 14px rgba(var(--rank-rgb),0.07)',
         }}
-        animate={{ boxShadow: ['0 0 8px rgba(59,130,246,0.05)', '0 0 22px rgba(59,130,246,0.13)', '0 0 8px rgba(59,130,246,0.05)'] }}
+        animate={{ boxShadow: ['0 0 8px rgba(var(--rank-rgb),0.05)', '0 0 22px rgba(var(--rank-rgb),0.13)', '0 0 8px rgba(var(--rank-rgb),0.05)'] }}
         transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
       >
         {/* data beam */}
         <motion.div
           className="absolute top-0 bottom-0 w-8 pointer-events-none"
-          style={{ background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.07), transparent)' }}
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(var(--rank-rgb),0.07), transparent)' }}
           animate={{ left: ['-5%', '105%'] }}
           transition={{ duration: 5, repeat: Infinity, ease: 'linear', repeatDelay: 4 }}
         />
@@ -4277,9 +4266,9 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
         className="p-4 rounded-lg"
         style={{
           background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
-          border: '1px solid rgba(59,130,246,0.28)',
+          border: '1px solid rgba(var(--rank-rgb),0.28)',
         }}
-        animate={{ boxShadow: ['0 0 6px rgba(59,130,246,0.04)', '0 0 18px rgba(59,130,246,0.10)', '0 0 6px rgba(59,130,246,0.04)'] }}
+        animate={{ boxShadow: ['0 0 6px rgba(var(--rank-rgb),0.04)', '0 0 18px rgba(var(--rank-rgb),0.10)', '0 0 6px rgba(var(--rank-rgb),0.04)'] }}
         transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: 0.6 }}
       >
         <h3 className="text-system-blue font-garet text-sm mb-2 border-b border-slate-800 pb-2 flex items-center gap-2">
@@ -4337,9 +4326,9 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
           className="p-4 rounded-lg"
           style={{
             background: 'linear-gradient(160deg, rgba(6,12,40,0.99) 0%, rgba(3,6,22,0.99) 100%)',
-            border: '1px solid rgba(59,130,246,0.28)',
+            border: '1px solid rgba(var(--rank-rgb),0.28)',
           }}
-          animate={{ boxShadow: ['0 0 6px rgba(59,130,246,0.04)', '0 0 18px rgba(59,130,246,0.10)', '0 0 6px rgba(59,130,246,0.04)'] }}
+          animate={{ boxShadow: ['0 0 6px rgba(var(--rank-rgb),0.04)', '0 0 18px rgba(var(--rank-rgb),0.10)', '0 0 6px rgba(var(--rank-rgb),0.04)'] }}
           transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1.2 }}
         >
           <h3 className="text-system-blue font-garet text-sm mb-2 border-b border-slate-800 pb-2 flex items-center gap-2">
@@ -4408,7 +4397,7 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center font-mono">
         <div className="text-center">
-          <div className="text-blue-400 text-4xl font-bold font-garet tracking-widest mb-4 drop-shadow-[0_0_15px_rgba(59,130,246,0.6)]">ARISE</div>
+          <div className="text-blue-400 text-4xl font-bold font-garet tracking-widest mb-4 drop-shadow-[0_0_15px_rgba(var(--rank-rgb),0.6)]">ARISE</div>
           <div className="flex items-center justify-center gap-2 text-slate-500 text-sm">
             <Loader size={14} className="animate-spin" />
             <span>{isLoadingAuth ? 'INITIALIZING SYSTEM...' : 'LOADING HUNTER DATA...'}</span>
@@ -4421,7 +4410,48 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
   if (!session) return <AuthScreen />;
 
   return (
-    <motion.div animate={shakeControls} className="min-h-screen bg-system-dark text-slate-200 pb-20 font-sans selection:bg-system-blue selection:text-black">
+    <motion.div animate={shakeControls} className="min-h-screen bg-system-dark text-slate-200 pb-20 font-sans selection:bg-system-blue selection:text-black" style={{ position: 'relative' }}>
+      {/* Background: Aurora + Star Field */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+        {/* Aurora orbs — rank-colored ambient glow */}
+        <div style={{
+          position: 'absolute', top: '-25%', left: '-15%',
+          width: '65vw', height: '65vw', borderRadius: '50%',
+          background: `radial-gradient(circle, ${RANK_COLORS[profile.rank]}28 0%, transparent 70%)`,
+          filter: 'blur(90px)',
+          animation: 'aurora-drift-1 20s ease-in-out infinite',
+        }} />
+        <div style={{
+          position: 'absolute', bottom: '-20%', right: '-10%',
+          width: '55vw', height: '55vw', borderRadius: '50%',
+          background: `radial-gradient(circle, ${RANK_COLORS[profile.rank]}22 0%, transparent 70%)`,
+          filter: 'blur(110px)',
+          animation: 'aurora-drift-2 27s ease-in-out infinite',
+        }} />
+        <div style={{
+          position: 'absolute', top: '35%', right: '15%',
+          width: '35vw', height: '35vw', borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(80,30,180,0.16) 0%, transparent 70%)',
+          filter: 'blur(70px)',
+          animation: 'aurora-drift-3 34s ease-in-out infinite',
+        }} />
+
+        {/* Small stars — 700 dots, 50s loop */}
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4000px', animation: 'animStar 50s linear infinite' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '1px', height: '1px', background: 'transparent', boxShadow: STAR_SHADOWS_S }} />
+          <div style={{ position: 'absolute', top: '2000px', left: 0, width: '1px', height: '1px', background: 'transparent', boxShadow: STAR_SHADOWS_S }} />
+        </div>
+        {/* Medium stars — 200 dots, 100s loop */}
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4000px', animation: 'animStar 100s linear infinite' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '2px', height: '2px', background: 'transparent', boxShadow: STAR_SHADOWS_M }} />
+          <div style={{ position: 'absolute', top: '2000px', left: 0, width: '2px', height: '2px', background: 'transparent', boxShadow: STAR_SHADOWS_M }} />
+        </div>
+        {/* Large stars — 100 dots, 150s loop */}
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4000px', animation: 'animStar 150s linear infinite' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '3px', background: 'transparent', boxShadow: STAR_SHADOWS_L }} />
+          <div style={{ position: 'absolute', top: '2000px', left: 0, width: '3px', height: '3px', background: 'transparent', boxShadow: STAR_SHADOWS_L }} />
+        </div>
+      </div>
       {/* Boss Defeated flash */}
       <AnimatePresence>
         {showBossFlash && (
@@ -4535,7 +4565,7 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
       {/* Top Bar */}
       <header className="sticky top-0 z-30 bg-system-dark/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex justify-between items-center shadow-md">
         <div className="flex items-center gap-2">
-          <div className="text-system-blue font-bold font-garet tracking-tighter text-lg animate-pulse">{t.header.title}</div>
+          <div className="font-bold font-garet tracking-tighter text-lg animate-pulse" style={{ color: 'var(--rank-color)', textShadow: '0 0 12px var(--rank-color)' }}>{t.header.title}</div>
         </div>
         <div className="flex items-center gap-2 sm:gap-4">
           <button
@@ -4576,7 +4606,7 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto max-w-2xl p-4">
+      <main className="container mx-auto max-w-2xl p-4" style={{ position: 'relative', zIndex: 1 }}>
         {view === 'DASHBOARD' && renderDashboard()}
         {view === 'IDENTITY' && renderIdentity()}
         {view === 'SHADOW_ARMY' && renderShadowArmy()}
@@ -4616,8 +4646,8 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
               className="relative w-72 font-mono overflow-hidden"
               style={{
                 background: 'linear-gradient(170deg, rgba(6,12,40,0.98) 0%, rgba(4,8,28,0.98) 100%)',
-                border: '1px solid rgba(59,130,246,0.55)',
-                boxShadow: '0 0 0 1px rgba(59,130,246,0.1), 0 0 40px rgba(59,130,246,0.2), inset 0 0 30px rgba(59,130,246,0.04)',
+                border: '1px solid rgba(var(--rank-rgb),0.55)',
+                boxShadow: '0 0 0 1px rgba(var(--rank-rgb),0.1), 0 0 40px rgba(var(--rank-rgb),0.2), inset 0 0 30px rgba(var(--rank-rgb),0.04)',
               }}
             >
               {/* Corner accents */}
@@ -4628,7 +4658,7 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
               {/* Animated scan line */}
               <motion.div
                 className="absolute left-0 right-0 h-px pointer-events-none"
-                style={{ background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.6), transparent)' }}
+                style={{ background: 'linear-gradient(90deg, transparent, rgba(var(--rank-rgb),0.6), transparent)' }}
                 animate={{ top: ['0%', '100%', '0%'] }}
                 transition={{ repeat: Infinity, duration: 3.5, ease: 'linear' }}
               />
@@ -4646,17 +4676,17 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
               </div>
 
               {/* Divider */}
-              <div className="mx-5 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.5), transparent)' }} />
+              <div className="mx-5 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(var(--rank-rgb),0.5), transparent)' }} />
 
               {/* Title block */}
               <div className="py-5 text-center">
                 <motion.h2
                   className="text-lg font-black tracking-[0.2em] uppercase"
-                  style={{ color: '#fff', textShadow: '0 0 16px rgba(147,197,253,0.9), 0 0 32px rgba(59,130,246,0.5)' }}
+                  style={{ color: '#fff', textShadow: '0 0 16px rgba(147,197,253,0.9), 0 0 32px rgba(var(--rank-rgb),0.5)' }}
                   animate={{ textShadow: [
-                    '0 0 16px rgba(147,197,253,0.9), 0 0 32px rgba(59,130,246,0.5)',
-                    '0 0 22px rgba(147,197,253,1), 0 0 44px rgba(59,130,246,0.8)',
-                    '0 0 16px rgba(147,197,253,0.9), 0 0 32px rgba(59,130,246,0.5)',
+                    '0 0 16px rgba(147,197,253,0.9), 0 0 32px rgba(var(--rank-rgb),0.5)',
+                    '0 0 22px rgba(147,197,253,1), 0 0 44px rgba(var(--rank-rgb),0.8)',
+                    '0 0 16px rgba(147,197,253,0.9), 0 0 32px rgba(var(--rank-rgb),0.5)',
                   ]}}
                   transition={{ repeat: Infinity, duration: 2 }}
                 >
@@ -4671,14 +4701,14 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
                 />
                 <p
                   className="text-[11px] tracking-[0.35em] mt-2 uppercase font-bold"
-                  style={{ color: 'rgba(147,197,253,0.8)', textShadow: '0 0 10px rgba(59,130,246,0.6)' }}
+                  style={{ color: 'rgba(147,197,253,0.8)', textShadow: '0 0 10px rgba(var(--rank-rgb),0.6)' }}
                 >
                   {t.missions.bonusMissionsArrivedSubtitle}
                 </p>
               </div>
 
               {/* Divider */}
-              <div className="mx-5 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.5), transparent)' }} />
+              <div className="mx-5 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(var(--rank-rgb),0.5), transparent)' }} />
 
               {/* Mission content */}
               <div className="px-5 py-5 space-y-4">
@@ -4712,18 +4742,18 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
               </div>
 
               {/* Divider */}
-              <div className="mx-5 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.5), transparent)' }} />
+              <div className="mx-5 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(var(--rank-rgb),0.5), transparent)' }} />
 
               {/* Accept button */}
               <div className="px-5 py-5">
                 <motion.button
-                  whileHover={{ scale: 1.02, boxShadow: '0 0 24px rgba(59,130,246,0.45)' }}
+                  whileHover={{ scale: 1.02, boxShadow: '0 0 24px rgba(var(--rank-rgb),0.45)' }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => { setIncomingBonusPopup(null); setView('MISSIONS'); }}
                   className="w-full py-2.5 text-[11px] font-black tracking-[0.35em] uppercase transition-all"
                   style={{
-                    border: '1px solid rgba(59,130,246,0.5)',
-                    background: 'rgba(59,130,246,0.07)',
+                    border: '1px solid rgba(var(--rank-rgb),0.5)',
+                    background: 'rgba(var(--rank-rgb),0.07)',
                     color: 'rgba(147,197,253,0.9)',
                     textShadow: '0 0 10px rgba(147,197,253,0.5)',
                   }}
@@ -4747,7 +4777,7 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 12, scale: 0.95 }}
                 transition={{ delay: i * 0.06, type: 'spring', stiffness: 260, damping: 22 }}
-                className="w-full max-w-2xl bg-slate-950/97 border border-system-blue/60 rounded-xl px-4 py-3 shadow-[0_0_24px_rgba(59,130,246,0.25)] pointer-events-auto"
+                className="w-full max-w-2xl bg-slate-950/97 border border-system-blue/60 rounded-xl px-4 py-3 shadow-[0_0_24px_rgba(var(--rank-rgb),0.25)] pointer-events-auto"
               >
                 <div className="flex items-center gap-3">
                   <div className="shrink-0">
@@ -4806,13 +4836,22 @@ O rank deve ser "A" ou "S". As subtasks devem ser acionáveis e específicas par
 const NavButton: React.FC<{ active: boolean; onClick: () => void; icon: React.ReactNode; label: string }> = ({ active, onClick, icon, label }) => (
   <button
     onClick={onClick}
-    className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-300 ${active ? 'text-system-blue' : 'text-slate-600 hover:text-slate-400'}`}
+    className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-300 ${active ? '' : 'text-slate-600 hover:text-slate-400'}`}
+    style={active ? { color: 'var(--rank-color)' } : undefined}
   >
-    <div className={`transition-transform duration-300 ${active ? 'scale-110 drop-shadow-[0_0_5px_rgba(59,130,246,0.8)]' : ''}`}>
+    <div
+      className="transition-transform duration-300"
+      style={active ? { transform: 'scale(1.1)', filter: 'drop-shadow(0 0 5px var(--rank-color))' } : undefined}
+    >
       {icon}
     </div>
     <span className="text-[9px] sm:text-[10px] font-bold tracking-wider font-garet">{label}</span>
-    {active && <span className="absolute bottom-0 w-8 h-0.5 bg-system-blue rounded-t-full shadow-[0_0_8px_#3b82f6] animate-pulse"></span>}
+    {active && (
+      <span
+        className="absolute bottom-0 w-8 h-0.5 rounded-t-full animate-pulse"
+        style={{ background: 'var(--rank-color)', boxShadow: '0 0 8px var(--rank-color)' }}
+      />
+    )}
   </button>
 );
 
