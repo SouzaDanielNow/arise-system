@@ -1,4 +1,4 @@
-# CLAUDE.md — ARISE SYSTEM v1.4.3
+# CLAUDE.md — ARISE SYSTEM v1.6.1
 
 ## Stack
 React 19 + TypeScript + Vite + TailwindCSS + Recharts + Lucide React + Google Gemini Live API + Supabase
@@ -27,7 +27,7 @@ Requer `GEMINI_API_KEY` no arquivo `.env.local`.
 
 ## Estrutura de arquivos
 ```
-App.tsx               ← componente único principal (~3600+ linhas)
+App.tsx               ← componente único principal (~3800+ linhas)
 types.ts              ← todas as interfaces TypeScript (incl. GameState)
 constants.ts          ← motor de progressão, dados iniciais, funções utilitárias
 lib/
@@ -87,7 +87,11 @@ components/
 - `RANK_LEVEL_THRESHOLDS`: E=1, D=20, C=40, B=60, A=80, S=100, SS=120, SSS=140, NACIONAL=160, MONARCA=180
 - Cada rank abrange 20 níveis. No MONARCA (Nv180+) o rank estabiliza mas o nível continua subindo.
 - Cores: E=#9ca3af D=#10b981 C=#3b82f6 B=#8b5cf6 A=#ec4899 S=#facc15 SS=#f97316 SSS=#ef4444 NACIONAL=#c084fc MONARCA=#e2e8f0
-- CSS custom property `--rank-color` em `:root`, atualizado via `useEffect` quando `profile.rank` muda.
+- CSS custom properties em `:root`, todas atualizadas via `useEffect` quando `profile.rank` muda:
+  - `--rank-color` — hex da cor do rank (ex: `#facc15` para S)
+  - `--rank-rgb` — canais RGB separados por vírgula (ex: `250, 204, 21`) — usado para `rgba(var(--rank-rgb), 0.X)`
+  - `--rank-color-10 / -30 / -60` — variantes com opacidade hex appended
+- O token Tailwind `system-blue` aponta para `rgb(var(--rank-rgb))` — logo **todas** as classes `text-system-blue`, `border-system-blue`, `bg-system-blue`, `bg-system-blue/20` etc. acompanham o rank automaticamente sem nenhuma mudança adicional no JSX.
 
 ### Multiplicadores de Rank (`getRankMultiplier`)
 | Rank | Mult | Rank | Mult |
@@ -110,8 +114,8 @@ components/
 - Salvo no Supabase: apenas `currentXp`. Nível e rank são sempre derivados.
 
 ### Barras de progresso (Dashboard + Identidade)
-- **Barra de Rank**: progresso dentro dos 20 níveis do rank atual → `(level - rankMinLevel) / 20 × 100%`.
-- **Barra de Nível**: `xpIntoLevel / xpForNextLevel × 100%` — progresso até o próximo nível.
+- **Barra de Rank**: **removida do card de perfil do Dashboard** — é surpresa ao atingir rank novo. Ainda existe na aba Identidade.
+- **Barra de Nível**: `xpIntoLevel / xpForNextLevel × 100%` — progresso até o próximo nível. **Mantida em azul fixo** (`#3b82f6`) como diferencial visual intencional — é a única barra que NÃO usa a cor do rank.
 
 ---
 
@@ -181,6 +185,30 @@ components/
 
 ---
 
+## Plano de fundo animado — v1.6.1
+
+O fundo é composto por duas camadas sobrepostas, ambas em `position: fixed; z-index: 0`:
+
+### Aurora (orbs de nebulosa)
+- 3 divs com `radial-gradient` + `filter: blur(90–110px)`, opacidade 22–28%
+- Orbs 1 e 2 usam `${RANK_COLORS[profile.rank]}` como cor → mudam ao trocar de rank
+- Orb 3 é roxo fixo `rgba(80,30,180,...)` para contraste
+- Animadas por `@keyframes aurora-drift-1/2/3` com `translate + scale` (18–34s, ease-in-out)
+
+### Star Field (estrelas paralaxe)
+- Gerado em module-level (fora do componente, roda uma vez): `STAR_SHADOWS_S / M / L`
+- Função `generateStarShadows(count, size)` — usa `box-shadow` com posições aleatórias 0–2000px
+- 3 camadas: 700 estrelas 1px (50s) · 200 estrelas 2px (100s) · 100 estrelas 3px (150s)
+- Cada camada usa **dois divs** (div + duplicata em `top: 2000px`) para loop seamless
+- `@keyframes animStar`: `translateY(0)` → `translateY(-2000px)` — estrelas sobem e reaparecem
+- **Nunca regenerar as sombras** no render — são constantes de módulo
+
+### Conteúdo acima do fundo
+- `<main>` recebe `position: relative; z-index: 1` para ficar acima dos orbs/estrelas (z-index: 0)
+- Header (`z-30`) e Nav (`z-40`) já estão acima naturalmente
+
+---
+
 ## Efeitos visuais neon — v1.4
 
 Sete efeitos distintos aplicados por tipo de card. **Nunca repetir o mesmo efeito em dois cards adjacentes.**
@@ -204,7 +232,7 @@ Sete efeitos distintos aplicados por tipo de card. **Nunca repetir o mesmo efeit
 
 ## Aba PAINEL (Dashboard)
 1. **Saudação dinâmica** — "Saudação, CAÇADOR [Nome]" com variação por hora
-2. **Card de perfil neon** — avatar, badge rank hexagonal, nome editável, gold, 2 barras XP (rank + nível)
+2. **Card de perfil neon** — avatar, badge rank hexagonal, nome editável. Contém apenas a barra de nível (azul fixo). Não contém: gold (está no header), subtítulo "Sistema do Navegador" (removido), barra de rank (removida).
 3. **Missões de Hoje** — barra de progresso + lista de hábitos clicáveis (Ambient Glow Pulse)
 4. **Rastreio Semanal** — `AreaChart` com gradient fill. Eixo Y em % (`completed / habits.length × 100`)
 5. **Fidelidade com Hábitos** — PieChart donut neon. `ResponsiveContainer 140×140`, `outerRadius=48`, `innerRadius=30`
@@ -229,3 +257,7 @@ Sete efeitos distintos aplicados por tipo de card. **Nunca repetir o mesmo efeit
 - Não usar `font-mono` em labels uppercase, títulos, botões — usar `font-garet` (v1.3).
 - Não usar JetBrains Mono — removida em v1.3.
 - `ViewState` não inclui 'DUNGEON_MAP', 'ACTIVE_DUNGEON', 'LIFESTYLE', 'SHADOW_REVIEW'.
+- Não hardcodar `#3b82f6` ou `rgba(59,130,246,...)` para novos elementos de destaque — usar `var(--rank-color)`, `rgb(var(--rank-rgb))` ou `rgba(var(--rank-rgb), X)`. A única exceção é a barra de progresso de nível.
+- Não usar `system-blue` em estilos inline — é apenas para classes Tailwind. Para inline styles, usar `var(--rank-color)` ou `rgba(var(--rank-rgb), X)`.
+- Não chamar `generateStarShadows` dentro do componente React — é módulo-level e roda uma vez. Regenerar a cada render mata a performance.
+- Não adicionar gold, subtítulo ou barra de rank no card de perfil do Dashboard — foram removidos intencionalmente.
